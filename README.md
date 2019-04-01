@@ -108,7 +108,7 @@ If the 'O' bit (bit 7) is set in the token, the high 8 bits of the match offset 
 
 **important note regarding match offsets: off by 1**
 
-Note that the match offset is *off by 1*: a value of 0 refers to the byte preceding the current output index (N-1). A value of 1 refers to tow bytes before the current output index (N-2) and so on. This is so that match offsets up to 256 can be encoded as a single byte, for extra compression.
+Note that the match offset is *off by 1*: a value of 0 refers to the byte preceding the current output index (N-1). A value of 1 refers to two bytes before the current output index (N-2) and so on. This is so that match offsets up to 256 can be encoded as a single byte, for extra compression.
 
 **optional extra encoded match length**
 
