@@ -44,20 +44,34 @@
 
 #define LEAVE_ALONE_MATCH_SIZE 600
 
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxDataSize) {
-   pCompressor->intervals = (int *)malloc(nMaxDataSize * sizeof(int));
+/** One match */
+typedef struct _lzsa_match {
+   unsigned short length;
+   unsigned short offset;
+} lzsa_match;
+
+/**
+ * Initialize compression context
+ *
+ * @param pCompressor compression context to initialize
+ * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
+ *
+ * @return 0 for success, non-zero for failure
+ */
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize) {
+   pCompressor->intervals = (int *)malloc(nMaxWindowSize * sizeof(int));
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
 
    if (pCompressor->intervals) {
-      pCompressor->pos_data = (int *)malloc(nMaxDataSize * sizeof(int));
+      pCompressor->pos_data = (int *)malloc(nMaxWindowSize * sizeof(int));
 
       if (pCompressor->pos_data) {
          pCompressor->open_intervals = (int *)malloc((LCP_MAX + 1) * sizeof(int));
 
          if (pCompressor->open_intervals) {
-            pCompressor->match = (lzsa_match *)malloc(nMaxDataSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
+            pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
 
             if (pCompressor->match)
                return 0;
@@ -77,6 +91,11 @@ int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxDataSize) {
    return 100;
 }
 
+/**
+ * Clean up compression context and free up any associated resources
+ *
+ * @param pCompressor compression context to clean up
+ */
 void lzsa_compressor_destroy(lsza_compressor *pCompressor) {
    if (pCompressor->match) {
       free(pCompressor->match);
@@ -531,6 +550,18 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
    return nOutOffset;
 }
 
+/**
+ * Compress one block of data
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nPreviousBlockSize number of previously compressed bytes (or 0 for none)
+ * @param nInDataSize number of input bytes to compress
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
+ */
 int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
    lzsa_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize);
    if (nPreviousBlockSize) {

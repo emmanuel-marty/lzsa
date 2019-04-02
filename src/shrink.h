@@ -23,11 +23,10 @@
 #ifndef _SHRINK_H
 #define _SHRINK_H
 
-typedef struct {
-   unsigned short length;
-   unsigned short offset;
-} lzsa_match;
+/* Forward declarations */
+typedef struct _lzsa_match lzsa_match;
 
+/** Compression context */
 typedef struct {
    int *intervals;
    int *pos_data;
@@ -35,8 +34,35 @@ typedef struct {
    lzsa_match *match;
 } lsza_compressor;
 
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxDataSize);
+/**
+ * Initialize compression context
+ *
+ * @param pCompressor compression context to initialize
+ * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
+ *
+ * @return 0 for success, non-zero for failure
+ */
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize);
+
+/**
+ * Clean up compression context and free up any associated resources
+ *
+ * @param pCompressor compression context to clean up
+ */
 void lzsa_compressor_destroy(lsza_compressor *pCompressor);
+
+/**
+ * Compress one block of data
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nPreviousBlockSize number of previously compressed bytes (or 0 for none)
+ * @param nInDataSize number of input bytes to compress
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
+ */
 int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
 #endif /* _SHRINK_H */

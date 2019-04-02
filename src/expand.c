@@ -152,6 +152,17 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
    return 0;
 }
 
+/**
+ * Decompress one data block
+ *
+ * @param pInBlock pointer to compressed data
+ * @param nInBlockSize size of compressed data, in bytes
+ * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
+ * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
+ * @param nBlockMaxSize total size of output decompression buffer, in bytes
+ *
+ * @return size of decompressed data in bytes, or -1 for error
+ */
 int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize) {
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
    const unsigned char *pInBlockFastEnd = pInBlock + nBlockSize - 16;
