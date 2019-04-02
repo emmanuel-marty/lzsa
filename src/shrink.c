@@ -118,6 +118,15 @@ void lzsa_compressor_destroy(lsza_compressor *pCompressor) {
    }
 }
 
+/**
+ * Parse input data, build suffix array and overlaid data structures to speed up match finding
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nInWindowSize total input size in bytes (previously compressed bytes + bytes to compress)
+ *
+ * @return 0 for success, non-zero for failure
+ */
 static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize) {
    int *intervals = pCompressor->intervals;
 
@@ -147,7 +156,9 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
          nCurLen--;
    }
 
-   /* Rotate permuted LCP into the LCP. This has better cache locality than the direct Kasai LCP method */
+   /* Rotate permuted LCP into the LCP. This has better cache locality than the direct Kasai LCP method. This also
+    * saves us from having to build the inverse suffix array index, as the LCP is calculated without it using this method,
+    * and the interval builder below doesn't need it either. */
    intervals[0] &= POS_MASK;
    for (i = 1; i < nInWindowSize; i++) {
       int nIndex = intervals[i] & POS_MASK;
@@ -228,6 +239,16 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
    return 0;
 }
 
+/**
+ * Find matches at the specified offset in the input window
+ *
+ * @param pCompressor compression context
+ * @param nOffset offset to find matches at, in the input window
+ * @param pMatches pointer to returned matches
+ * @param nMaxMatches maximum number of matches to return (0 for none)
+ *
+ * @return number of matches
+ */
 static int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches) {
    int *intervals = pCompressor->intervals;
    int *pos_data = pCompressor->pos_data;
@@ -299,15 +320,32 @@ static int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset,
    return (int)(matchptr - pMatches);
 }
 
+/**
+ * Skip previously compressed bytes
+ *
+ * @param pCompressor compression context
+ * @param nStartOffset current offset in input window (typically 0)
+ * @param nEndOffset offset to skip to in input window (typically the number of previously compressed bytes)
+ */
 static void lzsa_skip_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    lzsa_match match;
    int i;
 
+   /* Skipping still requires scanning for matches, as this also performs a lazy update of the intervals. However,
+    * we don't store the matches. */
    for (i = nStartOffset; i < nEndOffset; i++) {
       lzsa_find_matches_at(pCompressor, i, &match, 0);
    }
 }
 
+/**
+ * Find all matches for the data to be compressed. Up to NMATCHES_PER_OFFSET matches are stored for each offset, for
+ * the optimizer to look at.
+ *
+ * @param pCompressor compression context
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ */
 static void lzsa_find_all_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    lzsa_match *pMatch = pCompressor->match + (nStartOffset << MATCHES_PER_OFFSET_SHIFT);
    int i;
@@ -335,6 +373,13 @@ static void lzsa_find_all_matches(lsza_compressor *pCompressor, const int nStart
    }
 }
 
+/**
+ * Get the number of extra bytes required to represent a literals length
+ *
+ * @param nLength literals length
+ *
+ * @return number of extra bytes required
+ */
 static inline int lzsa_get_literals_varlen_size(const int nLength) {
    if (nLength < LITERALS_RUN_LEN) {
       return 0;
@@ -351,6 +396,14 @@ static inline int lzsa_get_literals_varlen_size(const int nLength) {
    }
 }
 
+/**
+ * Write extra literals length bytes to output (compressed) buffer. The caller must first check that there is enough
+ * room to write the bytes.
+ *
+ * @param pOutData pointer to output buffer
+ * @param nOutOffset current write index into output buffer
+ * @param nLength literals length
+ */
 static inline int lzsa_write_literals_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= LITERALS_RUN_LEN) {
       nLength -= LITERALS_RUN_LEN;
@@ -373,6 +426,13 @@ static inline int lzsa_write_literals_varlen(unsigned char *pOutData, int nOutOf
    return nOutOffset;
 }
 
+/**
+ * Get the number of extra bytes required to represent an encoded match length
+ *
+ * @param nLength encoded match length (actual match length - MIN_MATCH_SIZE)
+ *
+ * @return number of extra bytes required
+ */
 static inline int lzsa_get_match_varlen_size(const int nLength) {
    if (nLength < MATCH_RUN_LEN) {
       return 0;
@@ -389,6 +449,14 @@ static inline int lzsa_get_match_varlen_size(const int nLength) {
    }
 }
 
+/**
+ * Write extra encoded match length bytes to output (compressed) buffer. The caller must first check that there is enough
+ * room to write the bytes.
+ *
+ * @param pOutData pointer to output buffer
+ * @param nOutOffset current write index into output buffer
+ * @param nLength encoded match length (actual match length - MIN_MATCH_SIZE)
+ */
 static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= MATCH_RUN_LEN) {
       nLength -= MATCH_RUN_LEN;
@@ -411,6 +479,13 @@ static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffse
    return nOutOffset;
 }
 
+/**
+ * Attempt to pick optimal matches, so as to produce the smallest possible output that decompresses to the same input
+ *
+ * @param pCompressor compression context
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ */
 static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    int *cost = pCompressor->pos_data;  /* Reuse */
    int nLastLiteralsOffset;
@@ -483,6 +558,18 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
    }
 }
 
+/**
+ * Emit block of compressed data
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
+ */
 static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
    int i;
    int nNumLiterals = 0;
