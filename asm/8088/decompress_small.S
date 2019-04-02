@@ -34,12 +34,11 @@ lzsa_decompress:
    push di                 ; remember decompression offset
    cld                     ; make string operations (lods, movs, stos..) move forward
    lodsw                   ; grab first 2 bytes of block size
-   mov dx,ax               ; keep block size in dx
+   mov bp,ax               ; keep block size in dx
    lodsb                   ; grab last byte of block size / compression flag
    test al,al              ; if the compressed data is larger than 65,535 bytes, or if it is uncompressed, bail
    jne .done_decompressing
-   add dx,si               ; point at the end of the compressed data
-   mov bp,dx               ; remember it
+   add bp,si               ; point at the end of the compressed data
 
    xor cx,cx
 
