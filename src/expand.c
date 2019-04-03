@@ -186,12 +186,15 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
             return -1;
       }
 
-      if ((pInBlock + 2) <= pInBlockEnd) { /* The last token in the block does not include match information */
+      if (pInBlock < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
          nMatchOffset = ((unsigned int)*pInBlock++);
-         if (token & 0x80)
+         if (token & 0x80) {
+            if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+         }
+         if (nMatchOffset == 0xffff) break;
          nMatchOffset++;
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
@@ -219,12 +222,15 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
       if (lzsa_expand_literals_slow(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
          return -1;
 
-      if ((pInBlock + 2) <= pInBlockEnd) { /* The last token in the block does not include match information */
+      if (pInBlock < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
          nMatchOffset = ((unsigned int)*pInBlock++);
-         if (token & 0x80)
+         if (token & 0x80) {
+            if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+         }
+         if (nMatchOffset == 0xffff) break;
          nMatchOffset++;
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;

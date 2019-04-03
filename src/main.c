@@ -34,6 +34,8 @@
 #include "expand.h"
 
 #define BLOCK_SIZE 65536
+#define OPT_VERBOSE 1
+#define OPT_RAW     2
 
 /*---------------------------------------------------------------------------*/
 
@@ -56,14 +58,14 @@ static long long lzsa_get_time() {
 
 /*---------------------------------------------------------------------------*/
 
-static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, int nVerbosity) {
+static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, const unsigned int nOptions) {
    FILE *f_in, *f_out;
    unsigned char *pInData, *pOutData;
    lsza_compressor compressor;
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
    int nResult;
-   bool bError;
+   bool bError = false;
 
    f_in = fopen(pszInFilename, "rb");
    if (!f_in) {
@@ -124,16 +126,18 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       return 100;
    }
 
-   unsigned char cHeader[3];
+   if ((nOptions & OPT_RAW) == 0) {
+      unsigned char cHeader[3];
 
-   cHeader[0] = 0x7b;                              /* Magic number: 0x9e7b */
-   cHeader[1] = 0x9e;
-   cHeader[2] = 0;                                 /* Format version 1 */
+      cHeader[0] = 0x7b;                              /* Magic number: 0x9e7b */
+      cHeader[1] = 0x9e;
+      cHeader[2] = 0;                                 /* Format version 1 */
 
-   bError = fwrite(cHeader, 1, 3, f_out) != 3;
-   nCompressedSize += 3LL;
+      bError = fwrite(cHeader, 1, 3, f_out) != 3;
+      nCompressedSize += 3LL;
+   }
 
-   if (nVerbosity > 0) {
+   if (nOptions & OPT_VERBOSE) {
       nStartTime = lzsa_get_time();
    }
 
@@ -148,22 +152,31 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
       nInDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE, f_in);
       if (nInDataSize > 0) {
+         if (nPreviousBlockSize && (nOptions & OPT_RAW) != 0) {
+            fprintf(stderr, "error: raw blocks can only be used with files <= 64 Kb\n");
+            bError = true;
+            break;
+         }
+
          int nOutDataSize;
 
          nOutDataSize = lzsa_shrink_block(&compressor, pInData + BLOCK_SIZE - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutData, (nInDataSize >= BLOCK_SIZE) ? BLOCK_SIZE : nInDataSize);
          if (nOutDataSize >= 0) {
             /* Write compressed block */
 
-            unsigned char cBlockSize[3];
+            if ((nOptions & OPT_RAW) == 0) {
+               unsigned char cBlockSize[3];
 
-            cBlockSize[0] = nOutDataSize & 0xff;
-            cBlockSize[1] = (nOutDataSize >> 8) & 0xff;
-            cBlockSize[2] = (nOutDataSize >> 16) & 0xff;
+               cBlockSize[0] = nOutDataSize & 0xff;
+               cBlockSize[1] = (nOutDataSize >> 8) & 0xff;
+               cBlockSize[2] = (nOutDataSize >> 16) & 0xff;
 
-            if (fwrite(cBlockSize, 1, 3, f_out) != (size_t)3) {
-               bError = true;
+               if (fwrite(cBlockSize, 1, 3, f_out) != (size_t)3) {
+                  bError = true;
+               }
             }
-            else {
+
+            if (!bError) {
                if (fwrite(pOutData, 1, (size_t)nOutDataSize, f_out) != (size_t)nOutDataSize) {
                   bError = true;
                }
@@ -175,6 +188,12 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
          }
          else {
             /* Write uncompressible, literal block */
+
+            if ((nOptions & OPT_RAW) != 0) {
+               fprintf(stderr, "error: data is incompressible, raw blocks only support compressed data\n");
+               bError = true;
+               break;
+            }
 
             unsigned char cBlockSize[3];
 
@@ -206,7 +225,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
    unsigned char cFooter[3];
 
-   cFooter[0] = 0xFF;         /* EOD frame */
+   cFooter[0] = 0xFF;         /* EOD frame (written even in raw mode, so that the end of the data can be detected) */
    cFooter[1] = 0xFF;
    cFooter[2] = 0xFF;
 
@@ -214,7 +233,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       bError = fwrite(cFooter, 1, 3, f_out) != 3;
    nCompressedSize += 3LL;
 
-   if (!bError && nVerbosity > 0) {
+   if (!bError && (nOptions & OPT_VERBOSE)) {
       nEndTime = lzsa_get_time();
 
       double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
@@ -248,9 +267,10 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
 /*---------------------------------------------------------------------------*/
 
-static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename, int nVerbosity) {
+static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename, const unsigned int nOptions) {
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
+   unsigned int nFileSize = 0;
 
    FILE *pInFile = fopen(pszInFilename, "rb");
    if (!pInFile) {
@@ -258,24 +278,38 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       return 100;
    }
 
-   unsigned char cHeader[3];
+   if ((nOptions & OPT_RAW) == 0) {
+      unsigned char cHeader[3];
 
-   memset(cHeader, 0, 3);
+      memset(cHeader, 0, 3);
 
-   if (fread(cHeader, 1, 3, pInFile) != 3) {
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error reading header in input file\n");
-      return 100;
+      if (fread(cHeader, 1, 3, pInFile) != 3) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "error reading header in input file\n");
+         return 100;
+      }
+
+      if (cHeader[0] != 0x7b ||
+         cHeader[1] != 0x9e ||
+         cHeader[2] != 0) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "invalid magic number or format version in input file\n");
+         return 100;
+      }
    }
+   else {
+      fseek(pInFile, 0, SEEK_END);
+      nFileSize = (unsigned int)ftell(pInFile);
+      fseek(pInFile, 0, SEEK_SET);
 
-   if (cHeader[0] != 0x7b ||
-      cHeader[1] != 0x9e ||
-      cHeader[2] != 0) {
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "invalid magic number or format version in input file\n");
-      return 100;
+      if (nFileSize < 3) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "invalid file size for raw block mode\n");
+         return 100;
+      }
    }
 
    FILE *pOutFile = fopen(pszOutFilename, "wb");
@@ -314,7 +348,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       return 100;
    }
 
-   if (nVerbosity > 0) {
+   if (nOptions & OPT_VERBOSE) {
       nStartTime = lzsa_get_time();
    }
 
@@ -323,50 +357,61 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
 
    while (!feof(pInFile) && !nDecompressionError) {
       unsigned char cBlockSize[3];
+      unsigned int nBlockSize = 0;
 
       if (nPrevDecompressedSize != 0) {
          memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
       }
 
-      if (fread(cBlockSize, 1, 3, pInFile) == 3) {
-         unsigned int nBlockSize = ((unsigned int)cBlockSize[0]) |
-            (((unsigned int)cBlockSize[1]) << 8) |
-            (((unsigned int)cBlockSize[2]) << 16);
-         if ((nBlockSize & 0x400000) == 0) {
-            bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
-            int nDecompressedSize = 0;
+      if ((nOptions & OPT_RAW) == 0) {
+         if (fread(cBlockSize, 1, 3, pInFile) == 3) {
+            nBlockSize = ((unsigned int)cBlockSize[0]) |
+               (((unsigned int)cBlockSize[1]) << 8) |
+               (((unsigned int)cBlockSize[2]) << 16);
+         }
+         else {
+            nBlockSize = 0xffffff;
+         }
+      }
+      else {
+         nBlockSize = nFileSize - 3;
+         nFileSize = 0xffffff;
+      }
 
-            nBlockSize &= 0x7fffff;
-            if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-               if (bIsUncompressed) {
-                  memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-                  nDecompressedSize = nBlockSize;
-               }
-               else {
-                  unsigned int nBlockOffs = 0;
+      if ((nBlockSize & 0x400000) == 0) {
+         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
+         int nDecompressedSize = 0;
 
-                  nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-                  if (nDecompressedSize < 0) {
-                     nDecompressionError = nDecompressedSize;
-                     break;
-                  }
-               }
-
-               if (nDecompressedSize != 0) {
-                  nOriginalSize += (long long)nDecompressedSize;
-
-                  fwrite(pOutData + BLOCK_SIZE, 1, nDecompressedSize, pOutFile);
-                  nPrevDecompressedSize = nDecompressedSize;
-                  nDecompressedSize = 0;
-               }
+         nBlockSize &= 0x7fffff;
+         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
+            if (bIsUncompressed) {
+               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
+               nDecompressedSize = nBlockSize;
             }
             else {
-               break;
+               unsigned int nBlockOffs = 0;
+
+               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+               if (nDecompressedSize < 0) {
+                  nDecompressionError = nDecompressedSize;
+                  break;
+               }
+            }
+
+            if (nDecompressedSize != 0) {
+               nOriginalSize += (long long)nDecompressedSize;
+
+               fwrite(pOutData + BLOCK_SIZE, 1, nDecompressedSize, pOutFile);
+               nPrevDecompressedSize = nDecompressedSize;
+               nDecompressedSize = 0;
             }
          }
          else {
             break;
          }
+      }
+      else {
+         break;
       }
    }
 
@@ -387,7 +432,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       return 100;
    }
    else {
-      if (nVerbosity > 0) {
+      if (nOptions & OPT_VERBOSE) {
          nEndTime = lzsa_get_time();
          double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
          double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
@@ -399,10 +444,11 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    }
 }
 
-static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, int nVerbosity) {
+static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, const unsigned int nOptions) {
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
    long long nKnownGoodSize = 0LL;
+   unsigned int nFileSize = 0;
 
    FILE *pInFile = fopen(pszInFilename, "rb");
    if (!pInFile) {
@@ -410,24 +456,38 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
       return 100;
    }
 
-   unsigned char cHeader[3];
+   if ((nOptions & OPT_RAW) == 0) {
+      unsigned char cHeader[3];
 
-   memset(cHeader, 0, 3);
+      memset(cHeader, 0, 3);
 
-   if (fread(cHeader, 1, 3, pInFile) != 3) {
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error reading header in compressed input file\n");
-      return 100;
+      if (fread(cHeader, 1, 3, pInFile) != 3) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "error reading header in compressed input file\n");
+         return 100;
+      }
+
+      if (cHeader[0] != 0x7b ||
+         cHeader[1] != 0x9e ||
+         cHeader[2] != 0) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "invalid magic number or format version in input file\n");
+         return 100;
+      }
    }
+   else {
+      fseek(pInFile, 0, SEEK_END);
+      nFileSize = (unsigned int)ftell(pInFile);
+      fseek(pInFile, 0, SEEK_SET);
 
-   if (cHeader[0] != 0x7b ||
-      cHeader[1] != 0x9e ||
-      cHeader[2] != 0) {
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "invalid magic number or format version in input file\n");
-      return 100;
+      if (nFileSize < 3) {
+         fclose(pInFile);
+         pInFile = NULL;
+         fprintf(stderr, "invalid file size for raw block mode\n");
+         return 100;
+      }
    }
 
    FILE *pOutFile = fopen(pszOutFilename, "rb");
@@ -484,7 +544,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
       return 100;
    }
 
-   if (nVerbosity > 0) {
+   if (nOptions & OPT_VERBOSE) {
       nStartTime = lzsa_get_time();
    }
 
@@ -493,7 +553,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
    int nPrevDecompressedSize = 0;
 
    while (!feof(pInFile) && !nDecompressionError && !bComparisonError) {
-      unsigned char cBlockSize[3];
+      unsigned int nBlockSize = 0;
 
       if (nPrevDecompressedSize != 0) {
          memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
@@ -501,52 +561,64 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
 
       int nBytesToCompare = (int)fread(pCompareData, 1, BLOCK_SIZE, pOutFile);
 
-      if (fread(cBlockSize, 1, 3, pInFile) == 3) {
-         unsigned int nBlockSize = ((unsigned int)cBlockSize[0]) |
-            (((unsigned int)cBlockSize[1]) << 8) |
-            (((unsigned int)cBlockSize[2]) << 16);
-         if ((nBlockSize & 0x400000) == 0) {
-            bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
-            int nDecompressedSize = 0;
+      if ((nOptions & OPT_RAW) == 0) {
+         unsigned char cBlockSize[3];
 
-            nBlockSize &= 0x7fffff;
-            if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-               if (bIsUncompressed) {
-                  memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-                  nDecompressedSize = nBlockSize;
-               }
-               else {
-                  unsigned int nBlockOffs = 0;
+         if (fread(cBlockSize, 1, 3, pInFile) == 3) {
+            nBlockSize = ((unsigned int)cBlockSize[0]) |
+               (((unsigned int)cBlockSize[1]) << 8) |
+               (((unsigned int)cBlockSize[2]) << 16);
+         }
+         else {
+            nBlockSize = 0xffffff;
+         }
+      }
+      else {
+         nBlockSize = nFileSize - 3;
+         nFileSize = 0xffffff;
+      }
 
-                  nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-                  if (nDecompressedSize < 0) {
-                     nDecompressionError = nDecompressedSize;
-                     break;
-                  }
-               }
+      if ((nBlockSize & 0x400000) == 0) {
+         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
+         int nDecompressedSize = 0;
 
-               if (nDecompressedSize == nBytesToCompare) {
-                  nKnownGoodSize = nOriginalSize;
+         nBlockSize &= 0x7fffff;
+         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
+            if (bIsUncompressed) {
+               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
+               nDecompressedSize = nBlockSize;
+            }
+            else {
+               unsigned int nBlockOffs = 0;
 
-                  nOriginalSize += (long long)nDecompressedSize;
-
-                  if (memcmp(pOutData + BLOCK_SIZE, pCompareData, nBytesToCompare))
-                     bComparisonError = true;
-                  nPrevDecompressedSize = nDecompressedSize;
-                  nDecompressedSize = 0;
-               }
-               else {
-                  bComparisonError = true;
+               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+               if (nDecompressedSize < 0) {
+                  nDecompressionError = nDecompressedSize;
                   break;
                }
             }
+
+            if (nDecompressedSize == nBytesToCompare) {
+               nKnownGoodSize = nOriginalSize;
+
+               nOriginalSize += (long long)nDecompressedSize;
+
+               if (memcmp(pOutData + BLOCK_SIZE, pCompareData, nBytesToCompare))
+                  bComparisonError = true;
+               nPrevDecompressedSize = nDecompressedSize;
+               nDecompressedSize = 0;
+            }
             else {
+               bComparisonError = true;
                break;
             }
          }
          else {
             break;
          }
+      }
+      else {
+         break;
       }
    }
 
@@ -574,7 +646,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
       return 100;
    }
    else {
-      if (nVerbosity > 0) {
+      if (nOptions & OPT_VERBOSE) {
          nEndTime = lzsa_get_time();
          double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
          double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
@@ -596,7 +668,7 @@ int main(int argc, char **argv) {
    bool bCommandDefined = false;
    bool bVerifyCompression = false;
    char cCommand = 'z';
-   int nVerbosity = 0;
+   unsigned int nOptions = 0;
 
    for (i = 1; i < argc; i++) {
       if (!strcmp(argv[i], "-d")) {
@@ -623,8 +695,15 @@ int main(int argc, char **argv) {
             bArgsError = true;
       }
       else if (!strcmp(argv[i], "-v")) {
-         if (nVerbosity == 0) {
-            nVerbosity = 1;
+         if ((nOptions & OPT_VERBOSE) == 0) {
+            nOptions |= OPT_VERBOSE;
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "-r")) {
+         if ((nOptions & OPT_RAW) == 0) {
+            nOptions |= OPT_RAW;
          }
          else
             bArgsError = true;
@@ -642,21 +721,22 @@ int main(int argc, char **argv) {
    }
 
    if (bArgsError || !pszInFilename || !pszOutFilename) {
-      fprintf(stderr, "usage: %s [-c] [-d] [-v] <infile> <outfile>\n", argv[0]);
+      fprintf(stderr, "usage: %s [-c] [-d] [-v] [-r] <infile> <outfile>\n", argv[0]);
       fprintf(stderr, "       -c: check resulting stream after compressing\n");
       fprintf(stderr, "       -d: decompress (default: compress)\n");
       fprintf(stderr, "       -v: be verbose\n");
+      fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
       return 100;
    }
 
    if (cCommand == 'z') {
-      int nResult = lzsa_compress(pszInFilename, pszOutFilename, nVerbosity);
+      int nResult = lzsa_compress(pszInFilename, pszOutFilename, nOptions);
       if (nResult == 0 && bVerifyCompression) {
-         nResult = lzsa_compare(pszOutFilename, pszInFilename, nVerbosity);
+         nResult = lzsa_compare(pszOutFilename, pszInFilename, nOptions);
       }
    }
    else if (cCommand == 'd') {
-      return lzsa_decompress(pszInFilename, pszOutFilename, nVerbosity);
+      return lzsa_decompress(pszInFilename, pszOutFilename, nOptions);
    }
    else {
       return 100;
