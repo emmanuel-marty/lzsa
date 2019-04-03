@@ -22,9 +22,9 @@
    bits 16
 
 ;  ---------------------------------------------------------------------------
-;  Decompress LZSA frame
+;  Decompress raw LZSA block
 ;  inputs:
-;  * ds:si: LZSA frame
+;  * ds:si: raw LZSA block
 ;  * es:di: output buffer
 ;  output:
 ;  * ax:    decompressed size
@@ -33,12 +33,6 @@
 lzsa_decompress:
    push di                 ; remember decompression offset
    cld                     ; make string operations (lods, movs, stos..) move forward
-   lodsw                   ; grab first 2 bytes of block size
-   mov bp,ax               ; keep block size in dx
-   lodsb                   ; grab last byte of block size / compression flag
-   test al,al              ; if the compressed data is larger than 65,535 bytes, or if it is uncompressed, bail
-   jne .done_decompressing
-   add bp,si               ; point at the end of the compressed data
 
    xor cx,cx
 
@@ -60,9 +54,6 @@ lzsa_decompress:
 .copy_literals:
    rep movsb               ; copy cx literals from ds:si to es:di
 
-   cmp si,bp               ; did we reach the end of the compressed data?
-   je .done_decompressing  ; we did, bail. the last token does not include a match copy
-
    test dl,dl              ; check match offset size in token (O bit, ie. bit 7, the sign bit)
    js .get_long_offset
 
@@ -75,6 +66,7 @@ lzsa_decompress:
 
 .get_match_length:
    inc ax                  ; the match offset is stored off-by-1, increase it
+   je short .done_decompressing ; bail if we hit EOD
    xchg ax,dx              ; dx: match offset  ax: original token
    and al,0FH              ; isolate match length in token (MMMM)
 

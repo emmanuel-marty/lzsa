@@ -20,7 +20,7 @@ Performance over well-known compression corpus files:
     Large                11159482         3771025 (33,79%)      3649821 (32,70%)
     enwik9               1000000000       371841591 (37,18%)    355429941 (35,54%)
     
-As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 105 bytes.
+As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 91 bytes.
 
 The compressor is approximately 2X slower than LZ4_HC but compresses better while maintaining similar decompression speeds and decompressor simplicity.
 
