@@ -35,14 +35,14 @@
 
 #define LCP_BITS 14
 #define LCP_MAX ((1<<LCP_BITS) - 1)
-#define LCP_SHIFT (31-LCP_BITS)
+#define LCP_SHIFT (32-LCP_BITS)
 #define LCP_MASK (LCP_MAX << LCP_SHIFT)
 #define POS_MASK ((1<<LCP_SHIFT) - 1)
 
-#define NMATCHES_PER_OFFSET 4
-#define MATCHES_PER_OFFSET_SHIFT 2
+#define NMATCHES_PER_OFFSET 8
+#define MATCHES_PER_OFFSET_SHIFT 3
 
-#define LEAVE_ALONE_MATCH_SIZE 600
+#define LEAVE_ALONE_MATCH_SIZE 1000
 
 /** One match */
 typedef struct _lzsa_match {
@@ -59,16 +59,16 @@ typedef struct _lzsa_match {
  * @return 0 for success, non-zero for failure
  */
 int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize) {
-   pCompressor->intervals = (int *)malloc(nMaxWindowSize * sizeof(int));
+   pCompressor->intervals = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
 
    if (pCompressor->intervals) {
-      pCompressor->pos_data = (int *)malloc(nMaxWindowSize * sizeof(int));
+      pCompressor->pos_data = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
 
       if (pCompressor->pos_data) {
-         pCompressor->open_intervals = (int *)malloc((LCP_MAX + 1) * sizeof(int));
+         pCompressor->open_intervals = (unsigned int *)malloc((LCP_MAX + 1) * sizeof(unsigned int));
 
          if (pCompressor->open_intervals) {
             pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
@@ -128,14 +128,14 @@ void lzsa_compressor_destroy(lsza_compressor *pCompressor) {
  * @return 0 for success, non-zero for failure
  */
 static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize) {
-   int *intervals = pCompressor->intervals;
+   unsigned int *intervals = pCompressor->intervals;
 
    /* Build suffix array from input data */
    if (divsufsort(pInWindow, (saidx_t*)intervals, nInWindowSize) != 0) {
       return 100;
    }
 
-   int *PLCP = pCompressor->pos_data;
+   int *PLCP = (int*)pCompressor->pos_data;  /* Use temporarily */
    int *Phi = PLCP;
    int nCurLen = 0;
    int i;
@@ -160,15 +160,17 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
     * saves us from having to build the inverse suffix array index, as the LCP is calculated without it using this method,
     * and the interval builder below doesn't need it either. */
    intervals[0] &= POS_MASK;
-   for (i = 1; i < nInWindowSize; i++) {
-      int nIndex = intervals[i] & POS_MASK;
+   for (i = 1; i < nInWindowSize - 1; i++) {
+      int nIndex = (int)(intervals[i] & POS_MASK);
       int nLen = PLCP[nIndex];
       if (nLen < MIN_MATCH_SIZE)
          nLen = 0;
       if (nLen > LCP_MAX)
          nLen = LCP_MAX;
-      intervals[i] = nIndex | (nLen << LCP_SHIFT);
+      intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nLen) << LCP_SHIFT);
    }
+   if (i < nInWindowSize)
+      intervals[i] &= POS_MASK;
 
    /**
     * Build intervals for finding matches
@@ -176,20 +178,20 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
     * Methodology and code fragment taken from wimlib (CC0 license):
     * https://wimlib.net/git/?p=wimlib;a=blob_plain;f=src/lcpit_matchfinder.c;h=a2d6a1e0cd95200d1f3a5464d8359d5736b14cbe;hb=HEAD
     */
-   int * const SA_and_LCP = intervals;
-   int *pos_data = pCompressor->pos_data;
-   int next_interval_idx;
-   int *top = pCompressor->open_intervals;
-   int prev_pos = SA_and_LCP[0] & POS_MASK;
+   unsigned int * const SA_and_LCP = intervals;
+   unsigned int *pos_data = pCompressor->pos_data;
+   unsigned int next_interval_idx;
+   unsigned int *top = pCompressor->open_intervals;
+   unsigned int prev_pos = SA_and_LCP[0] & POS_MASK;
 
    *top = 0;
    intervals[0] = 0;
    next_interval_idx = 1;
 
    for (int r = 1; r < nInWindowSize; r++) {
-      const int next_pos = SA_and_LCP[r] & POS_MASK;
-      const int next_lcp = SA_and_LCP[r] & LCP_MASK;
-      const int top_lcp = *top & LCP_MASK;
+      const unsigned int next_pos = SA_and_LCP[r] & POS_MASK;
+      const unsigned int next_lcp = SA_and_LCP[r] & LCP_MASK;
+      const unsigned int top_lcp = *top & LCP_MASK;
 
       if (next_lcp == top_lcp) {
          /* Continuing the deepest open interval  */
@@ -204,8 +206,8 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
          /* Closing the deepest open interval  */
          pos_data[prev_pos] = *top;
          for (;;) {
-            const int closed_interval_idx = *top-- & POS_MASK;
-            const int superinterval_lcp = *top & LCP_MASK;
+            const unsigned int closed_interval_idx = *top-- & POS_MASK;
+            const unsigned int superinterval_lcp = *top & LCP_MASK;
 
             if (next_lcp == superinterval_lcp) {
                /* Continuing the superinterval */
@@ -250,11 +252,11 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
  * @return number of matches
  */
 static int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches) {
-   int *intervals = pCompressor->intervals;
-   int *pos_data = pCompressor->pos_data;
-   int ref;
-   int super_ref;
-   int match_pos;
+   unsigned int *intervals = pCompressor->intervals;
+   unsigned int *pos_data = pCompressor->pos_data;
+   unsigned int ref;
+   unsigned int super_ref;
+   unsigned int match_pos;
    lzsa_match *matchptr;
 
    /**
@@ -302,7 +304,7 @@ static int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset,
       pos_data[match_pos] = ref;
 
       if ((matchptr - pMatches) < nMaxMatches) {
-         int nMatchOffset = nOffset - match_pos;
+         int nMatchOffset = (int)(nOffset - match_pos);
 
          if (nMatchOffset <= MAX_OFFSET) {
             matchptr->length = (unsigned short)(ref >> LCP_SHIFT);
@@ -487,7 +489,7 @@ static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffse
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
 static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
-   int *cost = pCompressor->pos_data;  /* Reuse */
+   int *cost = (int*)pCompressor->pos_data;  /* Reuse */
    int nLastLiteralsOffset;
    int i;
 
@@ -624,7 +626,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
       if ((nOutOffset + nTokenSize) > nMaxOutDataSize)
          return -1;
 
-      pOutData[nOutOffset++] = (nNibbleLiteralsLen << 4);
+      pOutData[nOutOffset++] = 0x80 | (nNibbleLiteralsLen << 4);
       nOutOffset = lzsa_write_literals_varlen(pOutData, nOutOffset, nNumLiterals);
 
       if (nNumLiterals != 0) {

@@ -208,9 +208,9 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
    unsigned char cFooter[3];
 
-   cFooter[0] = 0x00;         /* Zero sized block */
-   cFooter[1] = 0x00;
-   cFooter[2] = 0x00;
+   cFooter[0] = 0xFF;         /* EOD frame */
+   cFooter[1] = 0xFF;
+   cFooter[2] = 0xFF;
 
    if (!bError)
       bError = fwrite(cFooter, 1, 3, f_out) != 3;
@@ -336,31 +336,36 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
          unsigned int nBlockSize = ((unsigned int)cBlockSize[0]) |
             (((unsigned int)cBlockSize[1]) << 8) |
             (((unsigned int)cBlockSize[2]) << 16);
-         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
-         int nDecompressedSize = 0;
+         if ((nBlockSize & 0x400000) == 0) {
+            bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
+            int nDecompressedSize = 0;
 
-         nBlockSize &= 0x7fffff;
-         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (bIsUncompressed) {
-               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-               nDecompressedSize = nBlockSize;
-            }
-            else {
-               unsigned int nBlockOffs = 0;
+            nBlockSize &= 0x7fffff;
+            if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
+               if (bIsUncompressed) {
+                  memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
+                  nDecompressedSize = nBlockSize;
+               }
+               else {
+                  unsigned int nBlockOffs = 0;
 
-               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-               if (nDecompressedSize < 0) {
-                  nDecompressionError = nDecompressedSize;
-                  break;
+                  nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+                  if (nDecompressedSize < 0) {
+                     nDecompressionError = nDecompressedSize;
+                     break;
+                  }
+               }
+
+               if (nDecompressedSize != 0) {
+                  nOriginalSize += (long long)nDecompressedSize;
+
+                  fwrite(pOutData + BLOCK_SIZE, 1, nDecompressedSize, pOutFile);
+                  nPrevDecompressedSize = nDecompressedSize;
+                  nDecompressedSize = 0;
                }
             }
-
-            if (nDecompressedSize != 0) {
-               nOriginalSize += (long long)nDecompressedSize;
-
-               fwrite(pOutData + BLOCK_SIZE, 1, nDecompressedSize, pOutFile);
-               nPrevDecompressedSize = nDecompressedSize;
-               nDecompressedSize = 0;
+            else {
+               break;
             }
          }
          else {
@@ -493,7 +498,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
    bool bComparisonError = false;
    int nPrevDecompressedSize = 0;
 
-   while (!feof(pInFile) && !feof(pOutFile) && !nDecompressionError && !bComparisonError) {
+   while (!feof(pInFile) && !nDecompressionError && !bComparisonError) {
       unsigned char cBlockSize[3];
 
       if (nPrevDecompressedSize != 0) {
@@ -506,37 +511,42 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
          unsigned int nBlockSize = ((unsigned int)cBlockSize[0]) |
             (((unsigned int)cBlockSize[1]) << 8) |
             (((unsigned int)cBlockSize[2]) << 16);
-         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
-         int nDecompressedSize = 0;
+         if ((nBlockSize & 0x400000) == 0) {
+            bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
+            int nDecompressedSize = 0;
 
-         nBlockSize &= 0x7fffff;
-         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (bIsUncompressed) {
-               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-               nDecompressedSize = nBlockSize;
-            }
-            else {
-               unsigned int nBlockOffs = 0;
+            nBlockSize &= 0x7fffff;
+            if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
+               if (bIsUncompressed) {
+                  memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
+                  nDecompressedSize = nBlockSize;
+               }
+               else {
+                  unsigned int nBlockOffs = 0;
 
-               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-               if (nDecompressedSize < 0) {
-                  nDecompressionError = nDecompressedSize;
+                  nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+                  if (nDecompressedSize < 0) {
+                     nDecompressionError = nDecompressedSize;
+                     break;
+                  }
+               }
+
+               if (nDecompressedSize == nBytesToCompare) {
+                  nKnownGoodSize = nOriginalSize;
+
+                  nOriginalSize += (long long)nDecompressedSize;
+
+                  if (memcmp(pOutData + BLOCK_SIZE, pCompareData, nBytesToCompare))
+                     bComparisonError = true;
+                  nPrevDecompressedSize = nDecompressedSize;
+                  nDecompressedSize = 0;
+               }
+               else {
+                  bComparisonError = true;
                   break;
                }
             }
-
-            if (nDecompressedSize == nBytesToCompare) {
-               nKnownGoodSize = nOriginalSize;
-
-               nOriginalSize += (long long)nDecompressedSize;
-
-               if (memcmp(pOutData + BLOCK_SIZE, pCompareData, nBytesToCompare))
-                  bComparisonError = true;
-               nPrevDecompressedSize = nDecompressedSize;
-               nDecompressedSize = 0;
-            }
             else {
-               bComparisonError = true;
                break;
             }
          }

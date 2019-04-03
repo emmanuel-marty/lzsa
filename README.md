@@ -63,13 +63,14 @@ The traits are set to 0x00 for this version of the format.
 Each frame contains a 3-byte length followed by block data that expands to up to 64 Kb of decompressed data.
 
     0    1    2
-    DSZ0 DSZ1 U|DSZ2
+    DSZ0 DSZ1 U|E|DSZ2
 
 * DSZ0 (length byte 0) contains bits 0-7 of the block data size
 * DSZ1 (length byte 1) contains bits 8-15 of the block data size
 * DSZ2 (bit 0 of length byte 2) contains bit 16 of the block data size
 * U (bit 7 of length byte 2) is set if the block data is uncompressed, and clear if the block data is compressed.
-* Bits 1..6 of length byte 2 are currently undefined and must be set to 0.
+* E (bit 6 of length byte 2) is set to mark the end of compressed data
+* Bits 1..5 of length byte 2 are currently undefined and must be set to 0 when bit 6 is cleared, and to 1 when bit 6 is set.
 
 # Block data format
 
@@ -129,4 +130,4 @@ If the encoded match length is 15 or more, the 'M' bits in the token form the va
 
 # Footer format
 
-The stream ends with an empty frame: the 3 length bytes are set to 0 and no block data follows.
+The stream ends with the EOD frame: the 3 length bytes are set to 0xFF, 0xFF, 0xFF, and no block data follows.

@@ -28,9 +28,9 @@ typedef struct _lzsa_match lzsa_match;
 
 /** Compression context */
 typedef struct {
-   int *intervals;
-   int *pos_data;
-   int *open_intervals;
+   unsigned int *intervals;
+   unsigned int *pos_data;
+   unsigned int *open_intervals;
    lzsa_match *match;
 } lsza_compressor;
 
