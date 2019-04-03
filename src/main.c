@@ -124,16 +124,14 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       return 100;
    }
 
-   unsigned char cHeader[5];
+   unsigned char cHeader[3];
 
-   cHeader[0] = 0x7b;                              /* Magic number: 0xd70f9e7b */
+   cHeader[0] = 0x7b;                              /* Magic number: 0x9e7b */
    cHeader[1] = 0x9e;
-   cHeader[2] = 0x0f;
-   cHeader[3] = 0xd7;
-   cHeader[4] = 0;                                 /* Format version 1 */
+   cHeader[2] = 0;                                 /* Format version 1 */
 
-   bError = fwrite(cHeader, 1, 5, f_out) != 5;
-   nCompressedSize += 5LL;
+   bError = fwrite(cHeader, 1, 3, f_out) != 3;
+   nCompressedSize += 3LL;
 
    if (nVerbosity > 0) {
       nStartTime = lzsa_get_time();
@@ -260,11 +258,11 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       return 100;
    }
 
-   unsigned char cHeader[5];
+   unsigned char cHeader[3];
 
-   memset(cHeader, 0, 5);
+   memset(cHeader, 0, 3);
 
-   if (fread(cHeader, 1, 5, pInFile) != 5) {
+   if (fread(cHeader, 1, 3, pInFile) != 3) {
       fclose(pInFile);
       pInFile = NULL;
       fprintf(stderr, "error reading header in input file\n");
@@ -273,9 +271,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
 
    if (cHeader[0] != 0x7b ||
       cHeader[1] != 0x9e ||
-      cHeader[2] != 0x0f ||
-      cHeader[3] != 0xd7 ||
-      cHeader[4] != 0) {
+      cHeader[2] != 0) {
       fclose(pInFile);
       pInFile = NULL;
       fprintf(stderr, "invalid magic number or format version in input file\n");
@@ -414,11 +410,11 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
       return 100;
    }
 
-   unsigned char cHeader[5];
+   unsigned char cHeader[3];
 
-   memset(cHeader, 0, 5);
+   memset(cHeader, 0, 3);
 
-   if (fread(cHeader, 1, 5, pInFile) != 5) {
+   if (fread(cHeader, 1, 3, pInFile) != 3) {
       fclose(pInFile);
       pInFile = NULL;
       fprintf(stderr, "error reading header in compressed input file\n");
@@ -427,9 +423,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, i
 
    if (cHeader[0] != 0x7b ||
       cHeader[1] != 0x9e ||
-      cHeader[2] != 0x0f ||
-      cHeader[3] != 0xd7 ||
-      cHeader[4] != 0) {
+      cHeader[2] != 0) {
       fclose(pInFile);
       pInFile = NULL;
       fprintf(stderr, "invalid magic number or format version in input file\n");
