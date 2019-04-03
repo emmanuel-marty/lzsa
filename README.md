@@ -14,11 +14,11 @@ Compression ratio comparison between LZSA and other optimal packers, for a workl
 Performance over well-known compression corpus files:
 
                          Uncompressed     LZ4_HC -19 -B4 -BD    LZSA
-    Canterbury           2810784          935827 (33,29%)       855329 (30,43%)
-    Silesia              211938580        77299725 (36,47%)     73794820 (34,82%)
-    Calgary              3251493          1248780 (38,40%)      1196872 (36,80%)
-    Large                11159482         3771025 (33,79%)      3649821 (32,70%)
-    enwik9               1000000000       371841591 (37,18%)    355429941 (35,54%)
+    Canterbury           2810784          935827 (33,29%)       855284 (30,43%)
+    Silesia              211938580        77299725 (36,47%)     73793860 (34,82%)
+    Calgary              3251493          1248780 (38,40%)      1196809 (36,80%)
+    Large                11159482         3771025 (33,79%)      3648987 (32,70%)
+    enwik9               1000000000       371841591 (37,18%)    355427361 (35,54%)
     
 As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 91 bytes.
 
