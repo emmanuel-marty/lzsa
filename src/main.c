@@ -239,8 +239,8 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
       double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
       double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
-      fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %lld into %lld bytes ==> %g %%\n",
-         pszInFilename, fDelta, fSpeed, nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
+      fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens, %lld into %lld bytes ==> %g %%\n",
+         pszInFilename, fDelta, fSpeed, lzsa_compressor_get_command_count(&compressor), nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
    }
 
    lzsa_compressor_destroy(&compressor);

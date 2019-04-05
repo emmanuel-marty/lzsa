@@ -66,6 +66,7 @@ int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize)
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
+   pCompressor->num_commands = 0;
 
    if (pCompressor->intervals) {
       pCompressor->pos_data = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
@@ -559,6 +560,51 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
 }
 
 /**
+ * Attempt to minimize the number of commands issued in the compressed data block, in order to speed up decompression without
+ * impacting the compression ratio
+ *
+ * @param pCompressor compression context
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ */
+static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
+   int i;
+   int nNumLiterals = 0;
+
+   for (i = nStartOffset; i < nEndOffset; ) {
+      lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
+
+      if (pMatch->length >= MIN_MATCH_SIZE) {
+         int nMatchOffset = pMatch->offset;
+         int nMatchLen = pMatch->length;
+         int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
+         int nNibbleLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x01;
+         int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nNibbleLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
+
+         if ((((nNumLiterals + nMatchLen) < LITERALS_RUN_LEN && nTokenSize >= nMatchLen) || 
+              ((nNumLiterals + nMatchLen) < (LITERALS_RUN_LEN + 254) && nTokenSize >= (nMatchLen + 1))) &&
+             (i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE) {
+            int j;
+
+            for (j = 0; j < nMatchLen; j++) {
+               pCompressor->match[(i + j) << MATCHES_PER_OFFSET_SHIFT].length = 0;
+            }
+            nNumLiterals += nMatchLen;
+            i += nMatchLen;
+         }
+         else {
+            nNumLiterals = 0;
+            i += nMatchLen;
+         }
+      }
+      else {
+         nNumLiterals++;
+         i++;
+      }
+   }
+}
+
+/**
  * Emit block of compressed data
  *
  * @param pCompressor compression context
@@ -611,6 +657,8 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          }
          nOutOffset = lzsa_write_match_varlen(pOutData, nOutOffset, nEncodedMatchLen);
          i += nMatchLen;
+
+         pCompressor->num_commands++;
       }
       else {
          if (nNumLiterals == 0)
@@ -635,6 +683,8 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          nOutOffset += nNumLiterals;
          nNumLiterals = 0;
       }
+
+      pCompressor->num_commands++;
    }
 
    return nOutOffset;
@@ -659,6 +709,16 @@ int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWind
    }
    lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
    lzsa_optimize_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+   lzsa_optimize_command_count(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
 
    return lzsa_write_block(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
+}
+
+/**
+ * Get the number of compression commands issued in compressed data blocks
+ *
+ * @return number of commands
+ */
+int lzsa_compressor_get_command_count(lsza_compressor *pCompressor) {
+   return pCompressor->num_commands;
 }
