@@ -75,7 +75,7 @@ Each frame contains a 3-bytes length followed by block data that expands to up t
 
 LZSA blocks are composed from consecutive commands. Each command follows this format:
 
-* token: <O|LLL|MMMM>
+* token: <LLL|MMMM|O>
 * optional extra literal length
 * literal values
 * match offset low
@@ -87,11 +87,11 @@ LZSA blocks are composed from consecutive commands. Each command follows this fo
 The token byte is broken down into three parts:
 
     7 6 5 4 3 2 1 0
-    O L L L M M M M
+    L L L M M M M O
 
-* O: set for a 2-bytes match offset, clear for a 1-byte match offset
 * L: 3-bit literals length (0-6, or 7 if extended). If the number of literals for this command is 0 to 6, the length is encoded in the token and no extra bytes are required. Otherwise, a value of 7 is encoded and extra bytes follow as 'optional extra literal length'
 * M: 4-bit encoded match length (0-14, or 15 if extended). Likewise, if the encoded match length for this command is 0 to 14, it is directly stored, otherwise 15 is stored and extra bytes follow as 'optional extra encoded match length'. Except for the last command in a block, a command always contains a match, so the encoded match length is the actual match length offset by the minimum, which is 3 bytes. For instance, an actual match length of 10 bytes to be copied, is encoded as 7.
+* O: set for a 2-bytes match offset, clear for a 1-byte match offset
 
 **optional extra literal length**
 
@@ -113,7 +113,7 @@ The low 8 bits of the match offset follows.
 
 **optional match offset high**
 
-If the 'O' bit (bit 7) is set in the token, the high 8 bits of the match offset follow, otherwise they are understood to be all set to 0.
+If the 'O' bit (bit 0) is set in the token, the high 8 bits of the match offset follow, otherwise they are understood to be all set to 0.
 
 **important note regarding short match offsets: off by 1**
 

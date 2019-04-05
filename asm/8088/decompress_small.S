@@ -37,13 +37,13 @@ lzsa_decompress:
    xor cx,cx
 
 .decode_token:
-   mov ax,cx               ; clear ah - cx is zero from above or from after rep movsw in .copy_match
-   lodsb                   ; read token byte: O|LLL|MMMM
+   mov ax,cx               ; clear ah - cx is zero from above or from after rep movsb in .copy_match
+   lodsb                   ; read token byte: LLL|MMMM|O
    mov dx,ax               ; keep token in dl
    
-   and al,070H             ; isolate literals length in token (LLL)
-   mov cl,4
-   shr al,cl               ; shift match length into place
+   mov cl,3
+   rol al,cl               ; shift literals length into place
+   and al,07H              ; isolate literals length in token (LLL)
 
    mov cx,ax               ; copy literals length into cx
    cmp al,07H              ; LITERALS_RUN_LEN?
@@ -54,10 +54,10 @@ lzsa_decompress:
 .copy_literals:
    rep movsb               ; copy cx literals from ds:si to es:di
 
-   test dl,dl              ; check match offset size in token (O bit, ie. bit 7, the sign bit)
-   js .get_long_offset
+   ror dl,1                ; check match offset size in token (O bit)
+   jc .get_long_offset
 
-   xor ah,ah               ; Get 1-byte match offset
+   xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
    lodsb
    inc ax                  ; the match offset is stored off-by-1, increase it
    jmp short .get_match_length

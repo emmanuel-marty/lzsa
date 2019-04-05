@@ -585,7 +585,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
          int nNibbleLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
          int nNibbleMatchLen = (nEncodedMatchLen >= MATCH_RUN_LEN) ? MATCH_RUN_LEN : nEncodedMatchLen;
-         int nNibbleLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
+         int nNibbleLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x01;
          int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals + (nNibbleLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
 
          if ((nOutOffset + nTokenSize) > nMaxOutDataSize)
@@ -593,7 +593,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          if (nMatchOffset < MIN_OFFSET || nMatchOffset > MAX_OFFSET)
             return -1;
 
-         pOutData[nOutOffset++] = nNibbleLongOffset | (nNibbleLiteralsLen << 4) | nNibbleMatchLen;
+         pOutData[nOutOffset++] = (nNibbleLiteralsLen << 5) | (nNibbleMatchLen << 1) | nNibbleLongOffset;
          nOutOffset = lzsa_write_literals_varlen(pOutData, nOutOffset, nNumLiterals);
 
          if (nNumLiterals != 0) {
@@ -627,7 +627,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
       if ((nOutOffset + nTokenSize) > nMaxOutDataSize)
          return -1;
 
-      pOutData[nOutOffset++] = 0x80 | (nNibbleLiteralsLen << 4);
+      pOutData[nOutOffset++] = (nNibbleLiteralsLen << 5) | 0x01;
       nOutOffset = lzsa_write_literals_varlen(pOutData, nOutOffset, nNumLiterals);
 
       if (nNumLiterals != 0) {
