@@ -44,6 +44,9 @@
 
 #define LEAVE_ALONE_MATCH_SIZE 1000
 
+#define LAST_MATCH_OFFSET 4
+#define LAST_LITERALS 1
+
 /** One match */
 typedef struct _lzsa_match {
    unsigned short length;
@@ -357,12 +360,12 @@ static void lzsa_find_all_matches(lsza_compressor *pCompressor, const int nStart
       int m;
 
       for (m = 0; m < NMATCHES_PER_OFFSET; m++) {
-         if (nMatches <= m || i >= (nEndOffset - 11)) {
+         if (nMatches <= m || i > (nEndOffset - LAST_MATCH_OFFSET)) {
             pMatch->length = 0;
             pMatch->offset = 0;
          }
          else {
-            int nMaxLen = (nEndOffset - 5) - i;
+            int nMaxLen = (nEndOffset - LAST_LITERALS) - i;
             if (nMaxLen < 0)
                nMaxLen = 0;
             if (pMatch->length > nMaxLen)
@@ -371,7 +374,6 @@ static void lzsa_find_all_matches(lsza_compressor *pCompressor, const int nStart
 
          pMatch++;
       }
-
    }
 }
 
@@ -619,7 +621,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
       }
    }
 
-   if (nNumLiterals != 0) {
+   {
       int nNibbleLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
       int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals;
 

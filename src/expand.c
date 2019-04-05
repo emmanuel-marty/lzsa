@@ -115,8 +115,8 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
       int nMaxFast = nMatchLen;
       if (nMaxFast > (pCurOutData - pSrc))
          nMaxFast = (int)(pCurOutData - pSrc);
-      if ((pCurOutData + nMaxFast) > pOutDataFastEnd)
-         nMaxFast = (int)(pOutDataFastEnd - pCurOutData);
+      if ((pCurOutData + nMaxFast) > (pOutDataFastEnd - 15))
+         nMaxFast = (int)(pOutDataFastEnd - 15 - pCurOutData);
 
       if (nMaxFast > 0) {
          const unsigned char *pCopySrc = pSrc;
@@ -202,7 +202,7 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
             return -1;
 
          int nMatchLen = (int)((unsigned int)(token & 0x0f));
-         if (nMatchLen < (16 - MIN_MATCH_SIZE + 1) && (pSrc + MIN_MATCH_SIZE + nMatchLen) < pCurOutData) {
+         if (nMatchLen < (16 - MIN_MATCH_SIZE + 1) && (pSrc + MIN_MATCH_SIZE + nMatchLen) < pCurOutData && pCurOutData < pOutDataFastEnd) {
             memcpy(pCurOutData, pSrc, 16);
             pCurOutData += (MIN_MATCH_SIZE + nMatchLen);
          }
