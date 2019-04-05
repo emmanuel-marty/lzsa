@@ -98,7 +98,7 @@ The token byte is broken down into three parts:
 
 If the literals length is 7 or more, the 'L' bits in the token form the value 7, and an extra byte follows here, with three possible types of value:
 
-* 0-254: the value is added to the 7 stored in the token, to compose the final literals length. For instance a length of 206 will be stored as 7 in the token + a single byte with the value of 199, as 7 + 199 = 206.
+* 0-253: the value is added to the 7 stored in the token, to compose the final literals length. For instance a length of 206 will be stored as 7 in the token + a single byte with the value of 199, as 7 + 199 = 206.
 * 254: a second byte follows. The final literals value is 7 + 254 + the second byte. For instance, a literals length of 499 is encoded as 7 in the token, a byte with the value of 254, and a final byte with teh value of 238, as 7 + 254 + 238 = 499.
 * 255: a second and third byte follow, forming a little-endian 16-bit value. The final literals value is 7 + 255 + that 16-bit value. For instance, a literals length of 1024 is stored as 7 in the token, then byte values of 255, 250 and 2, as 7 + 255 + 250 + (2 * 256) = 1024.
 
@@ -124,7 +124,7 @@ Note that the match offset is *off by 1*: a value of 0 refers to the byte preced
 
 If the encoded match length is 15 or more, the 'M' bits in the token form the value 15, and an extra byte follows here, with three possible types of value.
 
-* 0-254: the value is added to the 15 stored in the token.
+* 0-253: the value is added to the 15 stored in the token.
 * 254: a second byte follows. The final encoded match length is 15 + 254 + the second byte, which gives an actual match length of 3 + 15 + 254 + the second byte.
 * 255: a second and third byte follow, forming a little-endian 16-bit value. The final encoded match length is 15 + 255 + that 16-bit value, which gives an actual match length of 3 + 15 + 255 + that 16-bit value.
 
