@@ -113,5 +113,5 @@ lzsa_decompress:
 
 .large_varlen:
    lodsw                   ; grab 16-bit extra length
-   mov cx,ax
+   xchg cx,ax
    ret
