@@ -75,7 +75,7 @@ Each frame contains a 3-bytes length followed by block data that expands to up t
 
 LZSA blocks are composed from consecutive commands. Each command follows this format:
 
-* token: <LLL|MMMM|O>
+* token: <O|LLL|MMMM>
 * optional extra literal length
 * literal values
 * match offset low
@@ -87,7 +87,7 @@ LZSA blocks are composed from consecutive commands. Each command follows this fo
 The token byte is broken down into three parts:
 
     7 6 5 4 3 2 1 0
-    L L L M M M M O
+    O L L L M M M M
 
 * L: 3-bit literals length (0-6, or 7 if extended). If the number of literals for this command is 0 to 6, the length is encoded in the token and no extra bytes are required. Otherwise, a value of 7 is encoded and extra bytes follow as 'optional extra literal length'
 * M: 4-bit encoded match length (0-14, or 15 if extended). Likewise, if the encoded match length for this command is 0 to 14, it is directly stored, otherwise 15 is stored and extra bytes follow as 'optional extra encoded match length'. Except for the last command in a block, a command always contains a match, so the encoded match length is the actual match length offset by the minimum, which is 3 bytes. For instance, an actual match length of 10 bytes to be copied, is encoded as 7.
@@ -113,21 +113,19 @@ The low 8 bits of the match offset follows.
 
 **optional match offset high**
 
-If the 'O' bit (bit 0) is set in the token, the high 8 bits of the match offset follow, otherwise they are understood to be all set to 0.
+If the 'O' bit (bit 7) is set in the token, the high 8 bits of the match offset follow, otherwise they are understood to be all set to 0.
 
-**important note regarding short match offsets: off by 1**
+**important note regarding match offsets: off by 1**
 
-Note that the match offset is *off by 1* when encoded as a single byte (the O bit in the token is set to 0): a value of 0 refers to the byte preceding the current output index (N-1). A value of 1 refers to two bytes before the current output index (N-2) and so on. This is so that match offsets up to 256 can be encoded as a single byte, for extra compression.
-
-When match offsets are encoded as two bytes (the O bit in the token is set to 1), they are stored directly: a value of 1 refers to the byte preceding the current output index (N-1), and so on.
+Note that the match offset is *off by 1*: a value of 0 refers to the byte preceding the current output index (N-1). A value of 1 refers to two bytes before the current output index (N-2) and so on. This is so that match offsets up to 256 can be encoded as a single byte, for extra compression.
 
 **optional extra encoded match length**
 
 If the encoded match length is 15 or more, the 'M' bits in the token form the value 15, and an extra byte follows here, with three possible types of value.
 
-* 0-253: the value is added to the 15 stored in the token.
+* 0-253: the value is added to the 15 stored in the token. The final value is 3 + 15 + this byte.
 * 254: a second byte follows. The final encoded match length is 15 + 254 + the second byte, which gives an actual match length of 3 + 15 + 254 + the second byte.
-* 255: a second and third byte follow, forming a little-endian 16-bit value. The final encoded match length is that 16-bit value.
+* 255: a second and third byte follow, forming a little-endian 16-bit value. The final encoded match length is 3 + that 16-bit value.
 
 # Footer format
 

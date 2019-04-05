@@ -168,7 +168,7 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
 
    while (pInBlock < pInBlockFastEnd && pCurOutData < pOutDataFastEnd) {
       const unsigned char token = *pInBlock++;
-      int nLiterals = (int)((unsigned int)((token & 0xe0) >> 5));
+      int nLiterals = (int)((unsigned int)((token & 0x70) >> 4));
 
       if (nLiterals < LITERALS_RUN_LEN) {
          memcpy(pCurOutData, pInBlock, 8);
@@ -184,20 +184,17 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
          int nMatchOffset;
 
          nMatchOffset = ((unsigned int)*pInBlock++);
-         if (token & 0x01) {
+         if (token & 0x80) {
             if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
-            if (nMatchOffset == 0) break;
          }
-         else {
-            nMatchOffset++;
-         }
+         nMatchOffset++;
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
          if (pSrc < pOutData)
             return -1;
 
-         int nMatchLen = (int)((unsigned int)((token & 0x1e) >> 1));
+         int nMatchLen = (int)((unsigned int)(token & 0x0f));
          if (nMatchLen < (16 - MIN_MATCH_SIZE + 1) && (pSrc + MIN_MATCH_SIZE + nMatchLen) < pCurOutData && pCurOutData < pOutDataFastEnd) {
             memcpy(pCurOutData, pSrc, 16);
             pCurOutData += (MIN_MATCH_SIZE + nMatchLen);
@@ -213,7 +210,7 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
 
    while (pInBlock < pInBlockEnd) {
       const unsigned char token = *pInBlock++;
-      int nLiterals = (int)((unsigned int)((token & 0xe0) >> 5));
+      int nLiterals = (int)((unsigned int)((token & 0x70) >> 4));
 
       if (lzsa_expand_literals_slow(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
          return -1;
@@ -222,20 +219,17 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
          int nMatchOffset;
 
          nMatchOffset = ((unsigned int)*pInBlock++);
-         if (token & 0x01) {
+         if (token & 0x80) {
             if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
-            if (nMatchOffset == 0) break;
          }
-         else {
-            nMatchOffset++;
-         }
+         nMatchOffset++;
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
          if (pSrc < pOutData)
             return -1;
 
-         int nMatchLen = (int)((unsigned int)((token & 0x1e) >> 1));
+         int nMatchLen = (int)((unsigned int)(token & 0x0f));
          if (lzsa_expand_match_slow(&pInBlock, pInBlockEnd, pSrc, nMatchLen, &pCurOutData, pOutDataEnd, pOutDataFastEnd))
             return -1;
       }

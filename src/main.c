@@ -223,16 +223,26 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       }
    }
 
-   unsigned char cFooter[3];
-   int nFooterSize = ((nOptions & OPT_RAW) == 0) ? 3 : 2;
+   unsigned char cFooter[4];
+   int nFooterSize;
 
-   cFooter[0] = 0x00;         /* EOD frame (written even in raw mode, so that the end of the data can be detected) */
-   cFooter[1] = 0x00;
-   cFooter[2] = 0x00;
+   if ((nOptions & OPT_RAW) != 0) {
+      cFooter[0] = 0x00;         /* EOD marker for raw block */
+      cFooter[1] = 0xff;         
+      cFooter[2] = 0x00;
+      cFooter[3] = 0x00;
+      nFooterSize = 4;
+   }
+   else {
+      cFooter[0] = 0x00;         /* EOD frame */
+      cFooter[1] = 0x00;
+      cFooter[2] = 0x00;
+      nFooterSize = 3;
+   }
 
    if (!bError)
       bError = fwrite(cFooter, 1, nFooterSize, f_out) != nFooterSize;
-   nCompressedSize += (long long) nFooterSize;
+   nCompressedSize += (long long)nFooterSize;
 
    if (!bError && (nOptions & OPT_VERBOSE)) {
       nEndTime = lzsa_get_time();
@@ -305,7 +315,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       nFileSize = (unsigned int)ftell(pInFile);
       fseek(pInFile, 0, SEEK_SET);
 
-      if (nFileSize < 2) {
+      if (nFileSize < 4) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid file size for raw block mode\n");
@@ -371,15 +381,15 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0;
+            nBlockSize = 0xffffff;
          }
       }
       else {
-         nBlockSize = nFileSize - 2;
-         nFileSize = 0;
+         nBlockSize = nFileSize - 4;
+         nFileSize = 0xffffff;
       }
 
-      if (nBlockSize != 0) {
+      if ((nBlockSize & 0x400000) == 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
@@ -483,7 +493,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
       nFileSize = (unsigned int)ftell(pInFile);
       fseek(pInFile, 0, SEEK_SET);
 
-      if (nFileSize < 2) {
+      if (nFileSize < 4) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid file size for raw block mode\n");
@@ -571,15 +581,15 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0;
+            nBlockSize = 0xffffff;
          }
       }
       else {
-         nBlockSize = nFileSize - 2;
-         nFileSize = 0;
+         nBlockSize = nFileSize - 4;
+         nFileSize = 0xffffff;
       }
 
-      if (nBlockSize != 0) {
+      if ((nBlockSize & 0x400000) == 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 

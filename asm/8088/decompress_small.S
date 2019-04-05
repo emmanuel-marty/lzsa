@@ -41,9 +41,9 @@ lzsa_decompress:
    lodsb                   ; read token byte: LLL|MMMM|O
    mov dx,ax               ; keep token in dl
    
-   mov cl,3
-   rol al,cl               ; shift literals length into place
-   and al,07H              ; isolate literals length in token (LLL)
+   and al,070H             ; isolate literals length in token (LLL)
+   mov cl,4
+   shr al,cl               ; shift literals length into place
 
    mov cx,ax               ; copy literals length into cx
    cmp al,07H              ; LITERALS_RUN_LEN?
@@ -54,20 +54,18 @@ lzsa_decompress:
 .copy_literals:
    rep movsb               ; copy cx literals from ds:si to es:di
 
-   ror dl,1                ; check match offset size in token (O bit)
-   jc .get_long_offset
+   test dl,dl              ; check match offset size in token (O bit)
+   js .get_long_offset
 
    xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
    lodsb
-   inc ax                  ; the match offset is stored off-by-1, increase it
    jmp short .get_match_length
 
 .get_long_offset:
    lodsw                   ; Get 2-byte match offset
-   test ax,ax
-   je short .done_decompressing ; bail if we hit EOD
 
 .get_match_length:
+   inc ax                  ; the match offset is stored off-by-1, increase it
    xchg ax,dx              ; dx: match offset  ax: original token
    and al,0FH              ; isolate match length in token (MMMM)
 
@@ -76,6 +74,8 @@ lzsa_decompress:
    jne .copy_match         ; no, we have the full match length from the token, go copy
    
    call .get_varlen        ; get complete match length
+   test cx,cx
+   je short .done_decompressing ; bail if we hit EOD
 
 .copy_match:
    add cx,3                ; add MIN_MATCH_SIZE to get the final match length to copy
@@ -113,4 +113,5 @@ lzsa_decompress:
 
 .large_varlen:
    lodsw                   ; grab 16-bit extra length
+   mov cx,ax
    ret
