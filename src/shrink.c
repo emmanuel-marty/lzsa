@@ -410,19 +410,17 @@ static inline int lzsa_get_literals_varlen_size(const int nLength) {
  */
 static inline int lzsa_write_literals_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= LITERALS_RUN_LEN) {
-      nLength -= LITERALS_RUN_LEN;
-
-      if (nLength < 254)
-         pOutData[nOutOffset++] = nLength;
+      if (nLength < (LITERALS_RUN_LEN + 254))
+         pOutData[nOutOffset++] = nLength - LITERALS_RUN_LEN;
       else {
-         if (nLength < 510) {
+         if (nLength < (LITERALS_RUN_LEN + 510)) {
             pOutData[nOutOffset++] = 254;
-            pOutData[nOutOffset++] = nLength - 254;
+            pOutData[nOutOffset++] = nLength - LITERALS_RUN_LEN - 254;
          }
          else {
             pOutData[nOutOffset++] = 255;
-            pOutData[nOutOffset++] = (nLength - 255) & 0xff;
-            pOutData[nOutOffset++] = ((nLength - 255) >> 8) & 0xff;
+            pOutData[nOutOffset++] = nLength & 0xff;
+            pOutData[nOutOffset++] = (nLength >> 8) & 0xff;
          }
       }
    }
@@ -463,19 +461,17 @@ static inline int lzsa_get_match_varlen_size(const int nLength) {
  */
 static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= MATCH_RUN_LEN) {
-      nLength -= MATCH_RUN_LEN;
-
-      if (nLength < 254)
-         pOutData[nOutOffset++] = nLength;
+      if (nLength < (MATCH_RUN_LEN + 254))
+         pOutData[nOutOffset++] = nLength - MATCH_RUN_LEN;
       else {
-         if (nLength < 510) {
+         if (nLength < (MATCH_RUN_LEN + 510)) {
             pOutData[nOutOffset++] = 254;
-            pOutData[nOutOffset++] = nLength - 254;
+            pOutData[nOutOffset++] = nLength - MATCH_RUN_LEN - 254;
          }
          else {
             pOutData[nOutOffset++] = 255;
-            pOutData[nOutOffset++] = (nLength - 255) & 0xff;
-            pOutData[nOutOffset++] = ((nLength - 255) >> 8) & 0xff;
+            pOutData[nOutOffset++] = nLength & 0xff;
+            pOutData[nOutOffset++] = (nLength >> 8) & 0xff;
          }
       }
    }
@@ -606,10 +602,13 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
             nNumLiterals = 0;
          }
 
-         pOutData[nOutOffset++] = (nMatchOffset - 1) & 0xff;
-         if (nNibbleLongOffset)
-            pOutData[nOutOffset++] = (nMatchOffset - 1) >> 8;
-
+         if (nNibbleLongOffset) {
+            pOutData[nOutOffset++] = nMatchOffset & 0xff;
+            pOutData[nOutOffset++] = nMatchOffset >> 8;
+         }
+         else {
+            pOutData[nOutOffset++] = (nMatchOffset - 1) & 0xff;
+         }
          nOutOffset = lzsa_write_match_varlen(pOutData, nOutOffset, nEncodedMatchLen);
          i += nMatchLen;
       }

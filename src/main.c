@@ -225,9 +225,9 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
    unsigned char cFooter[3];
 
-   cFooter[0] = 0xFF;         /* EOD frame (written even in raw mode, so that the end of the data can be detected) */
-   cFooter[1] = 0xFF;
-   cFooter[2] = 0xFF;
+   cFooter[0] = 0x00;         /* EOD frame (written even in raw mode, so that the end of the data can be detected) */
+   cFooter[1] = 0x00;
+   cFooter[2] = 0x00;
 
    if (!bError)
       bError = fwrite(cFooter, 1, 3, f_out) != 3;
@@ -370,15 +370,15 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0xffffff;
+            nBlockSize = 0;
          }
       }
       else {
          nBlockSize = nFileSize - 3;
-         nFileSize = 0xffffff;
+         nFileSize = 0;
       }
 
-      if ((nBlockSize & 0x400000) == 0) {
+      if (nBlockSize != 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
@@ -570,15 +570,15 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0xffffff;
+            nBlockSize = 0;
          }
       }
       else {
          nBlockSize = nFileSize - 3;
-         nFileSize = 0xffffff;
+         nFileSize = 0;
       }
 
-      if ((nBlockSize & 0x400000) == 0) {
+      if (nBlockSize != 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 

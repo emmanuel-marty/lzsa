@@ -48,12 +48,9 @@ static inline FORCE_INLINE int lzsa_expand_literals_slow(const unsigned char **p
          nLiterals += (int)((unsigned int)*pInBlock++);
       }
       else if (nByte == 255) {
-         int nLargeLiterals;
-
          if ((pInBlock + 1) >= pInBlockEnd) return -1;
-         nLargeLiterals = ((unsigned int)*pInBlock++);
-         nLargeLiterals |= (((unsigned int)*pInBlock++) << 8);
-         nLiterals += nLargeLiterals;
+         nLiterals = ((unsigned int)*pInBlock++);
+         nLiterals |= (((unsigned int)*pInBlock++) << 8);
       }
    }
 
@@ -89,12 +86,9 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
          nMatchLen += (int)((unsigned int)*pInBlock++);
       }
       else if (nByte == 255) {
-         int nLargeMatchLen;
-
          if ((pInBlock + 1) >= pInBlockEnd) return -1;
-         nLargeMatchLen = ((unsigned int)*pInBlock++);
-         nLargeMatchLen |= (((unsigned int)*pInBlock++) << 8);
-         nMatchLen += nLargeMatchLen;
+         nMatchLen = ((unsigned int)*pInBlock++);
+         nMatchLen |= (((unsigned int)*pInBlock++) << 8);
       }
    }
 
@@ -193,9 +187,11 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
          if (token & 0x80) {
             if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+            if (nMatchOffset == 0) break;
          }
-         if (nMatchOffset == 0xffff) break;
-         nMatchOffset++;
+         else {
+            nMatchOffset++;
+         }
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
          if (pSrc < pOutData)
@@ -229,9 +225,11 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
          if (token & 0x80) {
             if (pInBlock >= pInBlockEnd) return -1;
             nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+            if (nMatchOffset == 0) break;
          }
-         if (nMatchOffset == 0xffff) break;
-         nMatchOffset++;
+         else {
+            nMatchOffset++;
+         }
 
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
          if (pSrc < pOutData)

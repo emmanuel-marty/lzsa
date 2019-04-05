@@ -50,27 +50,26 @@ The stream format is composed of:
 
 # Header format
 
-The header contains a signature and a traits byte:
+The 3-bytes header contains a signature and a traits byte:
 
-    0    1    2    3      4
-    0x7b 0x9e 0x0f 0xd7   0x00
+    0    1                2
+    0x7b 0x9e             0x00
     <--- signature --->   <- traits ->
 
 The traits are set to 0x00 for this version of the format.
 
 # Frame format
 
-Each frame contains a 3-byte length followed by block data that expands to up to 64 Kb of decompressed data.
+Each frame contains a 3-bytes length followed by block data that expands to up to 64 Kb of decompressed data.
 
     0    1    2
-    DSZ0 DSZ1 U|E|DSZ2
+    DSZ0 DSZ1 U|DSZ2
 
 * DSZ0 (length byte 0) contains bits 0-7 of the block data size
 * DSZ1 (length byte 1) contains bits 8-15 of the block data size
 * DSZ2 (bit 0 of length byte 2) contains bit 16 of the block data size
 * U (bit 7 of length byte 2) is set if the block data is uncompressed, and clear if the block data is compressed.
-* E (bit 6 of length byte 2) is set to mark the end of compressed data
-* Bits 1..5 of length byte 2 are currently undefined and must be set to 0 when bit 6 is cleared, and to 1 when bit 6 is set.
+* Bits 1..6 of length byte 2 are currently undefined and must be set to 0.
 
 # Block data format
 
@@ -90,7 +89,7 @@ The token byte is broken down into three parts:
     7 6 5 4 3 2 1 0
     O L L L M M M M
 
-* O: set for a 2-byte match offset, clear for a 1-byte match offset
+* O: set for a 2-bytes match offset, clear for a 1-byte match offset
 * L: 3-bit literals length (0-6, or 7 if extended). If the number of literals for this command is 0 to 6, the length is encoded in the token and no extra bytes are required. Otherwise, a value of 7 is encoded and extra bytes follow as 'optional extra literal length'
 * M: 4-bit encoded match length (0-14, or 15 if extended). Likewise, if the encoded match length for this command is 0 to 14, it is directly stored, otherwise 15 is stored and extra bytes follow as 'optional extra encoded match length'. Except for the last command in a block, a command always contains a match, so the encoded match length is the actual match length offset by the minimum, which is 3 bytes. For instance, an actual match length of 10 bytes to be copied, is encoded as 7.
 
@@ -130,4 +129,4 @@ If the encoded match length is 15 or more, the 'M' bits in the token form the va
 
 # Footer format
 
-The stream ends with the EOD frame: the 3 length bytes are set to 0xFF, 0xFF, 0xFF, and no block data follows.
+The stream ends with the EOD frame: the 3 length bytes are set to 0x00, 0x00, 0x00, and no block data follows.

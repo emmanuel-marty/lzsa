@@ -59,14 +59,15 @@ lzsa_decompress:
 
    xor ah,ah               ; Get 1-byte match offset
    lodsb
+   inc ax                  ; the match offset is stored off-by-1, increase it
    jmp short .get_match_length
 
 .get_long_offset:
    lodsw                   ; Get 2-byte match offset
+   test ax,ax
+   je short .done_decompressing ; bail if we hit EOD
 
 .get_match_length:
-   inc ax                  ; the match offset is stored off-by-1, increase it
-   je short .done_decompressing ; bail if we hit EOD
    xchg ax,dx              ; dx: match offset  ax: original token
    and al,0FH              ; isolate match length in token (MMMM)
 
@@ -97,20 +98,19 @@ lzsa_decompress:
 
 .get_varlen:
    lodsb                   ; grab extra length byte
-   add cx,ax               ; add extra length byte to length from token
 
    cmp al,0FFH             ; 3-byte extra length?
    je .large_varlen        ; yes, go grab it
 
+   add cx,ax               ; add extra length byte to length from token
    cmp al,0FEH             ; 2-byte extra length?
    jne .varlen_done        ; no, we have the full length now, bail
 
    lodsb                   ; grab extra length byte
-   jmp short .add_and_varlen_done ; go add it and bail
+   add cx,ax               ; add to length from token
+.varlen_done:
+   ret                     ; bail
 
 .large_varlen:
    lodsw                   ; grab 16-bit extra length
-.add_and_varlen_done:
-   add cx,ax               ; add to length from token
-.varlen_done:
    ret
