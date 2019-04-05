@@ -381,15 +381,15 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0xffffff;
+            nBlockSize = 0;
          }
       }
       else {
          nBlockSize = nFileSize - 4;
-         nFileSize = 0xffffff;
+         nFileSize = 0;
       }
 
-      if ((nBlockSize & 0x400000) == 0) {
+      if (nBlockSize != 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
@@ -581,15 +581,15 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
                (((unsigned int)cBlockSize[2]) << 16);
          }
          else {
-            nBlockSize = 0xffffff;
+            nBlockSize = 0;
          }
       }
       else {
          nBlockSize = nFileSize - 4;
-         nFileSize = 0xffffff;
+         nFileSize = 0;
       }
 
-      if ((nBlockSize & 0x400000) == 0) {
+      if (nBlockSize != 0) {
          bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
