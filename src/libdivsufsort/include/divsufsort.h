@@ -50,17 +50,38 @@ typedef int saidx_t;
 #define PRIdSAIDX_T "d"
 #endif
 
+/*- divsufsort context */
+typedef struct _divsufsort_ctx_t {
+   saidx_t *bucket_A;
+   saidx_t *bucket_B;
+} divsufsort_ctx_t;
+
 /*- Prototypes -*/
 
 /**
+ * Initialize suffix array context
+ *
+ * @return 0 for success, or non-zero in case of an error
+ */
+int divsufsort_init(divsufsort_ctx_t *ctx);
+
+/**
+ * Destroy suffix array context
+ *
+ * @param ctx suffix array context to destroy
+ */
+void divsufsort_destroy(divsufsort_ctx_t *ctx);
+
+/**
  * Constructs the suffix array of a given string.
+ * @param ctx suffix array context
  * @param T[0..n-1] The input string.
  * @param SA[0..n-1] The output array of suffixes.
  * @param n The length of the given string.
  * @return 0 if no error occurred, -1 or -2 otherwise.
  */
 DIVSUFSORT_API
-saint_t divsufsort(const sauchar_t *T, saidx_t *SA, saidx_t n);
+saint_t divsufsort_build_array(divsufsort_ctx_t *ctx, const sauchar_t *T, saidx_t *SA, saidx_t n);
 
 #if 0
 /**

@@ -4,6 +4,7 @@
  * The following copying information applies to this specific source code file:
  *
  * Written in 2019 by Emmanuel Marty <marty.emmanuel@gmail.com>
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
  * Portions written in 2014-2015 by Eric Biggers <ebiggers3@gmail.com>
  *
  * To the extent possible under law, the author(s) have dedicated all copyright
@@ -24,12 +25,12 @@
  *
  * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
  * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ *
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "divsufsort.h"
 #include "shrink.h"
 #include "format.h"
 
@@ -62,36 +63,35 @@ typedef struct _lzsa_match {
  * @return 0 for success, non-zero for failure
  */
 int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize) {
-   pCompressor->intervals = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
+   int nResult;
+
+   nResult = divsufsort_init(&pCompressor->divsufsort_context);
+   pCompressor->intervals = NULL;
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
    pCompressor->num_commands = 0;
 
-   if (pCompressor->intervals) {
-      pCompressor->pos_data = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
+   if (!nResult) {
+      pCompressor->intervals = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
 
-      if (pCompressor->pos_data) {
-         pCompressor->open_intervals = (unsigned int *)malloc((LCP_MAX + 1) * sizeof(unsigned int));
+      if (pCompressor->intervals) {
+         pCompressor->pos_data = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
 
-         if (pCompressor->open_intervals) {
-            pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
+         if (pCompressor->pos_data) {
+            pCompressor->open_intervals = (unsigned int *)malloc((LCP_MAX + 1) * sizeof(unsigned int));
 
-            if (pCompressor->match)
-               return 0;
+            if (pCompressor->open_intervals) {
+               pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
 
-            free(pCompressor->open_intervals);
-            pCompressor->open_intervals = NULL;
+               if (pCompressor->match)
+                  return 0;
+            }
          }
-
-         free(pCompressor->pos_data);
-         pCompressor->pos_data = NULL;
       }
-
-      free(pCompressor->intervals);
-      pCompressor->intervals = NULL;
    }
 
+   lzsa_compressor_destroy(pCompressor);
    return 100;
 }
 
@@ -101,6 +101,8 @@ int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize)
  * @param pCompressor compression context to clean up
  */
 void lzsa_compressor_destroy(lsza_compressor *pCompressor) {
+   divsufsort_destroy(&pCompressor->divsufsort_context);
+
    if (pCompressor->match) {
       free(pCompressor->match);
       pCompressor->match = NULL;
@@ -135,7 +137,7 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
    unsigned int *intervals = pCompressor->intervals;
 
    /* Build suffix array from input data */
-   if (divsufsort(pInWindow, (saidx_t*)intervals, nInWindowSize) != 0) {
+   if (divsufsort_build_array(&pCompressor->divsufsort_context, pInWindow, (saidx_t*)intervals, nInWindowSize) != 0) {
       return 100;
    }
 
@@ -700,7 +702,8 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
-   lzsa_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize);
+   if (lzsa_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize))
+      return -1;
    if (nPreviousBlockSize) {
       lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
    }

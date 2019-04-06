@@ -23,11 +23,14 @@
 #ifndef _SHRINK_H
 #define _SHRINK_H
 
+#include "divsufsort.h"
+
 /* Forward declarations */
 typedef struct _lzsa_match lzsa_match;
 
 /** Compression context */
 typedef struct {
+   divsufsort_ctx_t divsufsort_context;
    unsigned int *intervals;
    unsigned int *pos_data;
    unsigned int *open_intervals;

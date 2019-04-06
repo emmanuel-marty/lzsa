@@ -327,11 +327,47 @@ construct_BWT(const sauchar_t *T, saidx_t *SA,
 
 /*---------------------------------------------------------------------------*/
 
+/**
+ * Initialize suffix array context
+ *
+ * @return 0 for success, or non-zero in case of an error
+ */
+int divsufsort_init(divsufsort_ctx_t *ctx) {
+   ctx->bucket_A = (saidx_t *)malloc(BUCKET_A_SIZE * sizeof(saidx_t));
+   ctx->bucket_B = NULL;
+
+   if (ctx->bucket_A) {
+      ctx->bucket_B = (saidx_t *)malloc(BUCKET_B_SIZE * sizeof(saidx_t));
+
+      if (ctx->bucket_B)
+         return 0;
+   }
+
+   divsufsort_destroy(ctx);
+   return -1;
+}
+
+/**
+ * Destroy suffix array context
+ *
+ * @param ctx suffix array context to destroy
+ */
+void divsufsort_destroy(divsufsort_ctx_t *ctx) {
+   if (ctx->bucket_B) {
+      free(ctx->bucket_B);
+      ctx->bucket_B = NULL;
+   }
+
+   if (ctx->bucket_A) {
+      free(ctx->bucket_A);
+      ctx->bucket_A = NULL;
+   }
+}
+
 /*- Function -*/
 
 saint_t
-divsufsort(const sauchar_t *T, saidx_t *SA, saidx_t n) {
-  saidx_t *bucket_A, *bucket_B;
+divsufsort_build_array(divsufsort_ctx_t *ctx, const sauchar_t *T, saidx_t *SA, saidx_t n) {
   saidx_t m;
   saint_t err = 0;
 
@@ -341,19 +377,13 @@ divsufsort(const sauchar_t *T, saidx_t *SA, saidx_t n) {
   else if(n == 1) { SA[0] = 0; return 0; }
   else if(n == 2) { m = (T[0] < T[1]); SA[m ^ 1] = 0, SA[m] = 1; return 0; }
 
-  bucket_A = (saidx_t *)malloc(BUCKET_A_SIZE * sizeof(saidx_t));
-  bucket_B = (saidx_t *)malloc(BUCKET_B_SIZE * sizeof(saidx_t));
-
   /* Suffixsort. */
-  if((bucket_A != NULL) && (bucket_B != NULL)) {
-    m = sort_typeBstar(T, SA, bucket_A, bucket_B, n);
-    construct_SA(T, SA, bucket_A, bucket_B, n, m);
+  if((ctx->bucket_A != NULL) && (ctx->bucket_B != NULL)) {
+    m = sort_typeBstar(T, SA, ctx->bucket_A, ctx->bucket_B, n);
+    construct_SA(T, SA, ctx->bucket_A, ctx->bucket_B, n, m);
   } else {
     err = -2;
   }
-
-  free(bucket_B);
-  free(bucket_A);
 
   return err;
 }
