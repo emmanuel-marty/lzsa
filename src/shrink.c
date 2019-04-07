@@ -580,12 +580,37 @@ static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int 
          int nMatchOffset = pMatch->offset;
          int nMatchLen = pMatch->length;
          int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
-         int nNibbleLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
-         int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nNibbleLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
+         int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
+         int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nTokenLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
+         int nReduce = 0;
 
-         if ((((nNumLiterals + nMatchLen) < LITERALS_RUN_LEN && nTokenSize >= nMatchLen) || 
-              ((nNumLiterals + nMatchLen) < (LITERALS_RUN_LEN + 254) && nTokenSize >= (nMatchLen + 1))) &&
-             (i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE) {
+         if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE &&
+             nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nMatchLen))) {
+            /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
+             * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
+             * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
+             * match command by literals, the output size will not increase and it will remove one command. */
+            nReduce = 1;
+         }
+
+         if (nMatchLen <= 9 /* max reducable command size: <token> <FF> <ll> <ll> <offset> <FF> <mm> <mm> */ && 
+            (i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE) {
+            int nCurIndex = i + nMatchLen;
+            int nNextNumLiterals = 0;
+
+            do {
+               nCurIndex++;
+               nNextNumLiterals++;
+            }  while (nCurIndex < nEndOffset && pCompressor->match[nCurIndex << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE);
+
+            if (nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size(nNextNumLiterals))) {
+               /* This command is a match, and is followed by literals, and then another match or the end of the input data. If encoding this match as literals doesn't take
+                * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
+               nReduce = 1;
+            }
+         }
+
+         if (nReduce) {
             int j;
 
             for (j = 0; j < nMatchLen; j++) {
@@ -631,17 +656,17 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          int nMatchOffset = pMatch->offset;
          int nMatchLen = pMatch->length;
          int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
-         int nNibbleLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
-         int nNibbleMatchLen = (nEncodedMatchLen >= MATCH_RUN_LEN) ? MATCH_RUN_LEN : nEncodedMatchLen;
-         int nNibbleLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
-         int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals + (nNibbleLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
+         int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
+         int nTokenMatchLen = (nEncodedMatchLen >= MATCH_RUN_LEN) ? MATCH_RUN_LEN : nEncodedMatchLen;
+         int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
+         int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals + (nTokenLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
 
-         if ((nOutOffset + nTokenSize) > nMaxOutDataSize)
+         if ((nOutOffset + nCommandSize) > nMaxOutDataSize)
             return -1;
          if (nMatchOffset < MIN_OFFSET || nMatchOffset > MAX_OFFSET)
             return -1;
 
-         pOutData[nOutOffset++] = nNibbleLongOffset | (nNibbleLiteralsLen << 4) | nNibbleMatchLen;
+         pOutData[nOutOffset++] = nTokenLongOffset | (nTokenLiteralsLen << 4) | nTokenMatchLen;
          nOutOffset = lzsa_write_literals_varlen(pOutData, nOutOffset, nNumLiterals);
 
          if (nNumLiterals != 0) {
@@ -651,7 +676,7 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
          }
 
          pOutData[nOutOffset++] = (nMatchOffset - 1) & 0xff;
-         if (nNibbleLongOffset) {
+         if (nTokenLongOffset) {
             pOutData[nOutOffset++] = (nMatchOffset - 1) >> 8;
          }
          nOutOffset = lzsa_write_match_varlen(pOutData, nOutOffset, nEncodedMatchLen);
@@ -668,13 +693,13 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
    }
 
    {
-      int nNibbleLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
-      int nTokenSize = 1 /* nibble */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals;
+      int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN) ? LITERALS_RUN_LEN : nNumLiterals;
+      int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + nNumLiterals;
 
-      if ((nOutOffset + nTokenSize) > nMaxOutDataSize)
+      if ((nOutOffset + nCommandSize) > nMaxOutDataSize)
          return -1;
 
-      pOutData[nOutOffset++] = (nNibbleLiteralsLen << 4) | 0x0f;
+      pOutData[nOutOffset++] = (nTokenLiteralsLen << 4) | 0x0f;
       nOutOffset = lzsa_write_literals_varlen(pOutData, nOutOffset, nNumLiterals);
 
       if (nNumLiterals != 0) {
