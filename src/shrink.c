@@ -530,9 +530,30 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
          }
          else {
             if (pMatch[m].length >= MIN_MATCH_SIZE) {
-               int k;
+               int k, nMatchRunLen;
 
-               for (k = MIN_MATCH_SIZE; k <= pMatch[m].length; k++) {
+               nMatchRunLen = pMatch[m].length;
+               if (nMatchRunLen > MATCH_RUN_LEN)
+                  nMatchRunLen = MATCH_RUN_LEN;
+
+               for (k = MIN_MATCH_SIZE; k < nMatchRunLen; k++) {
+                  int nCurCost;
+                  int nRemainingLiteralsLen = nLastLiteralsOffset - (i + k);
+
+                  if (nRemainingLiteralsLen < 0) nRemainingLiteralsLen = 0;
+
+                  nCurCost = 1 + lzsa_get_literals_varlen_size(nRemainingLiteralsLen) + nMatchOffsetSize /* no extra match len bytes */;
+                  if ((i + k) < nEndOffset)
+                     nCurCost += cost[i + k];
+
+                  if (nBestCost >= nCurCost) {
+                     nBestCost = nCurCost;
+                     nBestMatchLen = k;
+                     nBestMatchOffset = pMatch[m].offset;
+                  }
+               }
+
+               for (; k <= pMatch[m].length; k++) {
                   int nCurCost;
                   int nRemainingLiteralsLen = nLastLiteralsOffset - (i + k);
 
@@ -577,36 +598,37 @@ static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int 
       lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
 
       if (pMatch->length >= MIN_MATCH_SIZE) {
-         int nMatchOffset = pMatch->offset;
          int nMatchLen = pMatch->length;
-         int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
-         int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
-         int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nTokenLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
          int nReduce = 0;
 
-         if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE &&
-             nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nMatchLen))) {
-            /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
-             * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
-             * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
-             * match command by literals, the output size will not increase and it will remove one command. */
-            nReduce = 1;
-         }
+         if (nMatchLen <= 9) /* max reducable command size: <token> <FF> <ll> <ll> <offset> <FF> <mm> <mm> */ {
+            int nMatchOffset = pMatch->offset;
+            int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
+            int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
+            int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nTokenLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
 
-         if (nMatchLen <= 9 /* max reducable command size: <token> <FF> <ll> <ll> <offset> <FF> <mm> <mm> */ && 
-            (i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE) {
-            int nCurIndex = i + nMatchLen;
-            int nNextNumLiterals = 0;
-
-            do {
-               nCurIndex++;
-               nNextNumLiterals++;
-            }  while (nCurIndex < nEndOffset && pCompressor->match[nCurIndex << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE);
-
-            if (nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size(nNextNumLiterals))) {
-               /* This command is a match, and is followed by literals, and then another match or the end of the input data. If encoding this match as literals doesn't take
-                * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
+            if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE &&
+               nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nMatchLen))) {
+               /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
+                * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
+                * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
+                * match command by literals, the output size will not increase and it will remove one command. */
                nReduce = 1;
+            }
+            else if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE) {
+               int nCurIndex = i + nMatchLen;
+               int nNextNumLiterals = 0;
+
+               do {
+                  nCurIndex++;
+                  nNextNumLiterals++;
+               } while (nCurIndex < nEndOffset && pCompressor->match[nCurIndex << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE);
+
+               if (nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size(nNextNumLiterals))) {
+                  /* This command is a match, and is followed by literals, and then another match or the end of the input data. If encoding this match as literals doesn't take
+                   * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
+                  nReduce = 1;
+               }
             }
          }
 
