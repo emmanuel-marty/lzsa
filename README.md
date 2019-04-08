@@ -4,21 +4,22 @@ The LZSA compression tool uses an aggressive optimal packing strategy to try to 
 
 Compression ratio comparison between LZSA and other optimal packers, for a workload composed of ZX Spectrum and C64 files:
 
-    ZX7                  57,36%           (entropy coding)
-    LZ5 1.4.1            59,82%
-    LZSA                 60,84% <------   (single byte stream)
-    Lizard -29           64,14%           (rep-match, 4 byte streams)
-    LZ4_HC -19 -B4 -BD   64,5%            (single byte stream)
-    Uncompressed         100%
+                         Bytes            Ratio            Decompression speed vs. LZ4
+    ZX7                  687133           53,30%           47,73%
+    LZ5 1.4.1            727107           56,40%           75%
+    LZSA                 736539           57,13% <------   90%
+    Lizard -29           776122           60,21%           Not measured
+    LZ4_HC -19 -B4 -BD   781049           60,59%           100%
+    Uncompressed         1289127          100%             N/A
 
 Performance over well-known compression corpus files:
 
                          Uncompressed     LZ4_HC -19 -B4 -BD    LZSA
-    Canterbury           2810784          935827 (33,29%)       855284 (30,43%)
-    Silesia              211938580        77299725 (36,47%)     73793860 (34,82%)
-    Calgary              3251493          1248780 (38,40%)      1196809 (36,80%)
-    Large                11159482         3771025 (33,79%)      3648987 (32,70%)
-    enwik9               1000000000       371841591 (37,18%)    355427361 (35,54%)
+    Canterbury           2810784          935827 (33,29%)       855083 (30,42%)
+    Silesia              211938580        77299725 (36,47%)     73750088 (34,80%)
+    Calgary              3251493          1248780 (38,40%)      1196507 (36,80%)
+    Large                11159482         3771025 (33,79%)      3648435 (32,69%)
+    enwik9               1000000000       371841591 (37,18%)    355369963 (35,54%)
     
 As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 91 bytes.
 
