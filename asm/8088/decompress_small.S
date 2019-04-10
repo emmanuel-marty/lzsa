@@ -38,7 +38,7 @@ lzsa_decompress:
 
 .decode_token:
    mov ax,cx               ; clear ah - cx is zero from above or from after rep movsb in .copy_match
-   lodsb                   ; read token byte: LLL|MMMM|O
+   lodsb                   ; read token byte: O|LLL|MMMM
    mov dx,ax               ; keep token in dl
    
    and al,070H             ; isolate literals length in token (LLL)
