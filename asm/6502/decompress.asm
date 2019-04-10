@@ -85,18 +85,17 @@ NO_LITERALS
    AND #$80                             ; isolate match offset mode (O)
    BNE GET_LONG_OFFSET                  ; $80: 16 bit offset
 
-   JSR GETSRC                           ; get 8 bit offset from stream
-   TAX                                  ; store as low 8 bits of offset
+   JSR GETSRC                           ; get 8 bit offset from stream in A
                                         ; Y (high 8 bits) is already set to 0 here
    JMP FIX_OFFSET                       ; go increase offset
 
 GET_LONG_OFFSET                         ; $00: 2-byte offset
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
+   TXA                                  ; put low 8 bits in A
 
 FIX_OFFSET
-   TXA                                  ; add 1 to offset
-   CLC
+   CLC                                  ; add 1 to offset
    ADC #$01
    BCC OFFSET_FIXED
 
