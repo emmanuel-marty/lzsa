@@ -106,7 +106,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       fprintf(stderr, "out of memory\n");
       return 100;
    }
-   memset(pInData, 0, BLOCK_SIZE);
+   memset(pOutData, 0, BLOCK_SIZE);
 
    nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2);
    if (nResult != 0) {
