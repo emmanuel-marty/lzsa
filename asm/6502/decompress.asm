@@ -82,14 +82,13 @@ COPY_LITERALS
 NO_LITERALS
    PLA                                  ; retrieve token from stack
    PHA                                  ; preserve token again
-   AND #$80                             ; isolate match offset mode (O)
-   BNE GET_LONG_OFFSET                  ; $80: 16 bit offset
+   BMI GET_LONG_OFFSET                  ; $80: 16 bit offset
 
    JSR GETSRC                           ; get 8 bit offset from stream in A
                                         ; Y (high 8 bits) is already set to 0 here
    JMP FIX_OFFSET                       ; go increase offset
 
-GET_LONG_OFFSET                         ; $00: 2-byte offset
+GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
    TXA                                  ; put low 8 bits in A
@@ -113,23 +112,23 @@ OFFSET_FIXED
 
    JSR GETSRC                           ; get extra byte of variable match length
    CMP #$FF                             ; FF <low 8 bits> <high 8 bits>?
-   BEQ LARGE_VARLEN_MATCHLEN            ; yes, go grab it
+   BNE SHORT_VARLEN_MATCHLEN            ; if not, handle <8 bits> or <FE> <8 extra bits> sequence
 
-   JSR GETSINGLEVARLENSRC               ; handle single extra byte of variable match len
-
-   CLC                                  ; add extra byte to len from token
-   ADC #$0F                             ; (MATCH_RUN_LEN)
-   BCC PREPARE_COPY_MATCH
-   INY
-   JMP PREPARE_COPY_MATCH
-
-LARGE_VARLEN_MATCHLEN                   ; FF <low 8 bits> <high 8 bits>
+                                        ; Handle FF <low 8 bits> <high 8 bits>:
                                         ; match length = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
                                         ; large match length with zero high byte?
    BEQ DECOMPRESSION_DONE               ; if so, this is the EOD code, bail
    JMP PREPARE_COPY_MATCH_Y
+
+SHORT_VARLEN_MATCHLEN
+   JSR GETSINGLEVARLENSRC               ; handle single extra byte of variable match len
+
+   CLC                                  ; add extra byte to len from token
+   ADC #$0F                             ; (MATCH_RUN_LEN)
+   BCC PREPARE_COPY_MATCH
+   INY
 
 PREPARE_COPY_MATCH
    CLC                                  ; add MIN_MATCH_SIZE to match length
