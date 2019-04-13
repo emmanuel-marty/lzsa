@@ -7,7 +7,7 @@ Compression ratio comparison between LZSA and other optimal packers, for a workl
                          Bytes            Ratio            Decompression speed vs. LZ4
     ZX7                  687133           53,30%           47,73%
     LZ5 1.4.1            727107           56,40%           75%
-    LZSA                 736539           57,13% <------   90%
+    LZSA                 736165           57,11% <------   90%
     Lizard -29           776122           60,21%           Not measured
     LZ4_HC -19 -B4 -BD   781049           60,59%           100%
     Uncompressed         1289127          100%             N/A
@@ -15,13 +15,13 @@ Compression ratio comparison between LZSA and other optimal packers, for a workl
 Performance over well-known compression corpus files:
 
                          Uncompressed     LZ4_HC -19 -B4 -BD    LZSA
-    Canterbury           2810784          935827 (33,29%)       855083 (30,42%)
-    Silesia              211938580        77299725 (36,47%)     73750088 (34,80%)
-    Calgary              3251493          1248780 (38,40%)      1196507 (36,80%)
-    Large                11159482         3771025 (33,79%)      3648435 (32,69%)
-    enwik9               1000000000       371841591 (37,18%)    355369963 (35,54%)
+    Canterbury           2810784          935827 (33,29%)       855044 (30,42%)
+    Silesia              211938580        77299725 (36,47%)     73707039 (34,78%)
+    Calgary              3251493          1248780 (38,40%)      1196448 (36,80%)
+    Large                11159482         3771025 (33,79%)      3648420 (32,69%)
+    enwik9               1000000000       371841591 (37,18%)    355360717 (35,54%)
     
-As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 91 bytes.
+As an example of LZSA's simplicity, a size-optimized decompressor on 8088 has been implemented in 92 bytes.
 
 The compressor is approximately 2X slower than LZ4_HC but compresses better while maintaining similar decompression speeds and decompressor simplicity.
 
