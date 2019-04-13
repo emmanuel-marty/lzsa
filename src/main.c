@@ -170,6 +170,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
                cBlockSize[0] = nOutDataSize & 0xff;
                cBlockSize[1] = (nOutDataSize >> 8) & 0xff;
                cBlockSize[2] = (nOutDataSize >> 16) & 0xff;
+               nCompressedSize += 3LL;
 
                if (fwrite(cBlockSize, 1, 3, f_out) != (size_t)3) {
                   bError = true;
@@ -182,7 +183,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
                }
                else {
                   nOriginalSize += (long long)nInDataSize;
-                  nCompressedSize += 3LL + (long long)nOutDataSize;
+                  nCompressedSize += (long long)nOutDataSize;
                }
             }
          }
