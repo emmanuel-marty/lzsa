@@ -25,6 +25,7 @@
  *
  * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
  * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
  *
  */
 
@@ -495,15 +496,18 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
    int i;
 
    cost[nEndOffset - 1] = 1;
-   nLastLiteralsOffset = nEndOffset - 1;
+   nLastLiteralsOffset = nEndOffset;
 
    for (i = nEndOffset - 2; i != (nStartOffset - 1); i--) {
       int nBestCost, nBestMatchLen, nBestMatchOffset;
 
       int nLiteralsLen = nLastLiteralsOffset - i;
-      nBestCost = 1 + cost[i + 1] + lzsa_get_literals_varlen_size(nLiteralsLen);
-      if (nLiteralsLen > 1)
-         nBestCost -= lzsa_get_literals_varlen_size(nLiteralsLen - 1);
+      nBestCost = 1 + cost[i + 1];
+      if (nLiteralsLen == LITERALS_RUN_LEN || nLiteralsLen == (LITERALS_RUN_LEN + 254) || nLiteralsLen == (LITERALS_RUN_LEN + 510)) {
+         /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
+          * The cost automatically accumulates down the chain. */
+         nBestCost++;
+      }
       nBestMatchLen = 0;
       nBestMatchOffset = 0;
 
@@ -516,17 +520,12 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
          if (pMatch[m].length >= LEAVE_ALONE_MATCH_SIZE) {
             int nCurCost;
             int nMatchLen = pMatch[m].length;
-            int nRemainingLiteralsLen = nLastLiteralsOffset - (i + nMatchLen);
-
-            if (nRemainingLiteralsLen < 0) nRemainingLiteralsLen = 0;
 
             if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
                nMatchLen = nEndOffset - LAST_LITERALS - i;
 
-            nCurCost = 1 + lzsa_get_literals_varlen_size(nRemainingLiteralsLen) + nMatchOffsetSize + lzsa_get_match_varlen_size(nMatchLen - MIN_MATCH_SIZE);
+            nCurCost = 1 + nMatchOffsetSize + lzsa_get_match_varlen_size(nMatchLen - MIN_MATCH_SIZE);
             nCurCost += cost[i + nMatchLen];
-            if (nRemainingLiteralsLen > 1)
-               nCurCost -= lzsa_get_literals_varlen_size(nRemainingLiteralsLen - 1);
 
             if (nBestCost >= nCurCost) {
                nBestCost = nCurCost;
@@ -548,14 +547,9 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
 
                for (k = MIN_MATCH_SIZE; k < nMatchRunLen; k++) {
                   int nCurCost;
-                  int nRemainingLiteralsLen = nLastLiteralsOffset - (i + k);
 
-                  if (nRemainingLiteralsLen < 0) nRemainingLiteralsLen = 0;
-
-                  nCurCost = 1 + lzsa_get_literals_varlen_size(nRemainingLiteralsLen) + nMatchOffsetSize /* no extra match len bytes */;
+                  nCurCost = 1 + nMatchOffsetSize /* no extra match len bytes */;
                   nCurCost += cost[i + k];
-                  if (nRemainingLiteralsLen > 1)
-                     nCurCost -= lzsa_get_literals_varlen_size(nRemainingLiteralsLen - 1);
 
                   if (nBestCost >= nCurCost) {
                      nBestCost = nCurCost;
@@ -566,14 +560,9 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
 
                for (; k <= nMatchLen; k++) {
                   int nCurCost;
-                  int nRemainingLiteralsLen = nLastLiteralsOffset - (i + k);
 
-                  if (nRemainingLiteralsLen < 0) nRemainingLiteralsLen = 0;
-
-                  nCurCost = 1 + lzsa_get_literals_varlen_size(nRemainingLiteralsLen) + nMatchOffsetSize + lzsa_get_match_varlen_size(k - MIN_MATCH_SIZE);
+                  nCurCost = 1 + nMatchOffsetSize + lzsa_get_match_varlen_size(k - MIN_MATCH_SIZE);
                   nCurCost += cost[i + k];
-                  if (nRemainingLiteralsLen > 1)
-                     nCurCost -= lzsa_get_literals_varlen_size(nRemainingLiteralsLen - 1);
 
                   if (nBestCost >= nCurCost) {
                      nBestCost = nCurCost;
