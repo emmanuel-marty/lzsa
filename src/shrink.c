@@ -514,7 +514,7 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
       lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
       int m;
 
-      for (m = 0; m < NMATCHES_PER_OFFSET; m++) {
+      for (m = 0; m < NMATCHES_PER_OFFSET && pMatch[m].length >= MIN_MATCH_SIZE; m++) {
          int nMatchOffsetSize = (pMatch[m].offset <= 256) ? 1 : 2;
 
          if (pMatch[m].length >= LEAVE_ALONE_MATCH_SIZE) {
@@ -534,41 +534,39 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
             }
          }
          else {
-            if (pMatch[m].length >= MIN_MATCH_SIZE) {
-               int nMatchLen = pMatch[m].length;
-               int k, nMatchRunLen;
+            int nMatchLen = pMatch[m].length;
+            int k, nMatchRunLen;
 
-               if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
-                  nMatchLen = nEndOffset - LAST_LITERALS - i;
+            if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
+               nMatchLen = nEndOffset - LAST_LITERALS - i;
 
-               nMatchRunLen = nMatchLen;
-               if (nMatchRunLen > MATCH_RUN_LEN)
-                  nMatchRunLen = MATCH_RUN_LEN;
+            nMatchRunLen = nMatchLen;
+            if (nMatchRunLen > MATCH_RUN_LEN)
+               nMatchRunLen = MATCH_RUN_LEN;
 
-               for (k = MIN_MATCH_SIZE; k < nMatchRunLen; k++) {
-                  int nCurCost;
+            for (k = MIN_MATCH_SIZE; k < nMatchRunLen; k++) {
+               int nCurCost;
 
-                  nCurCost = 1 + nMatchOffsetSize /* no extra match len bytes */;
-                  nCurCost += cost[i + k];
+               nCurCost = 1 + nMatchOffsetSize /* no extra match len bytes */;
+               nCurCost += cost[i + k];
 
-                  if (nBestCost >= nCurCost) {
-                     nBestCost = nCurCost;
-                     nBestMatchLen = k;
-                     nBestMatchOffset = pMatch[m].offset;
-                  }
+               if (nBestCost >= nCurCost) {
+                  nBestCost = nCurCost;
+                  nBestMatchLen = k;
+                  nBestMatchOffset = pMatch[m].offset;
                }
+            }
 
-               for (; k <= nMatchLen; k++) {
-                  int nCurCost;
+            for (; k <= nMatchLen; k++) {
+               int nCurCost;
 
-                  nCurCost = 1 + nMatchOffsetSize + lzsa_get_match_varlen_size(k - MIN_MATCH_SIZE);
-                  nCurCost += cost[i + k];
+               nCurCost = 1 + nMatchOffsetSize + lzsa_get_match_varlen_size(k - MIN_MATCH_SIZE);
+               nCurCost += cost[i + k];
 
-                  if (nBestCost >= nCurCost) {
-                     nBestCost = nCurCost;
-                     nBestMatchLen = k;
-                     nBestMatchOffset = pMatch[m].offset;
-                  }
+               if (nBestCost >= nCurCost) {
+                  nBestCost = nCurCost;
+                  nBestMatchLen = k;
+                  nBestMatchOffset = pMatch[m].offset;
                }
             }
          }
