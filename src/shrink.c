@@ -590,10 +590,13 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
  * @param pCompressor compression context
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ *
+ * @return non-zero if the number of tokens was reduced, 0 if it wasn't
  */
-static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
+static int lzsa_optimize_command_count(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
+   int nDidReduce = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
       lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
@@ -602,21 +605,21 @@ static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int 
          int nMatchLen = pMatch->length;
          int nReduce = 0;
 
-         if (nMatchLen <= 9) /* max reducable command size: <token> <FF> <ll> <ll> <offset> <FF> <mm> <mm> */ {
+         if (nMatchLen <= 9 && (i + nMatchLen) < nEndOffset) /* max reducable command size: <token> <FF> <ll> <ll> <offset> <offset> <FF> <mm> <mm> */ {
             int nMatchOffset = pMatch->offset;
             int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE;
-            int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
-            int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + (nTokenLongOffset ? 2 : 1) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
+            int nCommandSize = 1 /* token */ + lzsa_get_literals_varlen_size(nNumLiterals) + ((nMatchOffset <= 256) ? 1 : 2) /* match offset */ + lzsa_get_match_varlen_size(nEncodedMatchLen);
 
-            if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE &&
-               nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nMatchLen))) {
-               /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
-                * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
-                * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
-                * match command by literals, the output size will not increase and it will remove one command. */
-               nReduce = 1;
+            if (pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE) {
+               if (nCommandSize >= (nMatchLen + lzsa_get_literals_varlen_size(nNumLiterals + nMatchLen))) {
+                  /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
+                   * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
+                   * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
+                   * match command by literals, the output size will not increase and it will remove one command. */
+                  nReduce = 1;
+               }
             }
-            else if ((i + nMatchLen) < nEndOffset && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE) {
+            else {
                int nCurIndex = i + nMatchLen;
                int nNextNumLiterals = 0;
 
@@ -641,6 +644,8 @@ static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int 
             }
             nNumLiterals += nMatchLen;
             i += nMatchLen;
+
+            nDidReduce = 1;
          }
          else {
             if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX && pMatch->offset == 1 &&
@@ -663,6 +668,8 @@ static void lzsa_optimize_command_count(lsza_compressor *pCompressor, const int 
          i++;
       }
    }
+
+   return nDidReduce;
 }
 
 /**
@@ -768,7 +775,13 @@ int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWind
    }
    lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
    lzsa_optimize_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
-   lzsa_optimize_command_count(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+
+   int nDidReduce;
+   int nPasses = 0;
+   do {
+      nDidReduce = lzsa_optimize_command_count(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+      nPasses++;
+   } while (nDidReduce && nPasses < 20);
 
    return lzsa_write_block(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
 }
