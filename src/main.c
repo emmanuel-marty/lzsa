@@ -58,7 +58,7 @@ static long long lzsa_get_time() {
 
 /*---------------------------------------------------------------------------*/
 
-static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, const unsigned int nOptions) {
+static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, const unsigned int nOptions, const int nMinMatchSize) {
    FILE *f_in, *f_out;
    unsigned char *pInData, *pOutData;
    lsza_compressor compressor;
@@ -108,7 +108,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    }
    memset(pOutData, 0, BLOCK_SIZE);
 
-   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2);
+   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize);
    if (nResult != 0) {
       free(pOutData);
       pOutData = NULL;
@@ -251,8 +251,8 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
       double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
       int nCommands = lzsa_compressor_get_command_count(&compressor);
-      fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens (%lld bytes/token), %lld into %lld bytes ==> %g %%\n",
-         pszInFilename, fDelta, fSpeed, nCommands, nOriginalSize / ((long long)nCommands),
+      fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens (%g bytes/token), %lld into %lld bytes ==> %g %%\n",
+         pszInFilename, fDelta, fSpeed, nCommands, (double)nOriginalSize / (double)nCommands,
          nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
       fflush(stdout);
    }
@@ -695,7 +695,9 @@ int main(int argc, char **argv) {
    bool bArgsError = false;
    bool bCommandDefined = false;
    bool bVerifyCompression = false;
+   bool bMinMatchDefined = false;
    char cCommand = 'z';
+   int nMinMatchSize = MIN_MATCH_SIZE;
    unsigned int nOptions = 0;
 
    for (i = 1; i < argc; i++) {
@@ -718,6 +720,52 @@ int main(int argc, char **argv) {
       else if (!strcmp(argv[i], "-c")) {
          if (!bVerifyCompression) {
             bVerifyCompression = true;
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "-m")) {
+         if (!bMinMatchDefined && (i + 1) < argc) {
+            char *pEnd = NULL;
+            nMinMatchSize = (int)strtol(argv[i + 1], &pEnd, 10);
+            if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= MIN_MATCH_SIZE || nMinMatchSize < MATCH_RUN_LEN)) {
+               i++;
+               bMinMatchDefined = true;
+            }
+            else {
+               bArgsError = true;
+            }
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strncmp(argv[i], "-m", 2)) {
+         if (!bMinMatchDefined) {
+            char *pEnd = NULL;
+            nMinMatchSize = (int)strtol(argv[i] + 2, &pEnd, 10);
+            if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= MIN_MATCH_SIZE || nMinMatchSize < MATCH_RUN_LEN)) {
+               i++;
+               bMinMatchDefined = true;
+            }
+            else {
+               bArgsError = true;
+            }
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "--prefer-ratio")) {
+         if (!bMinMatchDefined) {
+            nMinMatchSize = MIN_MATCH_SIZE;
+            bMinMatchDefined = true;
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "--prefer-speed")) {
+         if (!bMinMatchDefined) {
+            nMinMatchSize = 4;
+            bMinMatchDefined = true;
          }
          else
             bArgsError = true;
@@ -754,11 +802,14 @@ int main(int argc, char **argv) {
       fprintf(stderr, "       -d: decompress (default: compress)\n");
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
+      fprintf(stderr, "       -m <value>: minimum match size (3-14) (default: 3)\n");
+      fprintf(stderr, "       --prefer-ratio: favor compression ratio (default, same as -m 3)\n");
+      fprintf(stderr, "       --prefer-speed: favor decompression speed (same as -m 4)\n");
       return 100;
    }
 
    if (cCommand == 'z') {
-      int nResult = lzsa_compress(pszInFilename, pszOutFilename, nOptions);
+      int nResult = lzsa_compress(pszInFilename, pszOutFilename, nOptions, nMinMatchSize);
       if (nResult == 0 && bVerifyCompression) {
          nResult = lzsa_compare(pszOutFilename, pszInFilename, nOptions);
       }

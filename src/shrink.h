@@ -35,6 +35,7 @@ typedef struct {
    unsigned int *pos_data;
    unsigned int *open_intervals;
    lzsa_match *match;
+   int min_match_size;
    int num_commands;
 } lsza_compressor;
 
@@ -43,10 +44,11 @@ typedef struct {
  *
  * @param pCompressor compression context to initialize
  * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
+ * @param nMinMatchSize minimum match size (cannot be less than MIN_MATCH_SIZE)
  *
  * @return 0 for success, non-zero for failure
  */
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize);
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize);
 
 /**
  * Clean up compression context and free up any associated resources

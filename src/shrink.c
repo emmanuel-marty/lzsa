@@ -60,10 +60,11 @@ typedef struct _lzsa_match {
  *
  * @param pCompressor compression context to initialize
  * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
+ * @param nMinMatchSize minimum match size (cannot be less than MIN_MATCH_SIZE)
  *
  * @return 0 for success, non-zero for failure
  */
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize) {
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize) {
    int nResult;
 
    nResult = divsufsort_init(&pCompressor->divsufsort_context);
@@ -71,6 +72,11 @@ int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize)
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
+   pCompressor->min_match_size = nMinMatchSize;
+   if (pCompressor->min_match_size < MIN_MATCH_SIZE)
+      pCompressor->min_match_size = MIN_MATCH_SIZE;
+   else if (pCompressor->min_match_size > (MATCH_RUN_LEN - 1))
+      pCompressor->min_match_size = MATCH_RUN_LEN - 1;
    pCompressor->num_commands = 0;
 
    if (!nResult) {
@@ -167,10 +173,11 @@ static int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned 
     * saves us from having to build the inverse suffix array index, as the LCP is calculated without it using this method,
     * and the interval builder below doesn't need it either. */
    intervals[0] &= POS_MASK;
+   int nMinMatchSize = pCompressor->min_match_size;
    for (i = 1; i < nInWindowSize - 1; i++) {
       int nIndex = (int)(intervals[i] & POS_MASK);
       int nLen = PLCP[nIndex];
-      if (nLen < MIN_MATCH_SIZE)
+      if (nLen < nMinMatchSize)
          nLen = 0;
       if (nLen > LCP_MAX)
          nLen = LCP_MAX;
@@ -493,6 +500,7 @@ static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffse
 static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    int *cost = (int*)pCompressor->pos_data;  /* Reuse */
    int nLastLiteralsOffset;
+   int nMinMatchSize = pCompressor->min_match_size;
    int i;
 
    cost[nEndOffset - 1] = 1;
@@ -514,7 +522,7 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
       lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
       int m;
 
-      for (m = 0; m < NMATCHES_PER_OFFSET && pMatch[m].length >= MIN_MATCH_SIZE; m++) {
+      for (m = 0; m < NMATCHES_PER_OFFSET && pMatch[m].length >= nMinMatchSize; m++) {
          int nMatchOffsetSize = (pMatch[m].offset <= 256) ? 1 : 2;
 
          if (pMatch[m].length >= LEAVE_ALONE_MATCH_SIZE) {
@@ -544,7 +552,7 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
             if (nMatchRunLen > MATCH_RUN_LEN)
                nMatchRunLen = MATCH_RUN_LEN;
 
-            for (k = MIN_MATCH_SIZE; k < nMatchRunLen; k++) {
+            for (k = nMinMatchSize; k < nMatchRunLen; k++) {
                int nCurCost;
 
                nCurCost = 1 + nMatchOffsetSize /* no extra match len bytes */;
