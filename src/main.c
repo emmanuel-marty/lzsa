@@ -728,7 +728,7 @@ int main(int argc, char **argv) {
          if (!bMinMatchDefined && (i + 1) < argc) {
             char *pEnd = NULL;
             nMinMatchSize = (int)strtol(argv[i + 1], &pEnd, 10);
-            if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= MIN_MATCH_SIZE || nMinMatchSize < MATCH_RUN_LEN)) {
+            if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
                i++;
                bMinMatchDefined = true;
             }
@@ -743,8 +743,7 @@ int main(int argc, char **argv) {
          if (!bMinMatchDefined) {
             char *pEnd = NULL;
             nMinMatchSize = (int)strtol(argv[i] + 2, &pEnd, 10);
-            if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= MIN_MATCH_SIZE || nMinMatchSize < MATCH_RUN_LEN)) {
-               i++;
+            if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
                bMinMatchDefined = true;
             }
             else {
