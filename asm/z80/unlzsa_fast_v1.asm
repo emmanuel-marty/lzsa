@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA decompressor by spke (v.1 03-05/04/2019, 122 bytes)
+;  Speed-optimized LZSA decompressor by spke (v.1 23-24/04/2019, 134 bytes)
 ;
 ;  The data must be comressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -18,6 +18,7 @@
 ;  see https://github.com/emmanuel-marty/lzsa for more information
 ;
 ;  Drop me an email if you have any comments/ideas/suggestions: zxintrospec@gmail.com
+;
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -40,64 +41,69 @@
 		ld b,0 : jr ReadToken
 
 MoreLiterals:	; there are three possible situations here
-		; 1) a byte 0..253 is added to LLL and that is it or
-		; 2) a byte 254 is followed by another byte to add or
-		; 3) a byte 255 is followed by a word to be used
-		ld a,7 : add (hl) : inc hl : jp nc,CopyLiterals
+		xor (hl) : inc hl : exa
+		ld a,7 : add (hl) : inc hl : jr c,ManyLiterals
 
-.Overflow	; we get here if the literals length byte plus 7 is greater than 255
-		inc b : cp 5 : jr c,CopyLiterals : jr nz,.Code255		; 5 is 7+254 modulo 256
-.Code254	add (hl) : inc hl : jr nc,CopyLiterals : inc b : jr CopyLiterals
-.Code255	ld c,(hl) : inc hl : ld b,(hl) : inc hl : jr CopyLiterals.UseC
+CopyLiterals:	ld c,a
+.UseC		ldir
+
+		push de : ld e,(hl) : inc hl : exa : jp m,LongOffset
+		ld d,#FF : add 3 : cp 15+3 : jp c,CopyMatch
+		jr LongerMatch
+
+ManyLiterals:
+.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyLiterals.UseC
+.code0		ld b,(hl) : inc hl : jr CopyLiterals.UseC
+		
+NoLiterals:	xor (hl) : inc hl
+		push de : ld e,(hl) : inc hl : jp m,LongOffset
+		ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
-CopyMatchNC	scf								; flag C for SBC HL,DE below must be set!!!
 CopyMatch:	ld c,a
 .UseC		ex (sp),hl : push hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		sbc hl,de : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
+		add hl,de : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		ldir : pop hl							; BC = 0, DE = dest, HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		; where LLL is the number of literals and MMMM is
 		; a length of the match that follows after the literals
-		ld a,(hl) : exa : ld a,(hl) : inc hl				; token is read twice to be re-used later
-		and #70 : jr z,NoLiterals
+		ld a,(hl) : and #70 : jr z,NoLiterals
 
 		cp #70 : jr z,MoreLiterals					; LLL=7 means 7+ literals...
 		rrca : rrca : rrca : rrca					; LLL<7 means 0..6 literals...
 
-CopyLiterals:	ld c,a
-.UseC		ldir
+		ld c,a : ld a,(hl) : inc hl
+		ldir
 
-NoLiterals:	; next we read the first byte of the offset
+		; next we read the first byte of the offset
 		push de : ld e,(hl) : inc hl
 		; the top bit of token is set if the offset contains two bytes
-		exa : and #8F : jp m,LongOffset
+		and #8F : jp m,LongOffset
 
-ShortOffset:	ld d,b								; we keep B=0 for situations like this
+ShortOffset:	ld d,#FF
 
 		; short matches have length 0+3..14+3
 ReadMatchLen:	add 3 : cp 15+3 : jp c,CopyMatch
 
 		; MMMM=15 indicates a multi-byte number of literals
-		; there are three possible situations here
-		; 1) a byte 0..253 is added to MMMM and that is it or
-		; 2) a byte 254 is followed by another byte to add or
-		; 3) a byte 255 is followed by a word to be used
-LongerMatch:	add (hl) : inc hl : jp nc,CopyMatchNC
+LongerMatch:	add (hl) : inc hl : jr nc,CopyMatch
 
-.Overflow	; we get here if the match length byte plus 15+3 is greater than 255
-		inc b : cp 16 : jr c,CopyMatch : jr nz,.Code255			; 16 is 15+3+254 modulo 256
-.Code254	add (hl) : inc hl : jr nc,CopyMatchNC : inc b : jr CopyMatch
-.Code255	ld c,(hl) : inc hl : ld b,(hl) : inc hl
-		; two-byte match length that is equal to zero is the marker for End-of-Data (EOD)
-.CheckEOD	ld a,b : or c : jr nz,CopyMatch.UseC
+		; the codes are designed to overflow;
+		; the overflow value 1 means read 1 extra byte
+		; and overflow value 0 means read 2 extra bytes
+.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyMatch.UseC
+.code0		ld b,(hl) : inc hl
+
+		; the two-byte match length equal to zero
+		; designates the end-of-data marker
+		ld a,b : or c : jr nz,CopyMatch.UseC
 		pop de : ret
 
 LongOffset:	; read second byte of the offset
 		ld d,(hl) : inc hl
 		add -128+3 : cp 15+3 : jp c,CopyMatch
-		add (hl) : inc hl : jp nc,CopyMatchNC
-		jr LongerMatch.Overflow
+		add (hl) : inc hl : jr nc,CopyMatch
+		jr LongerMatch.code1
 
 

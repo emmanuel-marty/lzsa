@@ -400,10 +400,10 @@ static inline int lzsa_get_literals_varlen_size(const int nLength) {
       return 0;
    }
    else {
-      if (nLength < (LITERALS_RUN_LEN + 254))
+      if (nLength < 256)
          return 1;
       else {
-         if (nLength < (LITERALS_RUN_LEN + 510))
+         if (nLength < 512)
             return 2;
          else
             return 3;
@@ -421,15 +421,15 @@ static inline int lzsa_get_literals_varlen_size(const int nLength) {
  */
 static inline int lzsa_write_literals_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= LITERALS_RUN_LEN) {
-      if (nLength < (LITERALS_RUN_LEN + 254))
+      if (nLength < 256)
          pOutData[nOutOffset++] = nLength - LITERALS_RUN_LEN;
       else {
-         if (nLength < (LITERALS_RUN_LEN + 510)) {
-            pOutData[nOutOffset++] = 254;
-            pOutData[nOutOffset++] = nLength - LITERALS_RUN_LEN - 254;
+         if (nLength < 512) {
+            pOutData[nOutOffset++] = 250;
+            pOutData[nOutOffset++] = nLength - 256;
          }
          else {
-            pOutData[nOutOffset++] = 255;
+            pOutData[nOutOffset++] = 249;
             pOutData[nOutOffset++] = nLength & 0xff;
             pOutData[nOutOffset++] = (nLength >> 8) & 0xff;
          }
@@ -451,10 +451,10 @@ static inline int lzsa_get_match_varlen_size(const int nLength) {
       return 0;
    }
    else {
-      if (nLength < (MATCH_RUN_LEN + 254))
+      if ((nLength + MIN_MATCH_SIZE) < 256)
          return 1;
       else {
-         if (nLength < (MATCH_RUN_LEN + 510))
+         if ((nLength + MIN_MATCH_SIZE) < 512)
             return 2;
          else
             return 3;
@@ -472,17 +472,17 @@ static inline int lzsa_get_match_varlen_size(const int nLength) {
  */
 static inline int lzsa_write_match_varlen(unsigned char *pOutData, int nOutOffset, int nLength) {
    if (nLength >= MATCH_RUN_LEN) {
-      if (nLength < (MATCH_RUN_LEN + 254))
+      if ((nLength + MIN_MATCH_SIZE) < 256)
          pOutData[nOutOffset++] = nLength - MATCH_RUN_LEN;
       else {
-         if (nLength < (MATCH_RUN_LEN + 510)) {
-            pOutData[nOutOffset++] = 254;
-            pOutData[nOutOffset++] = nLength - MATCH_RUN_LEN - 254;
+         if ((nLength + MIN_MATCH_SIZE) < 512) {
+            pOutData[nOutOffset++] = 239;
+            pOutData[nOutOffset++] = nLength + MIN_MATCH_SIZE - 256;
          }
          else {
-            pOutData[nOutOffset++] = 255;
-            pOutData[nOutOffset++] = nLength & 0xff;
-            pOutData[nOutOffset++] = (nLength >> 8) & 0xff;
+            pOutData[nOutOffset++] = 238;
+            pOutData[nOutOffset++] = (nLength + MIN_MATCH_SIZE) & 0xff;
+            pOutData[nOutOffset++] = ((nLength + MIN_MATCH_SIZE) >> 8) & 0xff;
          }
       }
    }
@@ -511,7 +511,7 @@ static void lzsa_optimize_matches(lsza_compressor *pCompressor, const int nStart
 
       int nLiteralsLen = nLastLiteralsOffset - i;
       nBestCost = 1 + cost[i + 1];
-      if (nLiteralsLen == LITERALS_RUN_LEN || nLiteralsLen == (LITERALS_RUN_LEN + 254) || nLiteralsLen == (LITERALS_RUN_LEN + 510)) {
+      if (nLiteralsLen == LITERALS_RUN_LEN || nLiteralsLen == 256 || nLiteralsLen == 512) {
          /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
           * The cost automatically accumulates down the chain. */
          nBestCost++;
@@ -722,9 +722,9 @@ static int lzsa_write_block(lsza_compressor *pCompressor, const unsigned char *p
             nNumLiterals = 0;
          }
 
-         pOutData[nOutOffset++] = (nMatchOffset - 1) & 0xff;
+         pOutData[nOutOffset++] = (-nMatchOffset) & 0xff;
          if (nTokenLongOffset) {
-            pOutData[nOutOffset++] = (nMatchOffset - 1) >> 8;
+            pOutData[nOutOffset++] = (-nMatchOffset) >> 8;
          }
          nOutOffset = lzsa_write_match_varlen(pOutData, nOutOffset, nEncodedMatchLen);
          i += nMatchLen;

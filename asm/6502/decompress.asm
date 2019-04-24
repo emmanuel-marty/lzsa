@@ -44,18 +44,16 @@ DECODE_TOKEN
    BNE EMBEDDED_LITERALS                ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable literals count
-   CMP #$FF                             ; FF <low 8 bits> <high 8 bits>?
-   BEQ LARGE_VARLEN_LITERALS            ; yes, go grab it
-
-   JSR GETSINGLEVARLENSRC               ; handle single extra byte of variable literals count
-
    CLC                                  ; add extra byte to len from token
    ADC #$07                             ; (LITERALS_RUN_LEN)
    BCC PREPARE_COPY_LITERALS
-   INY
+   BEQ LARGE_VARLEN_LITERALS            ; if adding up to zero, go grab 16-bit count
+
+   JSR GETSRC                           ; get single extended byte of variable literals count
+   INY                                  ; add 256 to literals count
    JMP PREPARE_COPY_LITERALS
 
-LARGE_VARLEN_LITERALS                   ; FF <low 8 bits> <high 8 bits>
+LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
@@ -85,37 +83,46 @@ NO_LITERALS
    BMI GET_LONG_OFFSET                  ; $80: 16 bit offset
 
    JSR GETSRC                           ; get 8 bit offset from stream in A
-                                        ; Y (high 8 bits) is already set to 0 here
-   JMP FIX_OFFSET                       ; go increase offset
+
+   STA OFFSLO                           ; store final match offset
+
+   CLC                                  ; add dest + match offset
+   LDA PUTDST+1                         ; low 8 bits
+   ADC OFFSLO
+   STA COPY_MATCH_LOOP+1                ; store back reference address
+   LDA #$0FF                            ; high 8 bits
+   JMP GOT_OFFSET                       ; go prepare match
 
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
-   TAY                                  ; put high 8 bits in Y
-   TXA                                  ; put low 8 bits in A
 
-FIX_OFFSET
-   CLC                                  ; add 1 to offset
-   ADC #$01
-   BCC OFFSET_FIXED
+   STX OFFSLO                           ; store final match offset
+   STA OFFSHI
 
-   INY
+   CLC                                  ; add dest + match offset
+   LDA PUTDST+1                         ; low 8 bits
+   ADC OFFSLO
+   STA COPY_MATCH_LOOP+1                ; store back reference address
+   LDA OFFSHI                           ; high 8 bits
 
-OFFSET_FIXED
-   STA OFFSLO                           ; store final match offset
-   STY OFFSHI
-   LDY #$00                             ; reset Y again
-
+GOT_OFFSET
+   ADC PUTDST+2
+   STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
+   
    PLA                                  ; retrieve token from stack again
    AND #$0F                             ; isolate match len (MMMM)
-   CMP #$0F                             ; MATCH_RUN_LEN?
+   CLC
+   ADC #$03
+   CMP #$12                             ; MATCH_RUN_LEN?
    BNE PREPARE_COPY_MATCH               ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable match length
-   CMP #$FF                             ; FF <low 8 bits> <high 8 bits>?
-   BNE SHORT_VARLEN_MATCHLEN            ; if not, handle <8 bits> or <FE> <8 extra bits> sequence
+   CLC
+   ADC #$12                             ; add MATCH_RUN_LEN and MIN_MATCH_SIZE to match length
+   BCC PREPARE_COPY_MATCH
+   BNE SHORT_VARLEN_MATCHLEN
 
-                                        ; Handle FF <low 8 bits> <high 8 bits>:
-                                        ; match length = directly these 16 bits
+                                        ; Handle 16 bits match length
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
                                         ; large match length with zero high byte?
@@ -123,33 +130,14 @@ OFFSET_FIXED
    JMP PREPARE_COPY_MATCH_Y
 
 SHORT_VARLEN_MATCHLEN
-   JSR GETSINGLEVARLENSRC               ; handle single extra byte of variable match len
-
-   CLC                                  ; add extra byte to len from token
-   ADC #$0F                             ; (MATCH_RUN_LEN)
-   BCC PREPARE_COPY_MATCH
-   INY
+   JSR GETSRC                           ; get single extended byte of variable match len
+   INY                                  ; add 256 to match length
 
 PREPARE_COPY_MATCH
-   CLC                                  ; add MIN_MATCH_SIZE to match length
-   ADC #$03
-   BCC MIN_MATCH_SIZE_ADDED
-   INY
-
-MIN_MATCH_SIZE_ADDED
    TAX
 PREPARE_COPY_MATCH_Y
    INY
 
-COPY_MATCH
-   SEC                                  ; substract dest - match offset
-   LDA PUTDST+1                         ; low 8 bits
-   SBC OFFSLO
-   STA COPY_MATCH_LOOP+1                ; store back reference address
-   LDA PUTDST+2                         ; high 8 bits
-   SBC OFFSHI
-   STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
-   
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    INC COPY_MATCH_LOOP+1
@@ -189,17 +177,4 @@ LZSA_SRC_HI = *+2
    BNE GETSRC_DONE
    INC GETSRC+2
 GETSRC_DONE
-   RTS
-
-GETSINGLEVARLENSRC
-   CMP #$FE                             ; FE <extra 8 bits>?
-   BNE SINGLE_VARLEN_ADDED              ; no, just this byte
-
-   JSR GETSRC                           ; get extra byte of variable literals count
-   CLC                                  ; add $FE to len from token
-   ADC #$FE
-   BCC SINGLE_VARLEN_ADDED
-   INY
-
-SINGLE_VARLEN_ADDED
    RTS

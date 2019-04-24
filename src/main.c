@@ -229,7 +229,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
    if ((nOptions & OPT_RAW) != 0) {
       cFooter[0] = 0x00;         /* EOD marker for raw block */
-      cFooter[1] = 0xff;         
+      cFooter[1] = 0xee;
       cFooter[2] = 0x00;
       cFooter[3] = 0x00;
       nFooterSize = 4;

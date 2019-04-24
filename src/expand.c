@@ -43,15 +43,15 @@ static inline FORCE_INLINE int lzsa_expand_literals_slow(const unsigned char **p
          nByte = *pInBlock++;
          nLiterals += ((unsigned int)nByte);
 
-         if (nByte == 254) {
+         if (nByte == 250) {
             if (pInBlock < pInBlockEnd) {
-               nLiterals += ((unsigned int)*pInBlock++);
+               nLiterals = 256 + ((unsigned int)*pInBlock++);
             }
             else {
                return -1;
             }
          }
-         else if (nByte == 255) {
+         else if (nByte == 249) {
             if ((pInBlock + 1) < pInBlockEnd) {
                nLiterals = ((unsigned int)*pInBlock++);
                nLiterals |= (((unsigned int)*pInBlock++) << 8);
@@ -87,22 +87,23 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
    const unsigned char *pInBlock = *ppInBlock;
    unsigned char *pCurOutData = *ppCurOutData;
 
-   if (nMatchLen == MATCH_RUN_LEN) {
+   nMatchLen += MIN_MATCH_SIZE;
+   if (nMatchLen == (MATCH_RUN_LEN + MIN_MATCH_SIZE)) {
       unsigned char nByte;
 
       if (pInBlock < pInBlockEnd) {
          nByte = *pInBlock++;
          nMatchLen += ((unsigned int)nByte);
 
-         if (nByte == 254) {
+         if (nByte == 239) {
             if (pInBlock < pInBlockEnd) {
-               nMatchLen += ((unsigned int)*pInBlock++);
+               nMatchLen = 256 + ((unsigned int)*pInBlock++);
             }
             else {
                return -1;
             }
          }
-         else if (nByte == 255) {
+         else if (nByte == 238) {
             if ((pInBlock + 1) < pInBlockEnd) {
                nMatchLen = ((unsigned int)*pInBlock++);
                nMatchLen |= (((unsigned int)*pInBlock++) << 8);
@@ -116,8 +117,6 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
          return -1;
       }
    }
-
-   nMatchLen += MIN_MATCH_SIZE;
 
    if ((pCurOutData + nMatchLen) <= pOutDataEnd) {
       /* Do a deterministic, left to right byte copy instead of memcpy() so as to handle overlaps */
@@ -196,9 +195,9 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
       if ((pInBlock + 1) < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
-         nMatchOffset = ((unsigned int)*pInBlock++);
+         nMatchOffset = ((unsigned int)(*pInBlock++ ^ 0xff));
          if (token & 0x80) {
-            nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+            nMatchOffset |= (((unsigned int)(*pInBlock++ ^ 0xff)) << 8);
          }
          nMatchOffset++;
 
@@ -234,9 +233,9 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
       if ((pInBlock + 1) < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
-         nMatchOffset = ((unsigned int)*pInBlock++);
+         nMatchOffset = ((unsigned int)(*pInBlock++ ^ 0xff));
          if (token & 0x80) {
-            nMatchOffset |= (((unsigned int)*pInBlock++) << 8);
+            nMatchOffset |= (((unsigned int)(*pInBlock++ ^ 0xff)) << 8);
          }
          nMatchOffset++;
 
