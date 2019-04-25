@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA decompressor by spke (v.1 23-24/04/2019, 134 bytes)
+;  Speed-optimized LZSA decompressor by spke (v.1 03-25/04/2019, 110 bytes)
 ;
 ;  The data must be comressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -19,7 +19,6 @@
 ;
 ;  Drop me an email if you have any comments/ideas/suggestions: zxintrospec@gmail.com
 ;
-;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
 ;  arising from the use of this software.
@@ -35,29 +34,15 @@
 ;  2. Altered source versions must be plainly marked as such, and must not be
 ;     misrepresented as being the original software.
 ;  3. This notice may not be removed or altered from any source distribution.
-;
 
 @DecompressLZSA:
 		ld b,0 : jr ReadToken
 
-MoreLiterals:	; there are three possible situations here
-		xor (hl) : inc hl : exa
-		ld a,7 : add (hl) : inc hl : jr c,ManyLiterals
-
-CopyLiterals:	ld c,a
-.UseC		ldir
-
-		push de : ld e,(hl) : inc hl : exa : jp m,LongOffset
-		ld d,#FF : add 3 : cp 15+3 : jp c,CopyMatch
-		jr LongerMatch
-
-ManyLiterals:
-.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyLiterals.UseC
-.code0		ld b,(hl) : inc hl : jr CopyLiterals.UseC
-		
 NoLiterals:	xor (hl) : inc hl
 		push de : ld e,(hl) : inc hl : jp m,LongOffset
-		ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
+
+ 		; short matches have length 0+3..14+3
+ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
@@ -79,12 +64,11 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		; next we read the first byte of the offset
 		push de : ld e,(hl) : inc hl
 		; the top bit of token is set if the offset contains two bytes
-		and #8F : jp m,LongOffset
+		and #8F : jp p,ShortOffset
 
-ShortOffset:	ld d,#FF
-
-		; short matches have length 0+3..14+3
-ReadMatchLen:	add 3 : cp 15+3 : jp c,CopyMatch
+LongOffset:	; read second byte of the offset
+		ld d,(hl) : inc hl
+		add -128+3 : cp 15+3 : jp c,CopyMatch
 
 		; MMMM=15 indicates a multi-byte number of literals
 LongerMatch:	add (hl) : inc hl : jr nc,CopyMatch
@@ -100,10 +84,18 @@ LongerMatch:	add (hl) : inc hl : jr nc,CopyMatch
 		ld a,b : or c : jr nz,CopyMatch.UseC
 		pop de : ret
 
-LongOffset:	; read second byte of the offset
-		ld d,(hl) : inc hl
-		add -128+3 : cp 15+3 : jp c,CopyMatch
-		add (hl) : inc hl : jr nc,CopyMatch
-		jr LongerMatch.code1
+MoreLiterals:	; there are three possible situations here
+		xor (hl) : inc hl : exa
+		ld a,7 : add (hl) : inc hl : jr c,ManyLiterals
+
+CopyLiterals:	ld c,a
+.UseC		ldir
+
+		push de : ld e,(hl) : inc hl
+		exa : jp p,ShortOffset : jr LongOffset
+
+ManyLiterals:
+.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyLiterals.UseC
+.code0		ld b,(hl) : inc hl : jr CopyLiterals.UseC
 
 
