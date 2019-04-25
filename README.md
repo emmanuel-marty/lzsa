@@ -7,7 +7,7 @@ Compression ratio comparison between LZSA and other optimal packers, for a workl
                          Bytes            Ratio            Decompression speed vs. LZ4
     ZX7                  687133           53,30%           47,73%
     LZ5 1.4.1            727107           56,40%           75%
-    LZSA                 736171           57,11% <------   90%
+    LZSA                 736169           57,11% <------   90%
     Lizard -29           776122           60,21%           Not measured
     LZ4_HC -19 -B4 -BD   781049           60,59%           100%
     Uncompressed         1289127          100%             N/A
