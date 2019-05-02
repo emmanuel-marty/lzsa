@@ -25,6 +25,10 @@
 
 #include "divsufsort.h"
 
+/* Compression flags */
+#define LZSA_FLAG_FAVOR_RATIO    (1<<0)      /**< 1 to compress with the best ratio, 0 to trade some compression ratio for extra decompression speed */
+#define LZSA_FLAG_RAW_BLOCK      (1<<1)      /**< 1 to emit raw block */
+
 /* Forward declarations */
 typedef struct _lzsa_match lzsa_match;
 
@@ -36,6 +40,7 @@ typedef struct {
    unsigned int *open_intervals;
    lzsa_match *match;
    int min_match_size;
+   int flags;
    int num_commands;
 } lsza_compressor;
 
@@ -45,10 +50,11 @@ typedef struct {
  * @param pCompressor compression context to initialize
  * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
  * @param nMinMatchSize minimum match size (cannot be less than MIN_MATCH_SIZE)
+ * @param nFlags compression flags
  *
  * @return 0 for success, non-zero for failure
  */
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize);
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize, const int nFlags);
 
 /**
  * Clean up compression context and free up any associated resources

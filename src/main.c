@@ -34,8 +34,9 @@
 #include "expand.h"
 
 #define BLOCK_SIZE 65536
-#define OPT_VERBOSE 1
-#define OPT_RAW     2
+#define OPT_VERBOSE     1
+#define OPT_RAW         2
+#define OPT_FAVOR_RATIO 4
 
 /*---------------------------------------------------------------------------*/
 
@@ -64,6 +65,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    lsza_compressor compressor;
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
+   int nFlags;
    int nResult;
    bool bError = false;
 
@@ -108,7 +110,12 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    }
    memset(pOutData, 0, BLOCK_SIZE);
 
-   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize);
+   nFlags = 0;
+   if (nOptions & OPT_FAVOR_RATIO)
+      nFlags |= LZSA_FLAG_FAVOR_RATIO;
+   if (nOptions & OPT_RAW)
+      nFlags |= LZSA_FLAG_RAW_BLOCK;
+   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize, nFlags);
    if (nResult != 0) {
       free(pOutData);
       pOutData = NULL;
@@ -221,6 +228,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
       if (!bError && !feof(f_in) && nOriginalSize >= 1024 * 1024) {
          fprintf(stdout, "\r%lld => %lld (%g %%)", nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
+         fflush(stdout);
       }
    }
 
@@ -228,11 +236,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    int nFooterSize;
 
    if ((nOptions & OPT_RAW) != 0) {
-      cFooter[0] = 0x00;         /* EOD marker for raw block */
-      cFooter[1] = 0xee;
-      cFooter[2] = 0x00;
-      cFooter[3] = 0x00;
-      nFooterSize = 4;
+      nFooterSize = 0;
    }
    else {
       cFooter[0] = 0x00;         /* EOD frame */
@@ -254,7 +258,6 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens (%g bytes/token), %lld into %lld bytes ==> %g %%\n",
          pszInFilename, fDelta, fSpeed, nCommands, (double)nOriginalSize / (double)nCommands,
          nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
-      fflush(stdout);
    }
 
    lzsa_compressor_destroy(&compressor);
@@ -698,7 +701,7 @@ int main(int argc, char **argv) {
    bool bMinMatchDefined = false;
    char cCommand = 'z';
    int nMinMatchSize = MIN_MATCH_SIZE;
-   unsigned int nOptions = 0;
+   unsigned int nOptions = OPT_FAVOR_RATIO;
 
    for (i = 1; i < argc; i++) {
       if (!strcmp(argv[i], "-d")) {
@@ -731,6 +734,7 @@ int main(int argc, char **argv) {
             if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
                i++;
                bMinMatchDefined = true;
+               nOptions &= (~OPT_FAVOR_RATIO);
             }
             else {
                bArgsError = true;
@@ -745,6 +749,7 @@ int main(int argc, char **argv) {
             nMinMatchSize = (int)strtol(argv[i] + 2, &pEnd, 10);
             if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
                bMinMatchDefined = true;
+               nOptions &= (~OPT_FAVOR_RATIO);
             }
             else {
                bArgsError = true;
@@ -763,7 +768,8 @@ int main(int argc, char **argv) {
       }
       else if (!strcmp(argv[i], "--prefer-speed")) {
          if (!bMinMatchDefined) {
-            nMinMatchSize = 4;
+            nMinMatchSize = 3;
+            nOptions &= (~OPT_FAVOR_RATIO);
             bMinMatchDefined = true;
          }
          else
@@ -802,8 +808,8 @@ int main(int argc, char **argv) {
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
       fprintf(stderr, "       -m <value>: minimum match size (3-14) (default: 3)\n");
-      fprintf(stderr, "       --prefer-ratio: favor compression ratio (default, same as -m 3)\n");
-      fprintf(stderr, "       --prefer-speed: favor decompression speed (same as -m 4)\n");
+      fprintf(stderr, "       --prefer-ratio: favor compression ratio (default)\n");
+      fprintf(stderr, "       --prefer-speed: favor decompression speed (same as -m3)\n");
       return 100;
    }
 
