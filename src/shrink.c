@@ -35,10 +35,10 @@
 #include "shrink.h"
 #include "format.h"
 
-#define LCP_BITS 14
-#define LCP_MAX ((1<<LCP_BITS) - 1)
+#define LCP_BITS 15
+#define LCP_MAX (1<<(LCP_BITS - 1))
 #define LCP_SHIFT (32-LCP_BITS)
-#define LCP_MASK (LCP_MAX << LCP_SHIFT)
+#define LCP_MASK (((1<<LCP_BITS) - 1) << LCP_SHIFT)
 #define POS_MASK ((1<<LCP_SHIFT) - 1)
 
 #define NMATCHES_PER_OFFSET 8
@@ -667,9 +667,9 @@ static int lzsa_optimize_command_count(lsza_compressor *pCompressor, const int n
             nDidReduce = 1;
          }
          else {
-            if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX && pMatch->offset == 1 &&
-               pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset == 1 &&
-               (nMatchLen + pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length) <= 65535) {
+            if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
+               pMatch->offset && pMatch->offset <= 32 && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
+               (nMatchLen + pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length) <= MAX_OFFSET) {
                /* Join */
 
                pMatch->length += pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length;
