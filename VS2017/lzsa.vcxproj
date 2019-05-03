@@ -179,6 +179,7 @@
   <ItemGroup>
     <ClInclude Include="..\src\expand.h" />
     <ClInclude Include="..\src\format.h" />
+    <ClInclude Include="..\src\frame.h" />
     <ClInclude Include="..\src\libdivsufsort\include\config.h" />
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort.h" />
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort_private.h" />
@@ -187,6 +188,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\expand.c" />
+    <ClCompile Include="..\src\frame.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\sssort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\trsort.c" />

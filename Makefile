@@ -11,6 +11,7 @@ $(OBJDIR)/%.o: src/../%.c
 APP := lzsa
 
 OBJS := $(OBJDIR)/src/main.o
+OBJS += $(OBJDIR)/src/frame.o
 OBJS += $(OBJDIR)/src/shrink.o
 OBJS += $(OBJDIR)/src/expand.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/divsufsort.o

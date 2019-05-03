@@ -30,6 +30,7 @@
 #include <sys/time.h>
 #endif
 #include "format.h"
+#include "frame.h"
 #include "shrink.h"
 #include "expand.h"
 
@@ -67,6 +68,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
    int nFlags;
    int nResult;
+   unsigned char cFrameData[16];
    bool bError = false;
 
    f_in = fopen(pszInFilename, "rb");
@@ -163,14 +165,13 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    }
 
    if ((nOptions & OPT_RAW) == 0) {
-      unsigned char cHeader[3];
-
-      cHeader[0] = 0x7b;                              /* Magic number: 0x9e7b */
-      cHeader[1] = 0x9e;
-      cHeader[2] = 0;                                 /* Format version 1 */
-
-      bError = fwrite(cHeader, 1, 3, f_out) != 3;
-      nCompressedSize += 3LL;
+      int nHeaderSize = lzsa_encode_header(cFrameData, 16);
+      if (nHeaderSize < 0)
+         bError = true;
+      else {
+         bError = fwrite(cFrameData, 1, nHeaderSize, f_out) != nHeaderSize;
+         nCompressedSize += (long long)nHeaderSize;
+      }
    }
 
    if (nOptions & OPT_VERBOSE) {
@@ -205,15 +206,14 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
             /* Write compressed block */
 
             if ((nOptions & OPT_RAW) == 0) {
-               unsigned char cBlockSize[3];
-
-               cBlockSize[0] = nOutDataSize & 0xff;
-               cBlockSize[1] = (nOutDataSize >> 8) & 0xff;
-               cBlockSize[2] = (nOutDataSize >> 16) & 0xff;
-               nCompressedSize += 3LL;
-
-               if (fwrite(cBlockSize, 1, 3, f_out) != (size_t)3) {
+               int nBlockheaderSize = lzsa_encode_compressed_block_frame(cFrameData, 16, nOutDataSize);
+               if (nBlockheaderSize < 0)
                   bError = true;
+               else {
+                  nCompressedSize += (long long)nBlockheaderSize;
+                  if (fwrite(cFrameData, 1, nBlockheaderSize, f_out) != (size_t)nBlockheaderSize) {
+                     bError = true;
+                  }
                }
             }
 
@@ -236,22 +236,21 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
                break;
             }
 
-            unsigned char cBlockSize[3];
-
-            cBlockSize[0] = nInDataSize & 0xff;
-            cBlockSize[1] = (nInDataSize >> 8) & 0xff;
-            cBlockSize[2] = ((nInDataSize >> 16) & 0x7f) | 0x80;   /* Uncompressed block */
-
-            if (fwrite(cBlockSize, 1, 3, f_out) != (size_t)3) {
+            int nBlockheaderSize = lzsa_encode_uncompressed_block_frame(cFrameData, 16, nInDataSize);
+            if (nBlockheaderSize < 0)
                bError = true;
-            }
             else {
-               if (fwrite(pInData + BLOCK_SIZE, 1, (size_t)nInDataSize, f_out) != (size_t)nInDataSize) {
+               if (fwrite(cFrameData, 1, nBlockheaderSize, f_out) != (size_t)nBlockheaderSize) {
                   bError = true;
                }
                else {
-                  nOriginalSize += (long long)nInDataSize;
-                  nCompressedSize += 3LL + (long long)nInDataSize;
+                  if (fwrite(pInData + BLOCK_SIZE, 1, (size_t)nInDataSize, f_out) != (size_t)nInDataSize) {
+                     bError = true;
+                  }
+                  else {
+                     nOriginalSize += (long long)nInDataSize;
+                     nCompressedSize += (long long)nBlockheaderSize + (long long)nInDataSize;
+                  }
                }
             }
          }
@@ -265,21 +264,19 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       }
    }
 
-   unsigned char cFooter[4];
    int nFooterSize;
 
    if ((nOptions & OPT_RAW) != 0) {
       nFooterSize = 0;
    }
    else {
-      cFooter[0] = 0x00;         /* EOD frame */
-      cFooter[1] = 0x00;
-      cFooter[2] = 0x00;
-      nFooterSize = 3;
+      nFooterSize = lzsa_encode_footer_frame(cFrameData, 16);
+      if (nFooterSize < 0)
+         bError = true;
    }
 
    if (!bError)
-      bError = fwrite(cFooter, 1, nFooterSize, f_out) != nFooterSize;
+      bError = fwrite(cFrameData, 1, nFooterSize, f_out) != nFooterSize;
    nCompressedSize += (long long)nFooterSize;
 
    if (!bError && (nOptions & OPT_VERBOSE)) {
@@ -322,6 +319,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
    unsigned int nFileSize = 0;
+   unsigned char cFrameData[16];
 
    FILE *pInFile = fopen(pszInFilename, "rb");
    if (!pInFile) {
@@ -330,20 +328,17 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    }
 
    if ((nOptions & OPT_RAW) == 0) {
-      unsigned char cHeader[3];
+      const int nHeaderSize = lzsa_get_header_size();
 
-      memset(cHeader, 0, 3);
-
-      if (fread(cHeader, 1, 3, pInFile) != 3) {
+      memset(cFrameData, 0, 16);
+      if (fread(cFrameData, 1, nHeaderSize, pInFile) != nHeaderSize) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "error reading header in input file\n");
          return 100;
       }
 
-      if (cHeader[0] != 0x7b ||
-         cHeader[1] != 0x9e ||
-         cHeader[2] != 0) {
+      if (lzsa_decode_header(cFrameData, nHeaderSize) < 0) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid magic number or format version in input file\n");
@@ -440,19 +435,21 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
 
    while (!feof(pInFile) && !nDecompressionError) {
       unsigned int nBlockSize = 0;
+      int nIsUncompressed = 0;
 
       if (nPrevDecompressedSize != 0) {
          memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
       }
 
       if ((nOptions & OPT_RAW) == 0) {
-         unsigned char cBlockSize[3];
+         const int nFrameSize = lzsa_get_frame_size();
 
-         memset(cBlockSize, 0, 3);
-         if (fread(cBlockSize, 1, 3, pInFile) == 3) {
-            nBlockSize = ((unsigned int)cBlockSize[0]) |
-               (((unsigned int)cBlockSize[1]) << 8) |
-               (((unsigned int)cBlockSize[2]) << 16);
+         memset(cFrameData, 0, 16);
+         if (fread(cFrameData, 1, nFrameSize, pInFile) == nFrameSize) {
+            if (lzsa_decode_frame(cFrameData, nFrameSize, &nBlockSize, &nIsUncompressed) < 0) {
+               nDecompressionError = 1;
+               nBlockSize = 0;
+            }
          }
          else {
             nBlockSize = 0;
@@ -465,16 +462,14 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
       }
 
       if (nBlockSize != 0) {
-         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
-         nBlockSize &= 0x7fffff;
          if ((int)nBlockSize > BLOCK_SIZE) {
             fprintf(stderr, "block size %d > max size %d\n", nBlockSize, BLOCK_SIZE);
             break;
          }
          if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (bIsUncompressed) {
+            if (nIsUncompressed) {
                memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
                nDecompressedSize = nBlockSize;
             }
@@ -539,6 +534,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
    long long nOriginalSize = 0LL;
    long long nKnownGoodSize = 0LL;
    unsigned int nFileSize = 0;
+   unsigned char cFrameData[16];
 
    FILE *pInFile = fopen(pszInFilename, "rb");
    if (!pInFile) {
@@ -547,20 +543,17 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
    }
 
    if ((nOptions & OPT_RAW) == 0) {
-      unsigned char cHeader[3];
+      const int nHeaderSize = lzsa_get_header_size();
 
-      memset(cHeader, 0, 3);
-
-      if (fread(cHeader, 1, 3, pInFile) != 3) {
+      memset(cFrameData, 0, 16);
+      if (fread(cFrameData, 1, nHeaderSize, pInFile) != nHeaderSize) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "error reading header in compressed input file\n");
          return 100;
       }
 
-      if (cHeader[0] != 0x7b ||
-         cHeader[1] != 0x9e ||
-         cHeader[2] != 0) {
+      if (lzsa_decode_header(cFrameData, nHeaderSize) < 0) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid magic number or format version in input file\n");
@@ -679,6 +672,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
 
    while (!feof(pInFile) && !nDecompressionError && !bComparisonError) {
       unsigned int nBlockSize = 0;
+      int nIsUncompressed = 0;
 
       if (nPrevDecompressedSize != 0) {
          memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
@@ -687,13 +681,14 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
       int nBytesToCompare = (int)fread(pCompareData, 1, BLOCK_SIZE, pOutFile);
 
       if ((nOptions & OPT_RAW) == 0) {
-         unsigned char cBlockSize[3];
+         const int nFrameSize = lzsa_get_frame_size();
 
-         memset(cBlockSize, 0, 3);
-         if (fread(cBlockSize, 1, 3, pInFile) == 3) {
-            nBlockSize = ((unsigned int)cBlockSize[0]) |
-               (((unsigned int)cBlockSize[1]) << 8) |
-               (((unsigned int)cBlockSize[2]) << 16);
+         memset(cFrameData, 0, 16);
+         if (fread(cFrameData, 1, nFrameSize, pInFile) == nFrameSize) {
+            if (lzsa_decode_frame(cFrameData, nFrameSize, &nBlockSize, &nIsUncompressed) < 0) {
+               nDecompressionError = 1;
+               nBlockSize = 0;
+            }
          }
          else {
             nBlockSize = 0;
@@ -706,16 +701,14 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
       }
 
       if (nBlockSize != 0) {
-         bool bIsUncompressed = (nBlockSize & 0x800000) != 0;
          int nDecompressedSize = 0;
 
-         nBlockSize &= 0x7fffff;
          if ((int)nBlockSize > BLOCK_SIZE) {
             fprintf(stderr, "block size %d > max size %d\n", nBlockSize, BLOCK_SIZE);
             break;
          }
          if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (bIsUncompressed) {
+            if (nIsUncompressed) {
                memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
                nDecompressedSize = nBlockSize;
             }

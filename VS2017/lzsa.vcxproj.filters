@@ -45,6 +45,9 @@
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort_private.h">
       <Filter>Fichiers sources\libdivsufsort\include</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\frame.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.c">
@@ -67,6 +70,9 @@
     </ClCompile>
     <ClCompile Include="..\src\libdivsufsort\lib\trsort.c">
       <Filter>Fichiers sources\libdivsufsort\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\frame.c">
+      <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
