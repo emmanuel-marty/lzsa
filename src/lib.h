@@ -1,5 +1,5 @@
 /*
- * shrink.h - block compressor definitions
+ * lib.h - LZSA library definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -20,8 +20,18 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef _SHRINK_H
-#define _SHRINK_H
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
+#ifndef _LIB_H
+#define _LIB_H
 
 #include "divsufsort.h"
 
@@ -29,17 +39,46 @@
 #define LZSA_FLAG_FAVOR_RATIO    (1<<0)      /**< 1 to compress with the best ratio, 0 to trade some compression ratio for extra decompression speed */
 #define LZSA_FLAG_RAW_BLOCK      (1<<1)      /**< 1 to emit raw block */
 
-/* Forward declarations */
-typedef struct _lzsa_match lzsa_match;
+#define LCP_BITS 15
+#define LCP_MAX (1<<(LCP_BITS - 1))
+#define LCP_SHIFT (32-LCP_BITS)
+#define LCP_MASK (((1<<LCP_BITS) - 1) << LCP_SHIFT)
+#define POS_MASK ((1<<LCP_SHIFT) - 1)
+
+#define NMATCHES_PER_OFFSET 8
+#define MATCHES_PER_OFFSET_SHIFT 3
+
+#define LEAVE_ALONE_MATCH_SIZE 1000
+
+#define LAST_MATCH_OFFSET 4
+#define LAST_LITERALS 1
+
+#define MODESWITCH_PENALTY 1
+
+/** One match */
+typedef struct _lzsa_match {
+   unsigned short length;
+   unsigned short offset;
+} lzsa_match;
+
+typedef struct _lzsa_repmatch_opt {
+   int incoming_offset;
+   short best_slot_for_incoming;
+   short expected_repmatch;
+} lzsa_repmatch_opt;
 
 /** Compression context */
-typedef struct {
+typedef struct _lsza_compressor {
    divsufsort_ctx_t divsufsort_context;
    unsigned int *intervals;
    unsigned int *pos_data;
    unsigned int *open_intervals;
    lzsa_match *match;
+   lzsa_match *best_match;
+   int *slot_cost;
+   lzsa_repmatch_opt *repmatch_opt;
    int min_match_size;
+   int format_version;
    int flags;
    int num_commands;
 } lsza_compressor;
@@ -54,7 +93,7 @@ typedef struct {
  *
  * @return 0 for success, non-zero for failure
  */
-int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize, const int nFlags);
+int lzsa_compressor_init(lsza_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize, const int nFormatVersion, const int nFlags);
 
 /**
  * Clean up compression context and free up any associated resources
@@ -84,4 +123,17 @@ int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWind
  */
 int lzsa_compressor_get_command_count(lsza_compressor *pCompressor);
 
-#endif /* _SHRINK_H */
+/**
+ * Decompress one data block
+ *
+ * @param pInBlock pointer to compressed data
+ * @param nInBlockSize size of compressed data, in bytes
+ * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
+ * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
+ * @param nBlockMaxSize total size of output decompression buffer, in bytes
+ *
+ * @return size of decompressed data in bytes, or -1 for error
+ */
+int lzsa_expand_block(const int nFormatVersion, const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
+
+#endif /* _LIB_H */

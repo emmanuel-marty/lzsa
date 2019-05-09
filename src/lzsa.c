@@ -1,5 +1,5 @@
 /*
- * main.c - command line compression utility for the LZSA format
+ * lzsa.c - command line compression utility for the LZSA format
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -20,6 +20,16 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -31,17 +41,18 @@
 #endif
 #include "format.h"
 #include "frame.h"
-#include "shrink.h"
-#include "expand.h"
+#include "lib.h"
 
 #define BLOCK_SIZE 65536
 #define OPT_VERBOSE     1
 #define OPT_RAW         2
 #define OPT_FAVOR_RATIO 4
 
+#define TOOL_VERSION "0.6.0"
+
 /*---------------------------------------------------------------------------*/
 
-static long long lzsa_get_time() {
+static long long do_get_time() {
    long long nTime;
 
 #ifdef _WIN32
@@ -60,7 +71,7 @@ static long long lzsa_get_time() {
 
 /*---------------------------------------------------------------------------*/
 
-static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, const int nMinMatchSize) {
+static int do_compress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, const int nMinMatchSize, const int nFormatVersion) {
    FILE *f_in, *f_out;
    unsigned char *pInData, *pOutData;
    lsza_compressor compressor;
@@ -146,7 +157,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
       nFlags |= LZSA_FLAG_FAVOR_RATIO;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
-   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize, nFlags);
+   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize, nFormatVersion, nFlags);
    if (nResult != 0) {
       free(pOutData);
       pOutData = NULL;
@@ -165,7 +176,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    }
 
    if ((nOptions & OPT_RAW) == 0) {
-      int nHeaderSize = lzsa_encode_header(cFrameData, 16);
+      int nHeaderSize = lzsa_encode_header(cFrameData, 16, nFormatVersion);
       if (nHeaderSize < 0)
          bError = true;
       else {
@@ -175,7 +186,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    }
 
    if (nOptions & OPT_VERBOSE) {
-      nStartTime = lzsa_get_time();
+      nStartTime = do_get_time();
    }
 
    int nPreviousBlockSize = 0;
@@ -280,7 +291,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
    nCompressedSize += (long long)nFooterSize;
 
    if (!bError && (nOptions & OPT_VERBOSE)) {
-      nEndTime = lzsa_get_time();
+      nEndTime = do_get_time();
 
       double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
       double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
@@ -315,7 +326,7 @@ static int lzsa_compress(const char *pszInFilename, const char *pszOutFilename, 
 
 /*---------------------------------------------------------------------------*/
 
-static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions) {
+static int do_decompress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
    unsigned int nFileSize = 0;
@@ -338,7 +349,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
          return 100;
       }
 
-      if (lzsa_decode_header(cFrameData, nHeaderSize) < 0) {
+      if (lzsa_decode_header(cFrameData, nHeaderSize, &nFormatVersion) < 0) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid magic number or format version in input file\n");
@@ -423,7 +434,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    }
 
    if (nOptions & OPT_VERBOSE) {
-      nStartTime = lzsa_get_time();
+      nStartTime = do_get_time();
    }
 
    int nDecompressionError = 0;
@@ -476,7 +487,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
             else {
                unsigned int nBlockOffs = 0;
 
-               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+               nDecompressedSize = lzsa_expand_block(nFormatVersion, pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
                if (nDecompressedSize < 0) {
                   nDecompressionError = nDecompressedSize;
                   break;
@@ -518,7 +529,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    }
    else {
       if (nOptions & OPT_VERBOSE) {
-         nEndTime = lzsa_get_time();
+         nEndTime = do_get_time();
          double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
          double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
          fprintf(stdout, "Decompressed '%s' in %g seconds, %g Mb/s\n",
@@ -529,7 +540,7 @@ static int lzsa_decompress(const char *pszInFilename, const char *pszOutFilename
    }
 }
 
-static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions) {
+static int do_compare(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
    long long nKnownGoodSize = 0LL;
@@ -553,7 +564,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
          return 100;
       }
 
-      if (lzsa_decode_header(cFrameData, nHeaderSize) < 0) {
+      if (lzsa_decode_header(cFrameData, nHeaderSize, &nFormatVersion) < 0) {
          fclose(pInFile);
          pInFile = NULL;
          fprintf(stderr, "invalid magic number or format version in input file\n");
@@ -659,7 +670,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
    }
 
    if (nOptions & OPT_VERBOSE) {
-      nStartTime = lzsa_get_time();
+      nStartTime = do_get_time();
    }
 
    int nDecompressionError = 0;
@@ -715,7 +726,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
             else {
                unsigned int nBlockOffs = 0;
 
-               nDecompressedSize = lzsa_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+               nDecompressedSize = lzsa_expand_block(nFormatVersion, pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
                if (nDecompressedSize < 0) {
                   nDecompressionError = nDecompressedSize;
                   break;
@@ -771,7 +782,7 @@ static int lzsa_compare(const char *pszInFilename, const char *pszOutFilename, c
    }
    else {
       if (nOptions & OPT_VERBOSE) {
-         nEndTime = lzsa_get_time();
+         nEndTime = do_get_time();
          double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
          double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
          fprintf(stdout, "Compared '%s' in %g seconds, %g Mb/s\n",
@@ -793,9 +804,11 @@ int main(int argc, char **argv) {
    bool bCommandDefined = false;
    bool bVerifyCompression = false;
    bool bMinMatchDefined = false;
+   bool bFormatVersionDefined = false;
    char cCommand = 'z';
-   int nMinMatchSize = MIN_MATCH_SIZE;
+   int nMinMatchSize = 0;
    unsigned int nOptions = OPT_FAVOR_RATIO;
+   int nFormatVersion = 1;
 
    for (i = 1; i < argc; i++) {
       if (!strcmp(argv[i], "-d")) {
@@ -840,7 +853,7 @@ int main(int argc, char **argv) {
          if (!bMinMatchDefined && (i + 1) < argc) {
             char *pEnd = NULL;
             nMinMatchSize = (int)strtol(argv[i + 1], &pEnd, 10);
-            if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
+            if (pEnd && pEnd != argv[i + 1] && (nMinMatchSize >= 2 && nMinMatchSize <= 5)) {
                i++;
                bMinMatchDefined = true;
                nOptions &= (~OPT_FAVOR_RATIO);
@@ -856,7 +869,7 @@ int main(int argc, char **argv) {
          if (!bMinMatchDefined) {
             char *pEnd = NULL;
             nMinMatchSize = (int)strtol(argv[i] + 2, &pEnd, 10);
-            if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= MIN_MATCH_SIZE && nMinMatchSize < MATCH_RUN_LEN)) {
+            if (pEnd && pEnd != (argv[i]+2) && (nMinMatchSize >= 2 && nMinMatchSize <= 5)) {
                bMinMatchDefined = true;
                nOptions &= (~OPT_FAVOR_RATIO);
             }
@@ -869,7 +882,7 @@ int main(int argc, char **argv) {
       }
       else if (!strcmp(argv[i], "--prefer-ratio")) {
          if (!bMinMatchDefined) {
-            nMinMatchSize = MIN_MATCH_SIZE;
+            nMinMatchSize = 0;
             bMinMatchDefined = true;
          }
          else
@@ -880,6 +893,35 @@ int main(int argc, char **argv) {
             nMinMatchSize = 3;
             nOptions &= (~OPT_FAVOR_RATIO);
             bMinMatchDefined = true;
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "-f")) {
+         if (!bFormatVersionDefined && (i + 1) < argc) {
+            char *pEnd = NULL;
+            nFormatVersion = (int)strtol(argv[i + 1], &pEnd, 10);
+            if (pEnd && pEnd != argv[i + 1] && (nFormatVersion >= 1 && nFormatVersion <= 2)) {
+               i++;
+               bFormatVersionDefined = true;
+            }
+            else {
+               bArgsError = true;
+            }
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strncmp(argv[i], "-f", 2)) {
+         if (!bFormatVersionDefined) {
+            char *pEnd = NULL;
+            nFormatVersion = (int)strtol(argv[i] + 2, &pEnd, 10);
+            if (pEnd && pEnd != (argv[i] + 2) && (nFormatVersion >= 1 && nFormatVersion <= 2)) {
+               bFormatVersionDefined = true;
+            }
+            else {
+               bArgsError = true;
+            }
          }
          else
             bArgsError = true;
@@ -911,26 +953,28 @@ int main(int argc, char **argv) {
    }
 
    if (bArgsError || !pszInFilename || !pszOutFilename) {
+      fprintf(stderr, "lzsa command-line tool v" TOOL_VERSION " by Emmanuel Marty and spke\n");
       fprintf(stderr, "usage: %s [-c] [-d] [-v] [-r] <infile> <outfile>\n", argv[0]);
       fprintf(stderr, "       -c: check resulting stream after compressing\n");
       fprintf(stderr, "       -d: decompress (default: compress)\n");
       fprintf(stderr, "       -v: be verbose\n");
+      fprintf(stderr, "       -f <value>: LZSA compression format (1-2)\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
       fprintf(stderr, "       -D <filename>: use dictionary file\n");
-      fprintf(stderr, "       -m <value>: minimum match size (3-14) (default: 3)\n");
+      fprintf(stderr, "       -m <value>: minimum match size (3-5) (default: 3)\n");
       fprintf(stderr, "       --prefer-ratio: favor compression ratio (default)\n");
       fprintf(stderr, "       --prefer-speed: favor decompression speed (same as -m3)\n");
       return 100;
    }
 
    if (cCommand == 'z') {
-      int nResult = lzsa_compress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nMinMatchSize);
+      int nResult = do_compress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nMinMatchSize, nFormatVersion);
       if (nResult == 0 && bVerifyCompression) {
-         nResult = lzsa_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions);
+         nResult = do_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions, nFormatVersion);
       }
    }
    else if (cCommand == 'd') {
-      return lzsa_decompress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions);
+      return do_decompress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nFormatVersion);
    }
    else {
       return 100;

@@ -20,9 +20,18 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
 #include <stdlib.h>
 #include "frame.h"
-#include "shrink.h"
 
 #define LZSA_ID_0   0x7b
 #define LZSA_ID_1   0x9e
@@ -53,11 +62,11 @@ int lzsa_get_frame_size(void) {
  *
  * @return number of encoded bytes, or -1 for failure
  */
-int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize) {
-   if (nMaxFrameDataSize >= 3) {
+int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, int nFormatVersion) {
+   if (nMaxFrameDataSize >= 3 && (nFormatVersion == 1 || nFormatVersion == 2)) {
       pFrameData[0] = LZSA_ID_0;                         /* Magic number */
       pFrameData[1] = LZSA_ID_1;
-      pFrameData[2] = 0;                                 /* Format version 1 */
+      pFrameData[2] = (nFormatVersion == 2) ? 0x20 : 0;  /* Format version 1 */
 
       return 3;
    }
@@ -139,14 +148,16 @@ int lzsa_encode_footer_frame(unsigned char *pFrameData, const int nMaxFrameDataS
  *
  * @return 0 for success, or -1 for failure
  */
-int lzsa_decode_header(const unsigned char *pFrameData, const int nFrameDataSize) {
+int lzsa_decode_header(const unsigned char *pFrameData, const int nFrameDataSize, int *nFormatVersion) {
    if (nFrameDataSize != 3 ||
       pFrameData[0] != LZSA_ID_0 ||
       pFrameData[1] != LZSA_ID_1 ||
-      pFrameData[2] != 0) {
+      (pFrameData[2] & 0x1f) != 0 ||
+      ((pFrameData[2] & 0xe0) != 0x00 && (pFrameData[2] & 0xe0) != 0x20)) {
       return -1;
    }
    else {
+      *nFormatVersion = (pFrameData[2] & 0xe0) ? 2 : 1;
       return 0;
    }
 }

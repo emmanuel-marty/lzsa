@@ -1,5 +1,5 @@
 /*
- * expand.h - block decompressor definitions
+ * expand_v2.h - LZSA2 block decompressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -20,11 +20,21 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
-#ifndef _EXPAND_H
-#define _EXPAND_H
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
+#ifndef _EXPAND_V2_H
+#define _EXPAND_V2_H
 
 /**
- * Decompress one data block
+ * Decompress one LZSA2 data block
  *
  * @param pInBlock pointer to compressed data
  * @param nInBlockSize size of compressed data, in bytes
@@ -34,6 +44,6 @@
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
+int lzsa_expand_block_v2(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
 
-#endif /* _EXPAND_H */
+#endif /* _EXPAND_V2_H */

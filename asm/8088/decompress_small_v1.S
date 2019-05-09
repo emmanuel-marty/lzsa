@@ -22,15 +22,15 @@
    bits 16
 
 ;  ---------------------------------------------------------------------------
-;  Decompress raw LZSA block
+;  Decompress raw LZSA1 block
 ;  inputs:
-;  * ds:si: raw LZSA block
+;  * ds:si: raw LZSA1 block
 ;  * es:di: output buffer
 ;  output:
 ;  * ax:    decompressed size
 ;  ---------------------------------------------------------------------------
 
-lzsa_decompress:
+lzsa1_decompress:
    push di                 ; remember decompression offset
    cld                     ; make string operations (lods, movs, stos..) move forward
 

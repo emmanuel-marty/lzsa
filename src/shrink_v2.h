@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * shrink_v2.h - LZSA2 block compressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,18 +30,24 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#ifndef _SHRINK_V2_H
+#define _SHRINK_V2_H
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
+/* Forward declarations */
+typedef struct _lsza_compressor lsza_compressor;
 
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
+/**
+ * Select the most optimal matches, reduce the token count if possible, and then emit a block of compressed LZSA2 data
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
+ */
+int lzsa_optimize_and_write_block_v2(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+#endif /* _SHRINK_V2_H */

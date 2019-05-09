@@ -40,7 +40,7 @@ Inspirations:
 License:
 
 * The LZSA code is available under the Zlib license.
-* The compressor (shrink.c) is available under the CC0 license due to using portions of code from Eric Bigger's Wimlib in the suffix array-based matchfinder.
+* The match finder (matchfinder.c) is available under the CC0 license due to using portions of code from Eric Bigger's Wimlib in the suffix array-based matchfinder.
 
 # Stream format
 

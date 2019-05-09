@@ -1,5 +1,5 @@
 /*
- * expand.c - block decompressor implementation
+ * expand_v1.c - LZSA1 block decompressor implementation
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -20,11 +20,21 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "format.h"
-#include "expand.h"
+#include "expand_v1.h"
 
 #ifdef _MSC_VER
 #define FORCE_INLINE __forceinline
@@ -32,11 +42,11 @@
 #define FORCE_INLINE __attribute__((always_inline))
 #endif /* _MSC_VER */
 
-static inline FORCE_INLINE int lzsa_expand_literals_slow(const unsigned char **ppInBlock, const unsigned char *pInBlockEnd, unsigned int nLiterals, unsigned char **ppCurOutData, const unsigned char *pOutDataEnd) {
+static inline FORCE_INLINE int lzsa_expand_literals_slow_v1(const unsigned char **ppInBlock, const unsigned char *pInBlockEnd, unsigned int nLiterals, unsigned char **ppCurOutData, const unsigned char *pOutDataEnd) {
    const unsigned char *pInBlock = *ppInBlock;
    unsigned char *pCurOutData = *ppCurOutData;
 
-   if (nLiterals == LITERALS_RUN_LEN) {
+   if (nLiterals == LITERALS_RUN_LEN_V1) {
       unsigned char nByte;
 
       if (pInBlock < pInBlockEnd) {
@@ -83,12 +93,12 @@ static inline FORCE_INLINE int lzsa_expand_literals_slow(const unsigned char **p
    return 0;
 }
 
-static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppInBlock, const unsigned char *pInBlockEnd, const unsigned char *pSrc, unsigned int nMatchLen, unsigned char **ppCurOutData, const unsigned char *pOutDataEnd, const unsigned char *pOutDataFastEnd) {
+static inline FORCE_INLINE int lzsa_expand_match_slow_v1(const unsigned char **ppInBlock, const unsigned char *pInBlockEnd, const unsigned char *pSrc, unsigned int nMatchLen, unsigned char **ppCurOutData, const unsigned char *pOutDataEnd, const unsigned char *pOutDataFastEnd) {
    const unsigned char *pInBlock = *ppInBlock;
    unsigned char *pCurOutData = *ppCurOutData;
 
-   nMatchLen += MIN_MATCH_SIZE;
-   if (nMatchLen == (MATCH_RUN_LEN + MIN_MATCH_SIZE)) {
+   nMatchLen += MIN_MATCH_SIZE_V1;
+   if (nMatchLen == (MATCH_RUN_LEN_V1 + MIN_MATCH_SIZE_V1)) {
       unsigned char nByte;
 
       if (pInBlock < pInBlockEnd) {
@@ -159,7 +169,7 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
 }
 
 /**
- * Decompress one data block
+ * Decompress one LZSA1 data block
  *
  * @param pInBlock pointer to compressed data
  * @param nInBlockSize size of compressed data, in bytes
@@ -169,7 +179,7 @@ static inline FORCE_INLINE int lzsa_expand_match_slow(const unsigned char **ppIn
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize) {
+int lzsa_expand_block_v1(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize) {
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
    const unsigned char *pInBlockFastEnd = pInBlock + nBlockSize - 8;
    unsigned char *pCurOutData = pOutData + nOutDataOffset;
@@ -182,36 +192,35 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
       const unsigned char token = *pInBlock++;
       unsigned int nLiterals = (unsigned int)((token & 0x70) >> 4);
 
-      if (nLiterals < LITERALS_RUN_LEN) {
+      if (nLiterals < LITERALS_RUN_LEN_V1) {
          memcpy(pCurOutData, pInBlock, 8);
          pInBlock += nLiterals;
          pCurOutData += nLiterals;
       }
       else {
-         if (lzsa_expand_literals_slow(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
+         if (lzsa_expand_literals_slow_v1(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
             return -1;
       }
 
       if ((pInBlock + 1) < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
-         nMatchOffset = ((unsigned int)(*pInBlock++ ^ 0xff));
+         nMatchOffset = ((unsigned int)(*pInBlock++)) | 0xffffff00;
          if (token & 0x80) {
-            nMatchOffset |= (((unsigned int)(*pInBlock++ ^ 0xff)) << 8);
+            nMatchOffset = (nMatchOffset & 0xffff00ff) | (((unsigned int)(*pInBlock++)) << 8);
          }
-         nMatchOffset++;
 
-         const unsigned char *pSrc = pCurOutData - nMatchOffset;
+         const unsigned char *pSrc = pCurOutData + nMatchOffset;
          if (pSrc >= pOutData) {
             unsigned int nMatchLen = (unsigned int)(token & 0x0f);
-            if (nMatchLen < MATCH_RUN_LEN && nMatchOffset >= 8 && pCurOutData < pOutDataFastEnd) {
+            if (nMatchLen < MATCH_RUN_LEN_V1 && nMatchOffset >= 8 && pCurOutData < pOutDataFastEnd) {
                memcpy(pCurOutData, pSrc, 8);
                memcpy(pCurOutData + 8, pSrc + 8, 8);
                memcpy(pCurOutData + 16, pSrc + 16, 4);
-               pCurOutData += (MIN_MATCH_SIZE + nMatchLen);
+               pCurOutData += (MIN_MATCH_SIZE_V1 + nMatchLen);
             }
             else {
-               if (lzsa_expand_match_slow(&pInBlock, pInBlockEnd, pSrc, nMatchLen, &pCurOutData, pOutDataEnd, pOutDataFastEnd))
+               if (lzsa_expand_match_slow_v1(&pInBlock, pInBlockEnd, pSrc, nMatchLen, &pCurOutData, pOutDataEnd, pOutDataFastEnd))
                   return -1;
             }
          }
@@ -227,22 +236,21 @@ int lzsa_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned ch
       const unsigned char token = *pInBlock++;
       unsigned int nLiterals = (unsigned int)((token & 0x70) >> 4);
 
-      if (lzsa_expand_literals_slow(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
+      if (lzsa_expand_literals_slow_v1(&pInBlock, pInBlockEnd, nLiterals, &pCurOutData, pOutDataEnd))
          return -1;
 
       if ((pInBlock + 1) < pInBlockEnd) { /* The last token in the block does not include match information */
          int nMatchOffset;
 
-         nMatchOffset = ((unsigned int)(*pInBlock++ ^ 0xff));
+         nMatchOffset = ((unsigned int)(*pInBlock++)) | 0xffffff00;
          if (token & 0x80) {
-            nMatchOffset |= (((unsigned int)(*pInBlock++ ^ 0xff)) << 8);
+            nMatchOffset = (nMatchOffset & 0xffff00ff) | (((unsigned int)(*pInBlock++)) << 8);
          }
-         nMatchOffset++;
 
-         const unsigned char *pSrc = pCurOutData - nMatchOffset;
+         const unsigned char *pSrc = pCurOutData + nMatchOffset;
          if (pSrc >= pOutData) {
             unsigned int nMatchLen = (unsigned int)(token & 0x0f);
-            if (lzsa_expand_match_slow(&pInBlock, pInBlockEnd, pSrc, nMatchLen, &pCurOutData, pOutDataEnd, pOutDataFastEnd))
+            if (lzsa_expand_match_slow_v1(&pInBlock, pInBlockEnd, pSrc, nMatchLen, &pCurOutData, pOutDataEnd, pOutDataFastEnd))
                return -1;
          }
          else {

@@ -177,24 +177,32 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\expand.h" />
+    <ClInclude Include="..\src\expand_v1.h" />
+    <ClInclude Include="..\src\expand_v2.h" />
     <ClInclude Include="..\src\format.h" />
     <ClInclude Include="..\src\frame.h" />
+    <ClInclude Include="..\src\lib.h" />
     <ClInclude Include="..\src\libdivsufsort\include\config.h" />
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort.h" />
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort_private.h" />
-    <ClInclude Include="..\src\shrink.h" />
+    <ClInclude Include="..\src\matchfinder.h" />
+    <ClInclude Include="..\src\shrink_v1.h" />
+    <ClInclude Include="..\src\shrink_v2.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\expand.c" />
+    <ClCompile Include="..\src\expand_v1.c" />
+    <ClCompile Include="..\src\expand_v2.c" />
     <ClCompile Include="..\src\frame.c" />
+    <ClCompile Include="..\src\lib.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\sssort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\trsort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\utils.c" />
-    <ClCompile Include="..\src\main.c" />
-    <ClCompile Include="..\src\shrink.c" />
+    <ClCompile Include="..\src\lzsa.c" />
+    <ClCompile Include="..\src\matchfinder.c" />
+    <ClCompile Include="..\src\shrink_v1.c" />
+    <ClCompile Include="..\src\shrink_v2.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

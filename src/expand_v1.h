@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * expand_v1.h - LZSA1 block decompressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,18 +30,20 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#ifndef _EXPAND_V1_H
+#define _EXPAND_V1_H
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
+/**
+ * Decompress one LZSA1 data block
+ *
+ * @param pInBlock pointer to compressed data
+ * @param nInBlockSize size of compressed data, in bytes
+ * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
+ * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
+ * @param nBlockMaxSize total size of output decompression buffer, in bytes
+ *
+ * @return size of decompressed data in bytes, or -1 for error
+ */
+int lzsa_expand_block_v1(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
 
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
-
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+#endif /* _EXPAND_V1_H */

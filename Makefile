@@ -10,10 +10,14 @@ $(OBJDIR)/%.o: src/../%.c
 
 APP := lzsa
 
-OBJS := $(OBJDIR)/src/main.o
+OBJS := $(OBJDIR)/src/lzsa.o
 OBJS += $(OBJDIR)/src/frame.o
-OBJS += $(OBJDIR)/src/shrink.o
-OBJS += $(OBJDIR)/src/expand.o
+OBJS += $(OBJDIR)/src/lib.o
+OBJS += $(OBJDIR)/src/matchfinder.o
+OBJS += $(OBJDIR)/src/shrink_v1.o
+OBJS += $(OBJDIR)/src/shrink_v2.o
+OBJS += $(OBJDIR)/src/expand_v1.o
+OBJS += $(OBJDIR)/src/expand_v2.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/divsufsort.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/sssort.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/trsort.o

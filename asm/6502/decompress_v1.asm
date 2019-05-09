@@ -1,5 +1,5 @@
 ; -----------------------------------------------------------------------------
-; Decompress raw LZSA block. Create one with lzsa -r <original_file> <compressed_file>
+; Decompress raw LZSA1 block. Create one with lzsa -r <original_file> <compressed_file>
 ;
 ; in:
 ; * LZSA_SRC_LO and LZSA_SRC_HI contain the compressed raw block address
@@ -31,7 +31,7 @@
 OFFSLO = $43                            ; zero-page location for temp offset
 OFFSHI = $44
 
-DECOMPRESS_LZSA
+DECOMPRESS_LZSA1
    LDY #$00
 
 DECODE_TOKEN

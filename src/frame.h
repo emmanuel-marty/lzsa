@@ -20,6 +20,16 @@
  * 3. This notice may not be removed or altered from any source distribution.
  */
 
+/*
+ * Uses the libdivsufsort library Copyright (c) 2003-2008 Yuta Mori
+ *
+ * Inspired by LZ4 by Yann Collet. https://github.com/lz4/lz4
+ * With help, ideas, optimizations and speed measurements by spke <zxintrospec@gmail.com>
+ * With ideas from Lizard by Przemyslaw Skibinski and Yann Collet. https://github.com/inikep/lizard
+ * Also with ideas from smallz4 by Stephan Brumme. https://create.stephan-brumme.com/smallz4/
+ *
+ */
+
 #ifndef _FRAME_H
 #define _FRAME_H
 
@@ -45,7 +55,7 @@ int lzsa_get_frame_size(void);
  *
  * @return number of encoded bytes, or -1 for failure
  */
-int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize);
+int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, int nFormatVersion);
 
 /**
  * Encode compressed block frame header
@@ -87,7 +97,7 @@ int lzsa_encode_footer_frame(unsigned char *pFrameData, const int nMaxFrameDataS
  *
  * @return 0 for success, or -1 for failure
  */
-int lzsa_decode_header(const unsigned char *pFrameData, const int nFrameDataSize);
+int lzsa_decode_header(const unsigned char *pFrameData, const int nFrameDataSize, int *nFormatVersion);
 
 /**
  * Decode frame header

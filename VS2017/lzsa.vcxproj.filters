@@ -27,13 +27,7 @@
     <ClInclude Include="pch.h">
       <Filter>Fichiers d%27en-tête</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\shrink.h">
-      <Filter>Fichiers sources</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\format.h">
-      <Filter>Fichiers sources</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\expand.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
     <ClInclude Include="..\src\libdivsufsort\include\config.h">
@@ -48,17 +42,26 @@
     <ClInclude Include="..\src\frame.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\expand_v2.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\shrink_v2.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\expand_v1.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\shrink_v1.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\matchfinder.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\lib.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\main.c">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\shrink.c">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\expand.c">
-      <Filter>Fichiers sources</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\libdivsufsort\lib\utils.c">
       <Filter>Fichiers sources\libdivsufsort\lib</Filter>
     </ClCompile>
@@ -72,6 +75,27 @@
       <Filter>Fichiers sources\libdivsufsort\lib</Filter>
     </ClCompile>
     <ClCompile Include="..\src\frame.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\expand_v2.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shrink_v2.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\expand_v1.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\shrink_v1.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\matchfinder.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\lib.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\lzsa.c">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
