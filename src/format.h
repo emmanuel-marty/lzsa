@@ -36,6 +36,8 @@
 #define MIN_OFFSET 1
 #define MAX_OFFSET 0xffff
 
+#define MAX_VARLEN 0xffff
+
 #define MIN_MATCH_SIZE_V1 3
 #define LITERALS_RUN_LEN_V1 7
 #define MATCH_RUN_LEN_V1 15

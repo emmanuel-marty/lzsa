@@ -314,7 +314,7 @@ static int lzsa_optimize_command_count_v1(lsza_compressor *pCompressor, const in
          else {
             if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
                pMatch->offset && pMatch->offset <= 32 && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
-               (nMatchLen + pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length) <= MAX_OFFSET) {
+               (nMatchLen + pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length) <= MAX_VARLEN) {
                /* Join */
 
                pMatch->length += pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length;

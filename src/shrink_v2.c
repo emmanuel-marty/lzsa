@@ -208,19 +208,16 @@ static void lzsa_optimize_matches_v2(lsza_compressor *pCompressor, const int nSt
 
       int nLiteralsLen = nLastLiteralsOffset - i;
       nLiteralsCost = 8 + cost[i + 1];
+
+      /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
+       * The cost automatically accumulates down the chain. */
       if (nLiteralsLen == LITERALS_RUN_LEN_V2) {
-         /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
-          * The cost automatically accumulates down the chain. */
          nLiteralsCost += 4;
       }
       else if (nLiteralsLen == (LITERALS_RUN_LEN_V2 + 15)) {
-         /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
-          * The cost automatically accumulates down the chain. */
          nLiteralsCost += 8;
       }
       else if (nLiteralsLen == 256) {
-         /* Add to the cost of encoding literals as their number crosses a variable length encoding boundary.
-          * The cost automatically accumulates down the chain. */
          nLiteralsCost += 16;
       }
       if (pCompressor->best_match[i + 1].length >= MIN_MATCH_SIZE_V2)
@@ -527,7 +524,7 @@ static int lzsa_optimize_command_count_v2(lsza_compressor *pCompressor, const in
          else {
             if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
                pMatch->offset && pMatch->offset <= 32 && pCompressor->best_match[i + nMatchLen].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
-               (nMatchLen + pCompressor->best_match[i + nMatchLen].length) <= MAX_OFFSET) {
+               (nMatchLen + pCompressor->best_match[i + nMatchLen].length) <= MAX_VARLEN) {
                /* Join */
 
                pMatch->length += pCompressor->best_match[i + nMatchLen].length;
