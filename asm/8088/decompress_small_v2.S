@@ -35,7 +35,7 @@ lzsa2_decompress:
    cld                     ; make string operations (lods, movs, stos..) move forward
 
    xor cx,cx
-   xor bx,bx
+   mov bx,0100H
    xor bp,bp
 
 .decode_token:
@@ -157,14 +157,12 @@ lzsa2_decompress:
    ret                     ; done
 
 .get_nibble:
-   dec bh                  ; nibble ready?
+   neg bh                  ; nibble ready?
    jns .has_nibble
    
-   mov cx,ax
+   xchg bx,ax
    lodsb                   ; load two nibbles
-   mov bl,al
-   mov bh,1
-   mov ax,cx
+   xchg ax,bx
 
 .has_nibble:
    mov cl,4                ; swap 4 high and low bits of nibble
