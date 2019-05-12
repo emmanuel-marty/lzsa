@@ -144,7 +144,21 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
          return 100;
       }
 
-      nDictionaryDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE - 1, f_dictionary);
+      fseek(f_dictionary, 0, SEEK_END);
+#ifdef _WIN32
+      __int64 nDictionaryFileSize = _ftelli64(f_dictionary);
+#else
+      off_t nDictionaryFileSize = ftello(f_dictionary);
+#endif
+      if (nDictionaryFileSize > BLOCK_SIZE) {
+         /* Use the last BLOCK_SIZE bytes of the dictionary */
+         fseek(f_dictionary, -BLOCK_SIZE, SEEK_END);
+      }
+      else {
+         fseek(f_dictionary, 0, SEEK_SET);
+      }
+
+      nDictionaryDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE, f_dictionary);
       if (nDictionaryDataSize < 0)
          nDictionaryDataSize = 0;
 
@@ -425,7 +439,21 @@ static int do_decompress(const char *pszInFilename, const char *pszOutFilename, 
          return 100;
       }
 
-      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE - 1, pDictionaryFile);
+      fseek(pDictionaryFile, 0, SEEK_END);
+#ifdef _WIN32
+      __int64 nDictionaryFileSize = _ftelli64(pDictionaryFile);
+#else
+      off_t nDictionaryFileSize = ftello(pDictionaryFile);
+#endif
+      if (nDictionaryFileSize > BLOCK_SIZE) {
+         /* Use the last BLOCK_SIZE bytes of the dictionary */
+         fseek(pDictionaryFile, -BLOCK_SIZE, SEEK_END);
+      }
+      else {
+         fseek(pDictionaryFile, 0, SEEK_SET);
+      }
+
+      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE, pDictionaryFile);
       if (nDictionaryDataSize < 0)
          nDictionaryDataSize = 0;
 
@@ -661,7 +689,21 @@ static int do_compare(const char *pszInFilename, const char *pszOutFilename, con
          return 100;
       }
 
-      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE - 1, pDictionaryFile);
+      fseek(pDictionaryFile, 0, SEEK_END);
+#ifdef _WIN32
+      __int64 nDictionaryFileSize = _ftelli64(pDictionaryFile);
+#else
+      off_t nDictionaryFileSize = ftello(pDictionaryFile);
+#endif
+      if (nDictionaryFileSize > BLOCK_SIZE) {
+         /* Use the last BLOCK_SIZE bytes of the dictionary */
+         fseek(pDictionaryFile, -BLOCK_SIZE, SEEK_END);
+      }
+      else {
+         fseek(pDictionaryFile, 0, SEEK_SET);
+      }
+
+      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE, pDictionaryFile);
       if (nDictionaryDataSize < 0)
          nDictionaryDataSize = 0;
 
