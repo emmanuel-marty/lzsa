@@ -204,6 +204,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
    }
 
    int nPreviousBlockSize = 0;
+   int nNumBlocks = 0;
 
    if (nDictionaryDataSize)
       nPreviousBlockSize = nDictionaryDataSize;
@@ -217,7 +218,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
 
       nInDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE, f_in);
       if (nInDataSize > 0) {
-         if (nPreviousBlockSize && (nOptions & OPT_RAW) != 0 && !nDictionaryDataSize) {
+         if ((nOptions & OPT_RAW) != 0 && nNumBlocks) {
             fprintf(stderr, "error: raw blocks can only be used with files <= 64 Kb\n");
             bError = true;
             break;
@@ -281,6 +282,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
          }
 
          nPreviousBlockSize = nInDataSize;
+         nNumBlocks++;
       }
 
       if (!bError && !feof(f_in) && nOriginalSize >= 1024 * 1024) {
