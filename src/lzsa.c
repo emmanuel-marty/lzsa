@@ -39,11 +39,8 @@
 #else
 #include <sys/time.h>
 #endif
-#include "format.h"
-#include "frame.h"
 #include "lib.h"
 
-#define BLOCK_SIZE 65536
 #define OPT_VERBOSE     1
 #define OPT_RAW         2
 #define OPT_FAVOR_RATIO 4
@@ -71,489 +68,92 @@ static long long do_get_time() {
 
 /*---------------------------------------------------------------------------*/
 
+static void compression_progress(long long nOriginalSize, long long nCompressedSize) {
+   if (nOriginalSize >= 1024 * 1024) {
+      fprintf(stdout, "\r%lld => %lld (%g %%)     \b\b\b\b\b", nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
+      fflush(stdout);
+   }
+}
+
 static int do_compress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, const int nMinMatchSize, const int nFormatVersion) {
-   FILE *f_in, *f_out;
-   unsigned char *pInData, *pOutData;
-   lsza_compressor compressor;
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
+   int nCommandCount = 0;
    int nFlags;
-   int nResult;
-   unsigned char cFrameData[16];
-   bool bError = false;
-
-   f_in = fopen(pszInFilename, "rb");
-   if (!f_in) {
-      fprintf(stderr, "error opening '%s' for reading\n", pszInFilename);
-      return 100;
-   }
-
-   f_out = fopen(pszOutFilename, "wb");
-   if (!f_out) {
-      fprintf(stderr, "error opening '%s' for writing\n", pszOutFilename);
-      return 100;
-   }
-
-   pInData = (unsigned char*)malloc(BLOCK_SIZE * 2);
-   if (!pInData) {
-      fclose(f_out);
-      f_out = NULL;
-
-      fclose(f_in);
-      f_in = NULL;
-
-      fprintf(stderr, "out of memory\n");
-      return 100;
-   }
-   memset(pInData, 0, BLOCK_SIZE * 2);
-
-   pOutData = (unsigned char*)malloc(BLOCK_SIZE);
-   if (!pOutData) {
-      free(pInData);
-      pInData = NULL;
-
-      fclose(f_out);
-      f_out = NULL;
-
-      fclose(f_in);
-      f_in = NULL;
-
-      fprintf(stderr, "out of memory\n");
-      return 100;
-   }
-   memset(pOutData, 0, BLOCK_SIZE);
-
-   int nDictionaryDataSize = 0;
-
-   if (pszDictionaryFilename) {
-      FILE *f_dictionary = fopen(pszDictionaryFilename, "rb");
-      if (!f_dictionary) {
-         free(pOutData);
-         pOutData = NULL;
-
-         free(pInData);
-         pInData = NULL;
-
-         fclose(f_out);
-         f_out = NULL;
-
-         fclose(f_in);
-         f_in = NULL;
-
-         fprintf(stderr, "error opening dictionary '%s' for reading\n", pszInFilename);
-         return 100;
-      }
-
-      fseek(f_dictionary, 0, SEEK_END);
-#ifdef _WIN32
-      __int64 nDictionaryFileSize = _ftelli64(f_dictionary);
-#else
-      off_t nDictionaryFileSize = ftello(f_dictionary);
-#endif
-      if (nDictionaryFileSize > BLOCK_SIZE) {
-         /* Use the last BLOCK_SIZE bytes of the dictionary */
-         fseek(f_dictionary, -BLOCK_SIZE, SEEK_END);
-      }
-      else {
-         fseek(f_dictionary, 0, SEEK_SET);
-      }
-
-      nDictionaryDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE, f_dictionary);
-      if (nDictionaryDataSize < 0)
-         nDictionaryDataSize = 0;
-
-      fclose(f_dictionary);
-      f_dictionary = NULL;
-   }
+   lzsa_status_t nStatus;
 
    nFlags = 0;
    if (nOptions & OPT_FAVOR_RATIO)
       nFlags |= LZSA_FLAG_FAVOR_RATIO;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
-   nResult = lzsa_compressor_init(&compressor, BLOCK_SIZE * 2, nMinMatchSize, nFormatVersion, nFlags);
-   if (nResult != 0) {
-      free(pOutData);
-      pOutData = NULL;
-
-      free(pInData);
-      pInData = NULL;
-
-      fclose(f_out);
-      f_out = NULL;
-
-      fclose(f_in);
-      f_in = NULL;
-
-      fprintf(stderr, "error initializing compressor\n");
-      return 100;
-   }
-
-   if ((nOptions & OPT_RAW) == 0) {
-      int nHeaderSize = lzsa_encode_header(cFrameData, 16, nFormatVersion);
-      if (nHeaderSize < 0)
-         bError = true;
-      else {
-         bError = fwrite(cFrameData, 1, nHeaderSize, f_out) != nHeaderSize;
-         nCompressedSize += (long long)nHeaderSize;
-      }
-   }
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
    }
 
-   int nPreviousBlockSize = 0;
-   int nNumBlocks = 0;
+   nStatus = lsza_compress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nMinMatchSize, nFormatVersion, compression_progress, &nOriginalSize, &nCompressedSize, &nCommandCount);
 
-   if (nDictionaryDataSize)
-      nPreviousBlockSize = nDictionaryDataSize;
-
-   while (!feof(f_in) && !bError) {
-      int nInDataSize;
-
-      if (nPreviousBlockSize) {
-         memcpy(pInData + BLOCK_SIZE - nPreviousBlockSize, pInData + BLOCK_SIZE, nPreviousBlockSize);
-      }
-
-      nInDataSize = (int)fread(pInData + BLOCK_SIZE, 1, BLOCK_SIZE, f_in);
-      if (nInDataSize > 0) {
-         if ((nOptions & OPT_RAW) != 0 && nNumBlocks) {
-            fprintf(stderr, "error: raw blocks can only be used with files <= 64 Kb\n");
-            bError = true;
-            break;
-         }
-         nDictionaryDataSize = 0;
-
-         int nOutDataSize;
-
-         nOutDataSize = lzsa_shrink_block(&compressor, pInData + BLOCK_SIZE - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutData, (nInDataSize >= BLOCK_SIZE) ? BLOCK_SIZE : nInDataSize);
-         if (nOutDataSize >= 0) {
-            /* Write compressed block */
-
-            if ((nOptions & OPT_RAW) == 0) {
-               int nBlockheaderSize = lzsa_encode_compressed_block_frame(cFrameData, 16, nOutDataSize);
-               if (nBlockheaderSize < 0)
-                  bError = true;
-               else {
-                  nCompressedSize += (long long)nBlockheaderSize;
-                  if (fwrite(cFrameData, 1, nBlockheaderSize, f_out) != (size_t)nBlockheaderSize) {
-                     bError = true;
-                  }
-               }
-            }
-
-            if (!bError) {
-               if (fwrite(pOutData, 1, (size_t)nOutDataSize, f_out) != (size_t)nOutDataSize) {
-                  bError = true;
-               }
-               else {
-                  nOriginalSize += (long long)nInDataSize;
-                  nCompressedSize += (long long)nOutDataSize;
-               }
-            }
-         }
-         else {
-            /* Write uncompressible, literal block */
-
-            if ((nOptions & OPT_RAW) != 0) {
-               fprintf(stderr, "error: data is incompressible, raw blocks only support compressed data\n");
-               bError = true;
-               break;
-            }
-
-            int nBlockheaderSize = lzsa_encode_uncompressed_block_frame(cFrameData, 16, nInDataSize);
-            if (nBlockheaderSize < 0)
-               bError = true;
-            else {
-               if (fwrite(cFrameData, 1, nBlockheaderSize, f_out) != (size_t)nBlockheaderSize) {
-                  bError = true;
-               }
-               else {
-                  if (fwrite(pInData + BLOCK_SIZE, 1, (size_t)nInDataSize, f_out) != (size_t)nInDataSize) {
-                     bError = true;
-                  }
-                  else {
-                     nOriginalSize += (long long)nInDataSize;
-                     nCompressedSize += (long long)nBlockheaderSize + (long long)nInDataSize;
-                  }
-               }
-            }
-         }
-
-         nPreviousBlockSize = nInDataSize;
-         nNumBlocks++;
-      }
-
-      if (!bError && !feof(f_in) && nOriginalSize >= 1024 * 1024) {
-         fprintf(stdout, "\r%lld => %lld (%g %%)", nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
-         fflush(stdout);
-      }
-   }
-
-   int nFooterSize;
-
-   if ((nOptions & OPT_RAW) != 0) {
-      nFooterSize = 0;
-   }
-   else {
-      nFooterSize = lzsa_encode_footer_frame(cFrameData, 16);
-      if (nFooterSize < 0)
-         bError = true;
-   }
-
-   if (!bError)
-      bError = fwrite(cFrameData, 1, nFooterSize, f_out) != nFooterSize;
-   nCompressedSize += (long long)nFooterSize;
-
-   if (!bError && (nOptions & OPT_VERBOSE)) {
+   if ((nOptions & OPT_VERBOSE)) {
       nEndTime = do_get_time();
+   }
 
+   switch (nStatus) {
+      case LZSA_ERROR_SRC: fprintf(stderr, "error reading '%s'\n", pszInFilename); break;
+      case LZSA_ERROR_DST: fprintf(stderr, "error writing '%s'\n", pszOutFilename); break;
+      case LZSA_ERROR_DICTIONARY: fprintf(stderr, "error reading dictionary '%s'\n", pszDictionaryFilename); break;
+      case LZSA_ERROR_MEMORY: fprintf(stderr, "out of memory\n"); break;
+      case LZSA_ERROR_COMPRESSION: fprintf(stderr, "internal compression error\n"); break;
+      case LZSA_ERROR_RAW_TOOLARGE: fprintf(stderr, "error: raw blocks can only be used with files <= 64 Kb\n"); break;
+      case LZSA_ERROR_RAW_UNCOMPRESSED: fprintf(stderr, "error: data is incompressible, raw blocks only support compressed data\n"); break;
+      case LZSA_OK: break;
+      default: fprintf(stderr, "unknown compression error %d\n", nStatus); break;
+   }
+
+   if (nStatus)
+      return 100;
+
+   if ((nOptions & OPT_VERBOSE)) {
       double fDelta = ((double)(nEndTime - nStartTime)) / 1000000.0;
       double fSpeed = ((double)nOriginalSize / 1048576.0) / fDelta;
-      int nCommands = lzsa_compressor_get_command_count(&compressor);
       fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens (%g bytes/token), %lld into %lld bytes ==> %g %%\n",
-         pszInFilename, fDelta, fSpeed, nCommands, (double)nOriginalSize / (double)nCommands,
+         pszInFilename, fDelta, fSpeed, nCommandCount, (double)nOriginalSize / (double)nCommandCount,
          nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
    }
 
-   lzsa_compressor_destroy(&compressor);
-
-   free(pOutData);
-   pOutData = NULL;
-
-   free(pInData);
-   pInData = NULL;
-
-   fclose(f_out);
-   f_out = NULL;
-
-   fclose(f_in);
-   f_in = NULL;
-
-   if (bError) {
-      fprintf(stderr, "\rcompression error for '%s'\n", pszInFilename);
-      return 100;
-   }
-   else {
-      return 0;
-   }
+   return 0;
 }
 
 /*---------------------------------------------------------------------------*/
 
 static int do_decompress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
    long long nStartTime = 0LL, nEndTime = 0LL;
-   long long nOriginalSize = 0LL;
-   unsigned int nFileSize = 0;
-   unsigned char cFrameData[16];
+   long long nOriginalSize = 0LL, nCompressedSize = 0LL;
+   lzsa_status_t nStatus;
+   int nFlags;
 
-   FILE *pInFile = fopen(pszInFilename, "rb");
-   if (!pInFile) {
-      fprintf(stderr, "error opening input file\n");
-      return 100;
-   }
-
-   if ((nOptions & OPT_RAW) == 0) {
-      const int nHeaderSize = lzsa_get_header_size();
-
-      memset(cFrameData, 0, 16);
-      if (fread(cFrameData, 1, nHeaderSize, pInFile) != nHeaderSize) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "error reading header in input file\n");
-         return 100;
-      }
-
-      if (lzsa_decode_header(cFrameData, nHeaderSize, &nFormatVersion) < 0) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "invalid magic number or format version in input file\n");
-         return 100;
-      }
-   }
-   else {
-      fseek(pInFile, 0, SEEK_END);
-      nFileSize = (unsigned int)ftell(pInFile);
-      fseek(pInFile, 0, SEEK_SET);
-
-      if (nFileSize < 4) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "invalid file size for raw block mode\n");
-         return 100;
-      }
-   }
-
-   FILE *pOutFile = fopen(pszOutFilename, "wb");
-   if (!pOutFile) {
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
-      return 100;
-   }
-
-   unsigned char *pInBlock;
-   unsigned char *pOutData;
-
-   pInBlock = (unsigned char*)malloc(BLOCK_SIZE);
-   if (!pInBlock) {
-      fclose(pOutFile);
-      pOutFile = NULL;
-
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
-      return 100;
-   }
-
-   pOutData = (unsigned char*)malloc(BLOCK_SIZE * 2);
-   if (!pOutData) {
-      free(pInBlock);
-      pInBlock = NULL;
-
-      fclose(pOutFile);
-      pOutFile = NULL;
-
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
-      return 100;
-   }
-
-   int nDictionaryDataSize = 0;
-   if (pszDictionaryFilename) {
-      FILE *pDictionaryFile = fopen(pszDictionaryFilename, "rb");
-      if (!pDictionaryFile) {
-         free(pOutData);
-         pOutData = NULL;
-
-         free(pInBlock);
-         pInBlock = NULL;
-
-         fclose(pOutFile);
-         pOutFile = NULL;
-
-         fclose(pInFile);
-         pInFile = NULL;
-
-         fprintf(stderr, "error opening dictionary file\n");
-         return 100;
-      }
-
-      fseek(pDictionaryFile, 0, SEEK_END);
-#ifdef _WIN32
-      __int64 nDictionaryFileSize = _ftelli64(pDictionaryFile);
-#else
-      off_t nDictionaryFileSize = ftello(pDictionaryFile);
-#endif
-      if (nDictionaryFileSize > BLOCK_SIZE) {
-         /* Use the last BLOCK_SIZE bytes of the dictionary */
-         fseek(pDictionaryFile, -BLOCK_SIZE, SEEK_END);
-      }
-      else {
-         fseek(pDictionaryFile, 0, SEEK_SET);
-      }
-
-      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE, pDictionaryFile);
-      if (nDictionaryDataSize < 0)
-         nDictionaryDataSize = 0;
-
-      fclose(pDictionaryFile);
-      pDictionaryFile = NULL;
-   }
+   nFlags = 0;
+   if (nOptions & OPT_RAW)
+      nFlags |= LZSA_FLAG_RAW_BLOCK;
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
    }
 
-   int nDecompressionError = 0;
-   int nPrevDecompressedSize = 0;
+   nStatus = lzsa_decompress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nFormatVersion, &nOriginalSize, &nCompressedSize);
 
-   if (nDictionaryDataSize) {
-      nPrevDecompressedSize = nDictionaryDataSize;
+   switch (nStatus) {
+   case LZSA_ERROR_SRC: fprintf(stderr, "error reading '%s'\n", pszInFilename); break;
+   case LZSA_ERROR_DST: fprintf(stderr, "error writing '%s'\n", pszOutFilename); break;
+   case LZSA_ERROR_DICTIONARY: fprintf(stderr, "error reading dictionary '%s'\n", pszDictionaryFilename); break;
+   case LZSA_ERROR_MEMORY: fprintf(stderr, "out of memory\n"); break;
+   case LZSA_ERROR_DECOMPRESSION: fprintf(stderr, "internal decompression error\n"); break;
+   case LZSA_ERROR_FORMAT: fprintf(stderr, "invalid magic number or format version in input file\n"); break;
+   case LZSA_OK: break;
+   default: fprintf(stderr, "unknown decompression error %d\n", nStatus); break;
    }
 
-   while (!feof(pInFile) && !nDecompressionError) {
-      unsigned int nBlockSize = 0;
-      int nIsUncompressed = 0;
-
-      if (nPrevDecompressedSize != 0) {
-         memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
-      }
-
-      if ((nOptions & OPT_RAW) == 0) {
-         const int nFrameSize = lzsa_get_frame_size();
-
-         memset(cFrameData, 0, 16);
-         if (fread(cFrameData, 1, nFrameSize, pInFile) == nFrameSize) {
-            if (lzsa_decode_frame(cFrameData, nFrameSize, &nBlockSize, &nIsUncompressed) < 0) {
-               nDecompressionError = 1;
-               nBlockSize = 0;
-            }
-         }
-         else {
-            nBlockSize = 0;
-         }
-      }
-      else {
-         if (nFileSize >= 4)
-            nBlockSize = nFileSize - 4;
-         nFileSize = 0;
-      }
-
-      if (nBlockSize != 0) {
-         int nDecompressedSize = 0;
-
-         if ((int)nBlockSize > BLOCK_SIZE) {
-            fprintf(stderr, "block size %d > max size %d\n", nBlockSize, BLOCK_SIZE);
-            break;
-         }
-         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (nIsUncompressed) {
-               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-               nDecompressedSize = nBlockSize;
-            }
-            else {
-               unsigned int nBlockOffs = 0;
-
-               nDecompressedSize = lzsa_expand_block(nFormatVersion, pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-               if (nDecompressedSize < 0) {
-                  nDecompressionError = nDecompressedSize;
-                  break;
-               }
-            }
-
-            if (nDecompressedSize != 0) {
-               nOriginalSize += (long long)nDecompressedSize;
-
-               fwrite(pOutData + BLOCK_SIZE, 1, nDecompressedSize, pOutFile);
-               nPrevDecompressedSize = nDecompressedSize;
-               nDecompressedSize = 0;
-            }
-         }
-         else {
-            break;
-         }
-      }
-      else {
-         break;
-      }
-   }
-
-   free(pOutData);
-   pOutData = NULL;
-
-   free(pInBlock);
-   pInBlock = NULL;
-
-   fclose(pOutFile);
-   pOutFile = NULL;
-
-   fclose(pInFile);
-   pInFile = NULL;
-
-   if (nDecompressionError) {
+   if (nStatus) {
       fprintf(stderr, "decompression error for '%s'\n", pszInFilename);
       return 100;
    }
@@ -570,258 +170,141 @@ static int do_decompress(const char *pszInFilename, const char *pszOutFilename, 
    }
 }
 
+/*---------------------------------------------------------------------------*/
+
+typedef struct {
+   FILE *f;
+   void *pCompareDataBuf;
+   size_t nCompareDataSize;
+} compare_stream_t;
+
+void comparestream_close(lzsa_stream_t *stream) {
+   if (stream->obj) {
+      compare_stream_t *pCompareStream = (compare_stream_t *)stream->obj;
+      if (pCompareStream->pCompareDataBuf) {
+         free(pCompareStream->pCompareDataBuf);
+         pCompareStream->pCompareDataBuf = NULL;
+      }
+      
+      fclose(pCompareStream->f);
+      free(pCompareStream);
+
+      stream->obj = NULL;
+      stream->read = NULL;
+      stream->write = NULL;
+      stream->eof = NULL;
+      stream->close = NULL;
+   }
+}
+
+size_t comparestream_read(lzsa_stream_t *stream, void *ptr, size_t size) {
+   return 0;
+}
+
+size_t comparestream_write(lzsa_stream_t *stream, void *ptr, size_t size) {
+   compare_stream_t *pCompareStream = (compare_stream_t *)stream->obj;
+
+   if (!pCompareStream->pCompareDataBuf || pCompareStream->nCompareDataSize < size) {
+      pCompareStream->nCompareDataSize = size;
+      pCompareStream->pCompareDataBuf = realloc(pCompareStream->pCompareDataBuf, pCompareStream->nCompareDataSize);
+      if (!pCompareStream->pCompareDataBuf)
+         return 0;
+   }
+
+   size_t nReadBytes = fread(pCompareStream->pCompareDataBuf, 1, size, pCompareStream->f);
+   if (nReadBytes != size) {
+      return 0;
+   }
+
+   if (memcmp(ptr, pCompareStream->pCompareDataBuf, size)) {
+      return 0;
+   }
+
+   return size;
+}
+
+int comparestream_eof(lzsa_stream_t *stream) {
+   compare_stream_t *pCompareStream = (compare_stream_t *)stream->obj;
+   return feof(pCompareStream->f);
+}
+
+int comparestream_open(lzsa_stream_t *stream, const char *pszCompareFilename, const char *pszMode) {
+   compare_stream_t *pCompareStream;
+
+   pCompareStream = (compare_stream_t*)malloc(sizeof(compare_stream_t));
+   if (!pCompareStream)
+      return -1;
+
+   pCompareStream->pCompareDataBuf = NULL;
+   pCompareStream->nCompareDataSize = 0;
+   pCompareStream->f = (void*)fopen(pszCompareFilename, pszMode);
+
+   if (pCompareStream->f) {
+      stream->obj = pCompareStream;
+      stream->read = comparestream_read;
+      stream->write = comparestream_write;
+      stream->eof = comparestream_eof;
+      stream->close = comparestream_close;
+      return 0;
+   }
+   else
+      return -1;
+}
+
 static int do_compare(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
+   lzsa_stream_t inStream, compareStream;
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL;
-   long long nKnownGoodSize = 0LL;
-   unsigned int nFileSize = 0;
-   unsigned char cFrameData[16];
+   long long nCompressedSize = 0LL;
+   void *pDictionaryData = NULL;
+   int nDictionaryDataSize = 0;
+   lzsa_status_t nStatus;
+   int nFlags;
 
-   FILE *pInFile = fopen(pszInFilename, "rb");
-   if (!pInFile) {
+   if (lzsa_filestream_open(&inStream, pszInFilename, "rb") < 0) {
       fprintf(stderr, "error opening compressed input file\n");
       return 100;
    }
 
-   if ((nOptions & OPT_RAW) == 0) {
-      const int nHeaderSize = lzsa_get_header_size();
-
-      memset(cFrameData, 0, 16);
-      if (fread(cFrameData, 1, nHeaderSize, pInFile) != nHeaderSize) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "error reading header in compressed input file\n");
-         return 100;
-      }
-
-      if (lzsa_decode_header(cFrameData, nHeaderSize, &nFormatVersion) < 0) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "invalid magic number or format version in input file\n");
-         return 100;
-      }
-   }
-   else {
-      fseek(pInFile, 0, SEEK_END);
-      nFileSize = (unsigned int)ftell(pInFile);
-      fseek(pInFile, 0, SEEK_SET);
-
-      if (nFileSize < 4) {
-         fclose(pInFile);
-         pInFile = NULL;
-         fprintf(stderr, "invalid file size for raw block mode\n");
-         return 100;
-      }
-   }
-
-   FILE *pOutFile = fopen(pszOutFilename, "rb");
-   if (!pOutFile) {
-      fclose(pInFile);
-      pInFile = NULL;
+   if (comparestream_open(&compareStream, pszOutFilename, "rb") < 0) {
       fprintf(stderr, "error opening original uncompressed file\n");
+      inStream.close(&inStream);
       return 100;
    }
 
-   unsigned char *pInBlock;
-   unsigned char *pOutData;
-   unsigned char *pCompareData;
-
-   pInBlock = (unsigned char*)malloc(BLOCK_SIZE);
-   if (!pInBlock) {
-      fclose(pOutFile);
-      pOutFile = NULL;
-
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
+   nStatus = lzsa_dictionary_load(pszDictionaryFilename, &pDictionaryData, &nDictionaryDataSize);
+   if (nStatus) {
+      compareStream.close(&compareStream);
+      inStream.close(&inStream);
+      fprintf(stderr, "error reading dictionary '%s'\n", pszDictionaryFilename);
       return 100;
    }
 
-   pOutData = (unsigned char*)malloc(BLOCK_SIZE * 2);
-   if (!pOutData) {
-      free(pInBlock);
-      pInBlock = NULL;
-
-      fclose(pOutFile);
-      pOutFile = NULL;
-
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
-      return 100;
-   }
-
-   pCompareData = (unsigned char*)malloc(BLOCK_SIZE);
-   if (!pCompareData) {
-      free(pOutData);
-      pOutData = NULL;
-
-      free(pInBlock);
-      pInBlock = NULL;
-
-      fclose(pOutFile);
-      pOutFile = NULL;
-
-      fclose(pInFile);
-      pInFile = NULL;
-      fprintf(stderr, "error opening output file\n");
-      return 100;
-   }
-
-   int nDictionaryDataSize = 0;
-   if (pszDictionaryFilename) {
-      FILE *pDictionaryFile = fopen(pszDictionaryFilename, "rb");
-      if (!pDictionaryFile) {
-         free(pCompareData);
-         pCompareData = NULL;
-
-         free(pOutData);
-         pOutData = NULL;
-
-         free(pInBlock);
-         pInBlock = NULL;
-
-         fclose(pOutFile);
-         pOutFile = NULL;
-
-         fclose(pInFile);
-         pInFile = NULL;
-
-         fprintf(stderr, "error opening dictionary file\n");
-         return 100;
-      }
-
-      fseek(pDictionaryFile, 0, SEEK_END);
-#ifdef _WIN32
-      __int64 nDictionaryFileSize = _ftelli64(pDictionaryFile);
-#else
-      off_t nDictionaryFileSize = ftello(pDictionaryFile);
-#endif
-      if (nDictionaryFileSize > BLOCK_SIZE) {
-         /* Use the last BLOCK_SIZE bytes of the dictionary */
-         fseek(pDictionaryFile, -BLOCK_SIZE, SEEK_END);
-      }
-      else {
-         fseek(pDictionaryFile, 0, SEEK_SET);
-      }
-
-      nDictionaryDataSize = (int)fread(pOutData + BLOCK_SIZE, 1, BLOCK_SIZE, pDictionaryFile);
-      if (nDictionaryDataSize < 0)
-         nDictionaryDataSize = 0;
-
-      fclose(pDictionaryFile);
-      pDictionaryFile = NULL;
-   }
+   nFlags = 0;
+   if (nOptions & OPT_RAW)
+      nFlags |= LZSA_FLAG_RAW_BLOCK;
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
    }
 
-   int nDecompressionError = 0;
-   bool bComparisonError = false;
-   int nPrevDecompressedSize = 0;
+   nStatus = lzsa_decompress_stream(&inStream, &compareStream, pDictionaryData, nDictionaryDataSize, nFlags, nFormatVersion, &nOriginalSize, &nCompressedSize);
 
-   if (nDictionaryDataSize) {
-      nPrevDecompressedSize = nDictionaryDataSize;
+   switch (nStatus) {
+   case LZSA_ERROR_SRC: fprintf(stderr, "error reading '%s'\n", pszInFilename); break;
+   case LZSA_ERROR_DST: fprintf(stderr, "error comparing compressed file '%s' with original '%s'\n", pszInFilename, pszOutFilename); break;
+   case LZSA_ERROR_MEMORY: fprintf(stderr, "out of memory\n"); break;
+   case LZSA_ERROR_DECOMPRESSION: fprintf(stderr, "internal decompression error\n"); break;
+   case LZSA_ERROR_FORMAT: fprintf(stderr, "invalid magic number or format version in input file\n"); break;
+   case LZSA_OK: break;
+   default: fprintf(stderr, "unknown decompression error %d\n", nStatus); break;
    }
 
-   while (!feof(pInFile) && !nDecompressionError && !bComparisonError) {
-      unsigned int nBlockSize = 0;
-      int nIsUncompressed = 0;
+   lzsa_dictionary_free(&pDictionaryData);
+   compareStream.close(&compareStream);
+   inStream.close(&inStream);
 
-      if (nPrevDecompressedSize != 0) {
-         memcpy(pOutData + BLOCK_SIZE - nPrevDecompressedSize, pOutData + BLOCK_SIZE, nPrevDecompressedSize);
-      }
-
-      int nBytesToCompare = (int)fread(pCompareData, 1, BLOCK_SIZE, pOutFile);
-
-      if ((nOptions & OPT_RAW) == 0) {
-         const int nFrameSize = lzsa_get_frame_size();
-
-         memset(cFrameData, 0, 16);
-         if (fread(cFrameData, 1, nFrameSize, pInFile) == nFrameSize) {
-            if (lzsa_decode_frame(cFrameData, nFrameSize, &nBlockSize, &nIsUncompressed) < 0) {
-               nDecompressionError = 1;
-               nBlockSize = 0;
-            }
-         }
-         else {
-            nBlockSize = 0;
-         }
-      }
-      else {
-         if (nFileSize >= 4)
-            nBlockSize = nFileSize - 4;
-         nFileSize = 0;
-      }
-
-      if (nBlockSize != 0) {
-         int nDecompressedSize = 0;
-
-         if ((int)nBlockSize > BLOCK_SIZE) {
-            fprintf(stderr, "block size %d > max size %d\n", nBlockSize, BLOCK_SIZE);
-            break;
-         }
-         if (fread(pInBlock, 1, nBlockSize, pInFile) == nBlockSize) {
-            if (nIsUncompressed) {
-               memcpy(pOutData + BLOCK_SIZE, pInBlock, nBlockSize);
-               nDecompressedSize = nBlockSize;
-            }
-            else {
-               unsigned int nBlockOffs = 0;
-
-               nDecompressedSize = lzsa_expand_block(nFormatVersion, pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
-               if (nDecompressedSize < 0) {
-                  nDecompressionError = nDecompressedSize;
-                  break;
-               }
-            }
-
-            if (nDecompressedSize == nBytesToCompare) {
-               nKnownGoodSize = nOriginalSize;
-
-               nOriginalSize += (long long)nDecompressedSize;
-
-               if (memcmp(pOutData + BLOCK_SIZE, pCompareData, nBytesToCompare))
-                  bComparisonError = true;
-               nPrevDecompressedSize = nDecompressedSize;
-               nDecompressedSize = 0;
-            }
-            else {
-               bComparisonError = true;
-               break;
-            }
-         }
-         else {
-            break;
-         }
-      }
-      else {
-         break;
-      }
-   }
-
-   free(pCompareData);
-   pCompareData = NULL;
-
-   free(pOutData);
-   pOutData = NULL;
-
-   free(pInBlock);
-   pInBlock = NULL;
-
-   fclose(pOutFile);
-   pOutFile = NULL;
-
-   fclose(pInFile);
-   pInFile = NULL;
-
-   if (nDecompressionError) {
-      fprintf(stderr, "decompression error for '%s'\n", pszInFilename);
-      return 100;
-   }
-   else if (bComparisonError) {
-      fprintf(stderr, "error comparing compressed file '%s' with original '%s' starting at %lld\n", pszInFilename, pszOutFilename, nKnownGoodSize);
+   if (nStatus) {
       return 100;
    }
    else {

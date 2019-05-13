@@ -188,6 +188,7 @@
     <ClInclude Include="..\src\matchfinder.h" />
     <ClInclude Include="..\src\shrink_v1.h" />
     <ClInclude Include="..\src\shrink_v2.h" />
+    <ClInclude Include="..\src\stream.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
@@ -203,6 +204,7 @@
     <ClCompile Include="..\src\matchfinder.c" />
     <ClCompile Include="..\src\shrink_v1.c" />
     <ClCompile Include="..\src\shrink_v2.c" />
+    <ClCompile Include="..\src\stream.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

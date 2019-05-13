@@ -11,8 +11,9 @@ $(OBJDIR)/%.o: src/../%.c
 APP := lzsa
 
 OBJS := $(OBJDIR)/src/lzsa.o
-OBJS += $(OBJDIR)/src/frame.o
 OBJS += $(OBJDIR)/src/lib.o
+OBJS += $(OBJDIR)/src/stream.o
+OBJS += $(OBJDIR)/src/frame.o
 OBJS += $(OBJDIR)/src/matchfinder.o
 OBJS += $(OBJDIR)/src/shrink_v1.o
 OBJS += $(OBJDIR)/src/shrink_v2.o

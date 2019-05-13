@@ -34,10 +34,127 @@
 #define _LIB_H
 
 #include "divsufsort.h"
+#include "stream.h"
+
+/** High level status for compression and decompression */
+typedef enum {
+   LZSA_OK = 0,                           /**< Success */
+   LZSA_ERROR_SRC,                        /**< Error reading input */
+   LZSA_ERROR_DST,                        /**< Error reading output */
+   LZSA_ERROR_DICTIONARY,                 /**< Error reading dictionary */
+   LZSA_ERROR_MEMORY,                     /**< Out of memory */
+
+   /* Compression-specific status codes */
+   LZSA_ERROR_COMPRESSION,                /**< Internal compression error */
+   LZSA_ERROR_RAW_TOOLARGE,               /**< Input is too large to be compressed to a raw block */
+   LZSA_ERROR_RAW_UNCOMPRESSED,           /**< Input is incompressible and raw blocks don't support uncompressed data */
+
+   /* Decompression-specific status codes */
+   LZSA_ERROR_FORMAT,                     /**< Invalid input format or magic number when decompressing */
+   LZSA_ERROR_DECOMPRESSION,              /**< Internal decompression error */
+} lzsa_status_t;
 
 /* Compression flags */
 #define LZSA_FLAG_FAVOR_RATIO    (1<<0)      /**< 1 to compress with the best ratio, 0 to trade some compression ratio for extra decompression speed */
 #define LZSA_FLAG_RAW_BLOCK      (1<<1)      /**< 1 to emit raw block */
+
+/*-------------- Top level API -------------- */
+
+/**
+ * Compress file
+ *
+ * @param pszInFilename name of input(source) file to compress
+ * @param pszOutFilename name of output(compressed) file to generate
+ * @param pszDictionaryFilename name of dictionary file, or NULL for none
+ * @param nFlags compression flags (LZSA_FLAG_xxx)
+ * @param nMinMatchSize minimum match size
+ * @param nFormatVersion version of format to use (1-2)
+ * @param progress progress function, called after compressing each block, or NULL for none
+ * @param pOriginalSize pointer to returned input(source) size, updated when this function is successful
+ * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
+ * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+lzsa_status_t lsza_compress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename,
+   const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount);
+
+/**
+ * Decompress file
+ *
+ * @param pszInFilename name of input(compressed) file to decompress
+ * @param pszOutFilename name of output(decompressed) file to generate
+ * @param pszDictionaryFilename name of dictionary file, or NULL for none
+ * @param nFlags compression flags (LZSA_FLAG_RAW_BLOCK to decompress a raw block, or 0)
+ * @param nFormatVersion default version of format to use (1-2). This is used when decompressing a raw block, otherwise the version is extracted from the source file
+ * @param pOriginalSize pointer to returned output(decompressed) size, updated when this function is successful
+ * @param pCompressedSize pointer to returned input(compressed) size, updated when this function is successful
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+lzsa_status_t lzsa_decompress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nFlags, int nFormatVersion,
+   long long *pOriginalSize, long long *pCompressedSize);
+
+/*-------------- Streaming API -------------- */
+
+/**
+ * Load dictionary contents
+ *
+ * @param pszDictionaryFilename name of dictionary file, or NULL for none
+ * @param pDictionaryData pointer to returned dictionary contents, or NULL for none
+ * @param nDictionaryDataSize pointer to returned size of dictionary contents, or 0
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+int lzsa_dictionary_load(const char *pszDictionaryFilename, void **ppDictionaryData, int *pDictionaryDataSize);
+
+/**
+ * Free dictionary contents
+ *
+ * @param pDictionaryData pointer to pointer to dictionary contents
+ */
+void lzsa_dictionary_free(void **ppDictionaryData);
+
+/**
+ * Compress stream
+ *
+ * @param pInStream input(source) stream to compress
+ * @param pOutStream output(compressed) stream to write to
+ * @param pDictionaryData dictionary contents, or NULL for none
+ * @param nDictionaryDataSize size of dictionary contents, or 0
+ * @param nFlags compression flags (LZSA_FLAG_xxx)
+ * @param nMinMatchSize minimum match size
+ * @param nFormatVersion version of format to use (1-2)
+ * @param progress progress function, called after compressing each block, or NULL for none
+ * @param pOriginalSize pointer to returned input(source) size, updated when this function is successful
+ * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
+ * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+lzsa_status_t lsza_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
+   const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount);
+
+/**
+ * Decompress stream
+ *
+ * @param pInStream input(compressed) stream to decompress
+ * @param pOutStream output(decompressed) stream to write to
+ * @param pDictionaryData dictionary contents, or NULL for none
+ * @param nDictionaryDataSize size of dictionary contents, or 0
+ * @param nFlags compression flags (LZSA_FLAG_RAW_BLOCK to decompress a raw block, or 0)
+ * @param nFormatVersion default version of format to use (1-2). This is used when decompressing a raw block, otherwise the version is extracted from the source file
+ * @param pOriginalSize pointer to returned output(decompressed) size, updated when this function is successful
+ * @param pCompressedSize pointer to returned input(compressed) size, updated when this function is successful
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize, const unsigned int nFlags, int nFormatVersion,
+   long long *pOriginalSize, long long *pCompressedSize);
+
+/*-------------- Block compression API --------------*/
 
 #define LCP_BITS 15
 #define LCP_MAX (1<<(LCP_BITS - 1))
@@ -61,6 +178,7 @@ typedef struct _lzsa_match {
    unsigned short offset;
 } lzsa_match;
 
+/** One rep-match slot (for LZSA2) */
 typedef struct _lzsa_repmatch_opt {
    int incoming_offset;
    short best_slot_for_incoming;
@@ -114,7 +232,7 @@ void lzsa_compressor_destroy(lsza_compressor *pCompressor);
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-int lzsa_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
+int lzsa_compressor_shrink_block(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
 /**
  * Get the number of compression commands issued in compressed data blocks
@@ -134,6 +252,6 @@ int lzsa_compressor_get_command_count(lsza_compressor *pCompressor);
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_expand_block(const int nFormatVersion, const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
+int lzsa_decompressor_expand_block(const int nFormatVersion, const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
 
 #endif /* _LIB_H */

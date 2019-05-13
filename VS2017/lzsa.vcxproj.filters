@@ -60,6 +60,9 @@
     <ClInclude Include="..\src\lib.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\stream.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\libdivsufsort\lib\utils.c">
@@ -96,6 +99,9 @@
       <Filter>Fichiers sources</Filter>
     </ClCompile>
     <ClCompile Include="..\src\lzsa.c">
+      <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stream.c">
       <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
