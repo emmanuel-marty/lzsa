@@ -68,7 +68,7 @@ If an extra byte follows here, it can have two possible types of value:
 
 When the LZSA2 block is part of a stream (see StreamFormat.md), as previously mentioned, the block ends after the literal values of the last command, without a match offset or match length.
 
-However, in a raw LZSA2 block, the last command does include a 9-bit match offset and a match length. The match length is encoded as a long zero: the 'M' bits in the token form the value 7, then a nibble with the value of 15 is present, then an extra match length byte with the value of 0 ("two match length bytes follow"). Finally, a two-byte zero match length follows, indicating the end of the block. EOD is the only time a zero match length (which normally would indicate a copy of 3 bytes) is encoded as a large 2-byte match value. This allows the EOD test to exist in a rarely used code branch.
+However, in a raw LZSA2 block, the last command does include a 9-bit match offset and a match length. The match length is encoded as a long zero: the 'M' bits in the token form the value 7, then a nibble with the value of 15 is present, then an extra match length byte with the value of 0 ("two match length bytes follow"). Finally, a two-byte zero match length follows, indicating the end of the block. EOD is the only time a zero match length (which normally would indicate a copy of 2 bytes) is encoded as a large 2-byte match value. This allows the EOD test to exist in a rarely used code branch.
 
 # Reading nibbles
 
