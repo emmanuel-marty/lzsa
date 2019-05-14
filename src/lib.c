@@ -504,7 +504,7 @@ lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pO
                nReadBytes -= 4;
             else
                nReadBytes = 0;
-            nBlockSize = nReadBytes;
+            nBlockSize = (unsigned int)nReadBytes;
          }
 
          if (nReadBytes == nBlockSize) {
