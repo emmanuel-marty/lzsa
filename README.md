@@ -56,6 +56,6 @@ License:
 
 Decompression code is provided for common 8-bit CPUs such as Z80 and 6502. However, if you would like to write your own, or understand the encoding, LZSA compresses data to a format that is fast and simple to decompress on 8-bit CPUs. It is encoded in either a stream of blocks, or as a single raw block, depending on command-line settings. The encoding is deliberately designed to avoid complicated operations on 8-bits (such as 16-bit math).
 
-* [Stream format](https://github.com/emmanuel-marty/lzsa/StreamFormat.md)
-* [Block encoding for LZSA1](https://github.com/emmanuel-marty/lzsa/BlockFormat_LZSA1.md)
-* [Block encoding for LZSA2](https://github.com/emmanuel-marty/lzsa/BlockFormat_LZSA2.md)
+* [Stream format](https://github.com/emmanuel-marty/lzsa/blob/master/StreamFormat.md)
+* [Block encoding for LZSA1](https://github.com/emmanuel-marty/lzsa/blob/master/BlockFormat_LZSA1.md)
+* [Block encoding for LZSA2](https://github.com/emmanuel-marty/lzsa/blob/master/BlockFormat_LZSA2.md)
