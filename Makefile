@@ -12,6 +12,7 @@ APP := lzsa
 
 OBJS := $(OBJDIR)/src/lzsa.o
 OBJS += $(OBJDIR)/src/lib.o
+OBJS += $(OBJDIR)/src/inmem.o
 OBJS += $(OBJDIR)/src/stream.o
 OBJS += $(OBJDIR)/src/frame.o
 OBJS += $(OBJDIR)/src/matchfinder.o

@@ -35,11 +35,13 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef _WIN32
+#include <windows.h>
 #include <sys/timeb.h>
 #else
 #include <sys/time.h>
 #endif
 #include "lib.h"
+#include "inmem.h"
 
 #define OPT_VERBOSE     1
 #define OPT_RAW         2
@@ -47,16 +49,37 @@
 
 #define TOOL_VERSION "0.6.0"
 
-/*---------------------------------------------------------------------------*/
+ /*---------------------------------------------------------------------------*/
+
+#ifdef _WIN32
+LARGE_INTEGER hpc_frequency;
+BOOL hpc_available = FALSE;
+#endif
+
+static void do_init_time() {
+#ifdef _WIN32
+   hpc_frequency.QuadPart = 0;
+   hpc_available = QueryPerformanceFrequency(&hpc_frequency);
+#endif
+}
 
 static long long do_get_time() {
    long long nTime;
 
 #ifdef _WIN32
-   struct _timeb tb;
-   _ftime(&tb);
+   if (hpc_available) {
+      LARGE_INTEGER nCurTime;
 
-   nTime = ((long long)tb.time * 1000LL + (long long)tb.millitm) * 1000LL;
+      /* Use HPC hardware for best precision */
+      QueryPerformanceCounter(&nCurTime);
+      nTime = (long long)(nCurTime.QuadPart * 1000000LL / hpc_frequency.QuadPart);
+   }
+   else {
+      struct _timeb tb;
+      _ftime(&tb);
+
+      nTime = ((long long)tb.time * 1000LL + (long long)tb.millitm) * 1000LL;
+   }
 #else
    struct timeval tm;
    gettimeofday(&tm, NULL);
@@ -322,6 +345,112 @@ static int do_compare(const char *pszInFilename, const char *pszOutFilename, con
 
 /*---------------------------------------------------------------------------*/
 
+static int do_benchmark(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
+   size_t nFileSize, nMaxDecompressedSize;
+   unsigned char *pFileData;
+   unsigned char *pDecompressedData;
+   int i;
+
+   if (pszDictionaryFilename) {
+      fprintf(stderr, "in-memory benchmarking does not support dictionaries\n");
+      return 100;
+   }
+
+   /* Read the whole compressed file in memory */
+
+   FILE *f_in = fopen(pszInFilename, "rb");
+   if (!f_in) {
+      fprintf(stderr, "error opening '%s' for reading\n", pszInFilename);
+      return 100;
+   }
+
+   fseek(f_in, 0, SEEK_END);
+   nFileSize = (size_t)ftell(f_in);
+   fseek(f_in, 0, SEEK_SET);
+
+   pFileData = (unsigned char*)malloc(nFileSize);
+   if (!pFileData) {
+      fclose(f_in);
+      fprintf(stderr, "out of memory for reading '%s', %zd bytes needed\n", pszInFilename, nFileSize);
+      return 100;
+   }
+
+   if (fread(pFileData, 1, nFileSize, f_in) != nFileSize) {
+      free(pFileData);
+      fclose(f_in);
+      fprintf(stderr, "I/O error while reading '%s'\n", pszInFilename);
+      return 100;
+   }
+
+   fclose(f_in);
+
+   /* Allocate max decompressed size */
+
+   if (nOptions & OPT_RAW)
+      nMaxDecompressedSize = 65536;
+   else
+      nMaxDecompressedSize = lzsa_inmem_get_max_decompressed_size(pFileData, nFileSize);
+   if (nMaxDecompressedSize == -1) {
+      free(pFileData);
+      fprintf(stderr, "invalid compressed format for file '%s'\n", pszInFilename);
+      return 100;
+   }
+
+   pDecompressedData = (unsigned char*)malloc(nMaxDecompressedSize);
+   if (!pDecompressedData) {
+      free(pFileData);
+      fprintf(stderr, "out of memory for decompressing '%s', %zd bytes needed\n", pszInFilename, nMaxDecompressedSize);
+      return 100;
+   }
+
+   memset(pDecompressedData, 0, nMaxDecompressedSize);
+
+   long long nBestDecTime = -1;
+
+   size_t nActualDecompressedSize = 0;
+   for (i = 0; i < 50; i++) {
+      long long t0 = do_get_time();
+      if (nOptions & OPT_RAW)
+         nActualDecompressedSize = lzsa_decompressor_expand_block(nFormatVersion, pFileData, (int)nFileSize - 4 /* EOD marker */, pDecompressedData, 0, (int)nMaxDecompressedSize);
+      else
+         nActualDecompressedSize = lzsa_inmem_decompress_stream(pFileData, pDecompressedData, nFileSize, nMaxDecompressedSize, &nFormatVersion);
+      long long t1 = do_get_time();
+      if (nActualDecompressedSize == -1) {
+         free(pDecompressedData);
+         free(pFileData);
+         fprintf(stderr, "decompression error\n");
+         return 100;
+      }
+
+      long long nCurDecTime = t1 - t0;
+      if (nBestDecTime == -1 || nBestDecTime > nCurDecTime)
+         nBestDecTime = nCurDecTime;
+   }
+
+   if (pszOutFilename) {
+      FILE *f_out;
+
+      /* Write whole decompressed file out */
+
+      f_out = fopen(pszOutFilename, "wb");
+      if (f_out) {
+         fwrite(pDecompressedData, 1, nActualDecompressedSize, f_out);
+         fclose(f_out);
+      }
+   }
+
+   free(pDecompressedData);
+   free(pFileData);
+
+   fprintf(stdout, "format: LZSA%d\n", nFormatVersion);
+   fprintf(stdout, "decompressed size: %zd bytes\n", nActualDecompressedSize);
+   fprintf(stdout, "decompression time: %lld microseconds (%g Mb/s)\n", nBestDecTime, ((double)nActualDecompressedSize / 1024.0) / ((double)nBestDecTime / 1000.0));
+
+   return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+
 int main(int argc, char **argv) {
    int i;
    const char *pszInFilename = NULL;
@@ -357,6 +486,14 @@ int main(int argc, char **argv) {
       else if (!strcmp(argv[i], "-c")) {
          if (!bVerifyCompression) {
             bVerifyCompression = true;
+         }
+         else
+            bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "-bench")) {
+         if (!bCommandDefined) {
+            bCommandDefined = true;
+            cCommand = 'b';
          }
          else
             bArgsError = true;
@@ -484,6 +621,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "usage: %s [-c] [-d] [-v] [-r] <infile> <outfile>\n", argv[0]);
       fprintf(stderr, "       -c: check resulting stream after compressing\n");
       fprintf(stderr, "       -d: decompress (default: compress)\n");
+      fprintf(stderr, "   -bench: benchmary in-memory decompression\n");
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -f <value>: LZSA compression format (1-2)\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
@@ -494,6 +632,8 @@ int main(int argc, char **argv) {
       return 100;
    }
 
+   do_init_time();
+
    if (cCommand == 'z') {
       int nResult = do_compress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nMinMatchSize, nFormatVersion);
       if (nResult == 0 && bVerifyCompression) {
@@ -502,6 +642,9 @@ int main(int argc, char **argv) {
    }
    else if (cCommand == 'd') {
       return do_decompress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nFormatVersion);
+   }
+   else if (cCommand == 'b') {
+      return do_benchmark(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nFormatVersion);
    }
    else {
       return 100;

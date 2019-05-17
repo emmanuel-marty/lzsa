@@ -181,6 +181,7 @@
     <ClInclude Include="..\src\expand_v2.h" />
     <ClInclude Include="..\src\format.h" />
     <ClInclude Include="..\src\frame.h" />
+    <ClInclude Include="..\src\inmem.h" />
     <ClInclude Include="..\src\lib.h" />
     <ClInclude Include="..\src\libdivsufsort\include\config.h" />
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort.h" />
@@ -195,6 +196,7 @@
     <ClCompile Include="..\src\expand_v1.c" />
     <ClCompile Include="..\src\expand_v2.c" />
     <ClCompile Include="..\src\frame.c" />
+    <ClCompile Include="..\src\inmem.c" />
     <ClCompile Include="..\src\lib.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort.c" />
     <ClCompile Include="..\src\libdivsufsort\lib\sssort.c" />
