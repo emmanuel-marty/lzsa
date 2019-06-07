@@ -31,6 +31,7 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
 #include "frame.h"
 
 #define LZSA_ID_0   0x7b

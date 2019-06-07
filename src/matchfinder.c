@@ -29,7 +29,6 @@
  *
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "matchfinder.h"
@@ -45,7 +44,7 @@
  *
  * @return 0 for success, non-zero for failure
  */
-int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize) {
+int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize) {
    unsigned int *intervals = pCompressor->intervals;
 
    /* Build suffix array from input data */
@@ -170,7 +169,7 @@ int lzsa_build_suffix_array(lsza_compressor *pCompressor, const unsigned char *p
  *
  * @return number of matches
  */
-int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches) {
+int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches) {
    unsigned int *intervals = pCompressor->intervals;
    unsigned int *pos_data = pCompressor->pos_data;
    unsigned int ref;
@@ -248,7 +247,7 @@ int lzsa_find_matches_at(lsza_compressor *pCompressor, const int nOffset, lzsa_m
  * @param nStartOffset current offset in input window (typically 0)
  * @param nEndOffset offset to skip to in input window (typically the number of previously compressed bytes)
  */
-void lzsa_skip_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
+void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    lzsa_match match;
    int i;
 
@@ -267,7 +266,7 @@ void lzsa_skip_matches(lsza_compressor *pCompressor, const int nStartOffset, con
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
-void lzsa_find_all_matches(lsza_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
+void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
    lzsa_match *pMatch = pCompressor->match + (nStartOffset << MATCHES_PER_OFFSET_SHIFT);
    int i;
 

@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * shrink_inmem.h - in-memory compression definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,22 +30,35 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#ifndef _SHRINK_INMEM_H
+#define _SHRINK_INMEM_H
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
+#include <stdlib.h>
 
-#define MAX_VARLEN 0xffff
+/**
+ * Get maximum compressed size of input(source) data
+ *
+ * @param pFileData pointer to input(source) data
+ * @param nFileSize input(source) size in bytes
+ *
+ * @return maximum compressed size
+ */
+size_t lzsa_get_max_compressed_size_inmem(size_t nInputSize);
 
-#define BLOCK_SIZE 65536
+/**
+ * Compress memory
+ *
+ * @param pInputData pointer to input(source) data to compress
+ * @param pOutBuffer buffer for compressed data
+ * @param nInputSize input(source) size in bytes
+ * @param nMaxOutBufferSize maximum capacity of compression buffer
+ * @param nFlags compression flags (LZSA_FLAG_xxx)
+ * @param nMinMatchSize minimum match size
+ * @param nFormatVersion version of format to use (1-2)
+ *
+ * @return actual compressed size, or -1 for error
+ */
+size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutBuffer, size_t nInputSize, size_t nMaxOutBufferSize,
+   const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion);
 
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
-
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+#endif /* _SHRINK_INMEM_H */

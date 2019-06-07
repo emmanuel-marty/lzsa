@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * expand_inmem.h - in-memory decompression definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,22 +30,32 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#ifndef _EXPAND_INMEM_H
+#define _EXPAND_INMEM_H
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
+#include <stdlib.h>
 
-#define MAX_VARLEN 0xffff
+/**
+ * Get maximum decompressed size of compressed data
+ *
+ * @param pFileData compressed data
+ * @param nFileSize compressed size in bytes
+ *
+ * @return maximum decompressed size
+ */
+size_t lzsa_get_max_decompressed_size_inmem(const unsigned char *pFileData, size_t nFileSize);
 
-#define BLOCK_SIZE 65536
+/**
+ * Decompress data in memory
+ *
+ * @param pFileData compressed data
+ * @param pOutBuffer buffer for decompressed data
+ * @param nFileSize compressed size in bytes
+ * @param nMaxOutBufferSize maximum capacity of decompression buffer
+ * @param pFormatVersion pointer to format version, updated if this function is successful
+ *
+ * @return actual decompressed size, or -1 for error
+ */
+size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, int *pFormatVersion);
 
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
-
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+#endif /* _EXPAND_INMEM_H */

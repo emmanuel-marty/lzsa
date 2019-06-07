@@ -1,5 +1,5 @@
 /*
- * matchfinder.h - LZ match finder definitions
+ * shrink_v1.h - LZSA1 block compressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,53 +30,24 @@
  *
  */
 
-#ifndef _MATCHFINDER_H
-#define _MATCHFINDER_H
+#ifndef _SHRINK_BLOCK_V1_H
+#define _SHRINK_BLOCK_V1_H
 
 /* Forward declarations */
-typedef struct _lzsa_match lzsa_match;
 typedef struct _lzsa_compressor lzsa_compressor;
 
 /**
- * Parse input data, build suffix array and overlaid data structures to speed up match finding
+ * Select the most optimal matches, reduce the token count if possible, and then emit a block of compressed LZSA1 data
  *
  * @param pCompressor compression context
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
- * @param nInWindowSize total input size in bytes (previously compressed bytes + bytes to compress)
- *
- * @return 0 for success, non-zero for failure
- */
-int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize);
-
-/**
- * Find matches at the specified offset in the input window
- *
- * @param pCompressor compression context
- * @param nOffset offset to find matches at, in the input window
- * @param pMatches pointer to returned matches
- * @param nMaxMatches maximum number of matches to return (0 for none)
- *
- * @return number of matches
- */
-int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches);
-
-/**
- * Skip previously compressed bytes
- *
- * @param pCompressor compression context
- * @param nStartOffset current offset in input window (typically 0)
- * @param nEndOffset offset to skip to in input window (typically the number of previously compressed bytes)
- */
-void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset);
-
-/**
- * Find all matches for the data to be compressed. Up to NMATCHES_PER_OFFSET matches are stored for each offset, for
- * the optimizer to look at.
- *
- * @param pCompressor compression context
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset);
+int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
-#endif /* _MATCHFINDER_H */
+#endif /* _SHRINK_BLOCK_V1_H */

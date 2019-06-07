@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * expand_context.h - decompressor context definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,22 +30,28 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#include <stdlib.h>
+#include <string.h>
+#include "expand_context.h"
+#include "expand_block_v1.h"
+#include "expand_block_v2.h"
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
-
-#define MAX_VARLEN 0xffff
-
-#define BLOCK_SIZE 65536
-
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
-
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+/**
+ * Decompress one data block
+ *
+ * @param pInBlock pointer to compressed data
+ * @param nInBlockSize size of compressed data, in bytes
+ * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
+ * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
+ * @param nBlockMaxSize total size of output decompression buffer, in bytes
+ *
+ * @return size of decompressed data in bytes, or -1 for error
+ */
+int lzsa_decompressor_expand_block(const int nFormatVersion, const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize) {
+   if (nFormatVersion == 1)
+      return lzsa_decompressor_expand_block_v1(pInBlock, nBlockSize, pOutData, nOutDataOffset, nBlockMaxSize);
+   else if (nFormatVersion == 2)
+      return lzsa_decompressor_expand_block_v2(pInBlock, nBlockSize, pOutData, nOutDataOffset, nBlockMaxSize);
+   else
+      return -1;
+}

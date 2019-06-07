@@ -1,5 +1,5 @@
 /*
- * format.h - byte stream format definitions
+ * dictionary.h - dictionary definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,22 +30,27 @@
  *
  */
 
-#ifndef _FORMAT_H
-#define _FORMAT_H
+#ifndef _DICTIONARY_H
+#define _DICTIONARY_H
 
-#define MIN_OFFSET 1
-#define MAX_OFFSET 0xffff
+#include <stdlib.h>
 
-#define MAX_VARLEN 0xffff
+/**
+ * Load dictionary contents
+ *
+ * @param pszDictionaryFilename name of dictionary file, or NULL for none
+ * @param pDictionaryData pointer to returned dictionary contents, or NULL for none
+ * @param nDictionaryDataSize pointer to returned size of dictionary contents, or 0
+ *
+ * @return LZSA_OK for success, or an error value from lzsa_status_t
+ */
+int lzsa_dictionary_load(const char *pszDictionaryFilename, void **ppDictionaryData, int *pDictionaryDataSize);
 
-#define BLOCK_SIZE 65536
+/**
+ * Free dictionary contents
+ *
+ * @param pDictionaryData pointer to pointer to dictionary contents
+ */
+void lzsa_dictionary_free(void **ppDictionaryData);
 
-#define MIN_MATCH_SIZE_V1 3
-#define LITERALS_RUN_LEN_V1 7
-#define MATCH_RUN_LEN_V1 15
-
-#define MIN_MATCH_SIZE_V2 2
-#define LITERALS_RUN_LEN_V2 3
-#define MATCH_RUN_LEN_V2 7
-
-#endif /* _FORMAT_H */
+#endif /* _DICTIONARY_H */
