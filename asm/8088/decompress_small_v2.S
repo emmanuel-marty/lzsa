@@ -56,8 +56,8 @@ lzsa2_decompress:
    jne .got_literals       ; if not, we have the full literals count, go copy
 
    lodsb                   ; grab extra length byte
-   test al,al              ; zero?
-   jne .got_literals       ; if not, we have the full literals count, go copy
+   add al,012H             ; overflow?
+   jnc .got_literals       ; if not, we have the full literals count, go copy
 
    lodsw                   ; grab 16-bit extra length
 
@@ -96,7 +96,6 @@ lzsa2_decompress:
    jnb .rep_match_or_16_bit
 
                            ; 13 bit offset
-   lodsb                   ; load match offset bits 0-7
 
    mov ah,020H             ; shift Z (offset bit 12) in place
    and ah,dl
@@ -105,6 +104,7 @@ lzsa2_decompress:
    or ah,cl                ; merge nibble
    or ah,0E0H              ; set offset bits 15-13 to 1
    sub ah,2                ; substract 512
+   lodsb                   ; load match offset bits 0-7
    jmp short .get_match_length
 
 .rep_match_or_16_bit:
@@ -113,6 +113,7 @@ lzsa2_decompress:
 
                            ; 16 bit offset
    lodsw                   ; Get 2-byte match offset
+   xchg ah,al
 
 .get_match_length:
    mov bp,ax               ; bp: offset
@@ -130,12 +131,11 @@ lzsa2_decompress:
    jne .got_matchlen       ; no, we have the full match length from the token, go copy
 
    lodsb                   ; grab extra length byte
-   test al,al              ; zero?
-   jne .got_matchlen       ; if not, we have the entire length
+   add al,018H             ; overflow?
+   jnc .got_matchlen       ; if not, we have the entire length
+   je short .done_decompressing ; detect EOD code
 
    lodsw                   ; grab 16-bit length
-   test ax,ax              ; bail if we hit EOD
-   je short .done_decompressing 
 
 .got_matchlen:
    xchg cx,ax              ; copy match length into cx

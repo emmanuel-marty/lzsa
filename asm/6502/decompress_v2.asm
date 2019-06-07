@@ -56,8 +56,9 @@ DECODE_TOKEN
    BNE PREPARE_COPY_LITERALS            ; if less, literals count is complete
 
    JSR GETSRC                           ; get extra byte of variable literals count
-   TAX                                  ; non-zero?
-   BNE PREPARE_COPY_LITERALS_HIGH       ; if so, literals count is complete
+   CLC
+   ADC #$12                             ; overflow?
+   BCC PREPARE_COPY_LITERALS            ; if not, literals count is complete
 
                                         ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
@@ -96,23 +97,21 @@ NO_LITERALS
    AND #$10
    STA FIXUP
 
+   LDA #$0FF                            ; set offset bits 15-8 to 1
+   STA OFFSHI
+
    JSR GETNIBBLE                        ; get nibble for offset bits 0-3
    ORA FIXUP                            ; merge offset bit 4
    ORA #$E0                             ; set offset bits 7-5 to 1
-   TAX                                  ; store low byte of match offset
-   LDA #$0FF                            ; set offset bits 15-8 to 1
-   BNE GOT_OFFSET                       ; (*same as JMP GOT_OFFSET but shorter)
+   JMP GOT_OFFSET_LO                    ; go store low byte of match offset and prepare match
    
 OFFSET_9_BIT                            ; 01Z: 9 bit offset
    ASL                                  ; shift Z (offset bit 8) in place
    ROL
    ROL
    ORA #$FE                             ; set offset bits 15-9 to 1
-   STA OFFSHI
-
-   JSR GETSRC                           ; get offset bits 0-7 from stream in A
-   TAX                                  ; store low byte of match offset
-   JMP GOT_OFFSET_LO                    ; go prepare match
+   BNE GOT_OFFSET_HI                    ; go store high byte, read low byte of match offset and prepare match
+                                        ; (*same as JMP GOT_OFFSET_HI but shorter)
 
 REPMATCH_OR_LARGE_OFFSET
    ASL                                  ; 13 bit offset?
@@ -125,26 +124,24 @@ REPMATCH_OR_LARGE_OFFSET
    AND #$10
    STA FIXUP
 
-   JSR GETSRC                           ; get offset bits 0-7 from stream in A
-   TAX                                  ; store low byte of match offset
-
    JSR GETNIBBLE                        ; get nibble for offset bits 8-11
    ORA FIXUP                            ; merge offset bit 12
    CLC
    ADC #$DE                             ; set bits 13-15 to 1 and substract 2 (to substract 512)
-   BNE GOT_OFFSET                       ; go prepare match (*same as JMP GOT_OFFSET but shorter)
+   BNE GOT_OFFSET_HI                    ; go store high byte, read low byte of match offset and prepare match
+                                        ; (*same as JMP GOT_OFFSET_HI but shorter)
 
 REPMATCH_OR_16_BIT                      ; rep-match or 16 bit offset
    ASL                                  ; XYZ=111?
    BMI REP_MATCH                        ; reuse previous offset if so (rep-match)
    
                                         ; 110: handle 16 bit offset
-   JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
-
-GOT_OFFSET
-   STA OFFSHI                           ; store final match offset
+   JSR GETSRC                           ; grab high 8 bits
+GOT_OFFSET_HI
+   STA OFFSHI                           ; store high byte of match offset
+   JSR GETSRC                           ; grab low 8 bits
 GOT_OFFSET_LO
-   STX OFFSLO
+   STA OFFSLO                           ; store low byte of match offset
 
 REP_MATCH
    CLC                                  ; add dest + match offset
@@ -169,14 +166,14 @@ REP_MATCH
    BNE PREPARE_COPY_MATCH               ; if less, match length is complete
 
    JSR GETSRC                           ; get extra byte of variable match length
-   TAX                                  ; non-zero?
-   BNE PREPARE_COPY_MATCH_Y             ; if so, the match length is complete
+   CLC
+   ADC #$18                             ; overflow?
+   BCC PREPARE_COPY_MATCH               ; if not, the match length is complete
+   BEQ DECOMPRESSION_DONE               ; if EOD code, bail
 
                                         ; Handle 16 bits match length
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-                                        ; large match length with zero high byte?
-   BEQ DECOMPRESSION_DONE               ; if so, this is the EOD code, bail
    TXA
 
 PREPARE_COPY_MATCH
