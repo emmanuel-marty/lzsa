@@ -50,7 +50,7 @@ DECODE_TOKEN
    BNE EMBEDDED_LITERALS                ; if less, count is directly embedded in token
 
    JSR GETNIBBLE                        ; get extra literals length nibble
-   CLC                                  ; add nibble to len from token
+                                        ; add nibble to len from token
    ADC #$03                             ; (LITERALS_RUN_LEN_V2)
    CMP #$12                             ; LITERALS_RUN_LEN_V2 + 15 ?
    BNE PREPARE_COPY_LITERALS            ; if less, literals count is complete
@@ -92,24 +92,20 @@ NO_LITERALS
    BMI OFFSET_9_BIT         
     
                                         ; 00Z: 5 bit offset
-   LSR A                                ; Shift Z (offset bit 4) in place
-   LSR A
-   AND #$10
-   STA FIXUP
 
-   LDA #$0FF                            ; set offset bits 15-8 to 1
-   STA OFFSHI
+   LDX #$0FF                            ; set offset bits 15-8 to 1
+   STX OFFSHI
 
-   JSR GETNIBBLE                        ; get nibble for offset bits 0-3
-   ORA FIXUP                            ; merge offset bit 4
-   ORA #$E0                             ; set offset bits 7-5 to 1
-   JMP GOT_OFFSET_LO                    ; go store low byte of match offset and prepare match
+   JSR GETCOMBINEDBITS                  ; rotate Z bit into bit 0, read nibble for bits 4-1
+   ORA #$E0                             ; set bits 7-5 to 1
+   BNE GOT_OFFSET_LO                    ; go store low byte of match offset and prepare match
    
 OFFSET_9_BIT                            ; 01Z: 9 bit offset
    ASL                                  ; shift Z (offset bit 8) in place
    ROL
    ROL
-   ORA #$FE                             ; set offset bits 15-9 to 1
+   AND #$01
+   EOR #$FF                             ; set offset bits 15-9 to 1
    BNE GOT_OFFSET_HI                    ; go store high byte, read low byte of match offset and prepare match
                                         ; (*same as JMP GOT_OFFSET_HI but shorter)
 
@@ -119,15 +115,8 @@ REPMATCH_OR_LARGE_OFFSET
 
                                         ; 10Z: 13 bit offset
 
-   LSR A                                ; shift Z (offset bit 4) in place
-   LSR A
-   AND #$10
-   STA FIXUP
-
-   JSR GETNIBBLE                        ; get nibble for offset bits 8-11
-   ORA FIXUP                            ; merge offset bit 12
-   CLC
-   ADC #$DE                             ; set bits 13-15 to 1 and substract 2 (to substract 512)
+   JSR GETCOMBINEDBITS                  ; rotate Z bit into bit 8, read nibble for bits 12-9
+   ADC #$DE                             ; set bits 15-13 to 1 and substract 2 (to substract 512)
    BNE GOT_OFFSET_HI                    ; go store high byte, read low byte of match offset and prepare match
                                         ; (*same as JMP GOT_OFFSET_HI but shorter)
 
@@ -160,7 +149,7 @@ REP_MATCH
    BNE PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
 
    JSR GETNIBBLE                        ; get extra match length nibble
-   CLC                                  ; add nibble to len from token
+                                        ; add nibble to len from token
    ADC #$09                             ; (MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2)
    CMP #$18                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
    BNE PREPARE_COPY_MATCH               ; if less, match length is complete
@@ -194,23 +183,35 @@ GETMATCH_DONE
    BNE COPY_MATCH_LOOP
    JMP DECODE_TOKEN
 
-GETNIBBLE
-   DEC NIBCOUNT
-   BPL HAS_NIBBLES
+GETCOMBINEDBITS
+   STA FIXUP
 
-   LDA #$01
-   STA NIBCOUNT
+   JSR GETNIBBLE                        ; get nibble into bits 0-3 (for offset bits 1-4)
+   BIT FIXUP                            ; merge Z bit as the carry bit (for offset bit 0)
+   BVS COMBINEDBITZ
+   SEC
+COMBINEDBITZ
+   ROL                                  ; nibble -> bits 1-4; carry(!Z bit) -> bit 0 ; carry cleared
+   RTS
+
+GETNIBBLE
+   LSR NIBCOUNT
+   BCS HAS_NIBBLES
+
+   INC NIBCOUNT
    JSR GETSRC                           ; get 2 nibbles
    STA NIBBLES
    LSR A
    LSR A
    LSR A
    LSR A
+   CLC
    RTS
 
 HAS_NIBBLES
    LDA NIBBLES
    AND #$0F                             ; isolate low 4 bits of nibble
+   CLC
    RTS
 
 GETPUT

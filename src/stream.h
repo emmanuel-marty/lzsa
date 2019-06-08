@@ -33,6 +33,10 @@
 #ifndef _STREAM_H
 #define _STREAM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declaration */
 typedef struct _lzsa_stream_t lzsa_stream_t;
 
@@ -91,5 +95,9 @@ typedef struct _lzsa_stream_t {
  * @return 0 for success, nonzero for failure
  */
 int lzsa_filestream_open(lzsa_stream_t *stream, const char *pszInFilename, const char *pszMode);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _STREAM_H */

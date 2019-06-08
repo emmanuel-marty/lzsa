@@ -31,9 +31,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#if HAVE_CONFIG_H
-# include "config.h"
-#endif
+#include "divsufsort_config.h"
 #include <assert.h>
 #include <stdio.h>
 #if HAVE_STRING_H

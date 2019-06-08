@@ -39,8 +39,8 @@
  * Load dictionary contents
  *
  * @param pszDictionaryFilename name of dictionary file, or NULL for none
- * @param pDictionaryData pointer to returned dictionary contents, or NULL for none
- * @param nDictionaryDataSize pointer to returned size of dictionary contents, or 0
+ * @param ppDictionaryData pointer to returned dictionary contents, or NULL for none
+ * @param pDictionaryDataSize pointer to returned size of dictionary contents, or 0
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
@@ -91,7 +91,7 @@ int lzsa_dictionary_load(const char *pszDictionaryFilename, void **ppDictionaryD
 /**
  * Free dictionary contents
  *
- * @param pDictionaryData pointer to pointer to dictionary contents
+ * @param ppDictionaryData pointer to pointer to dictionary contents
  */
 void lzsa_dictionary_free(void **ppDictionaryData) {
    if (*ppDictionaryData) {

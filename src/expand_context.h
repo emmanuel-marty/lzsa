@@ -35,17 +35,26 @@
 
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Decompress one data block
  *
  * @param pInBlock pointer to compressed data
- * @param nInBlockSize size of compressed data, in bytes
+ * @param nBlockSize size of compressed data, in bytes
  * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
  * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
  * @param nBlockMaxSize total size of output decompression buffer, in bytes
+ * @param nFormatVersion version of format to use (1-2)
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_decompressor_expand_block(const int nFormatVersion, const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
+int lzsa_decompressor_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize, const int nFormatVersion);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _EXPAND_CONTEXT_H */

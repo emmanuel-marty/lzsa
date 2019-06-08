@@ -103,7 +103,6 @@ lzsa_status_t lzsa_decompress_file(const char *pszInFilename, const char *pszOut
  */
 lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize, const unsigned int nFlags, int nFormatVersion,
       long long *pOriginalSize, long long *pCompressedSize) {
-   long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
    unsigned char cFrameData[16];
    unsigned char *pInBlock;
@@ -201,9 +200,7 @@ lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pO
                nDecompressedSize = nBlockSize;
             }
             else {
-               unsigned int nBlockOffs = 0;
-
-               nDecompressedSize = lzsa_decompressor_expand_block(nFormatVersion, pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE);
+               nDecompressedSize = lzsa_decompressor_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE, nFormatVersion);
                if (nDecompressedSize < 0) {
                   nDecompressionError = LZSA_ERROR_DECOMPRESSION;
                   break;

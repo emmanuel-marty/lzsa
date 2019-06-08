@@ -1,5 +1,5 @@
 /*
- * shrink_streaming.h - streaming compression definitions
+ * shrink_streaming.c - streaming compression implementation
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -111,7 +111,6 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
                                    void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount) {
    unsigned char *pInData, *pOutData;
    lzsa_compressor compressor;
-   long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
    int nResult;
    unsigned char cFrameData[16];

@@ -33,6 +33,10 @@
 #ifndef _MATCHFINDER_H
 #define _MATCHFINDER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declarations */
 typedef struct _lzsa_match lzsa_match;
 typedef struct _lzsa_compressor lzsa_compressor;
@@ -78,5 +82,9 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
 void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _MATCHFINDER_H */

@@ -35,6 +35,10 @@
 
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Get maximum decompressed size of compressed data
  *
@@ -57,5 +61,9 @@ size_t lzsa_get_max_decompressed_size_inmem(const unsigned char *pFileData, size
  * @return actual decompressed size, or -1 for error
  */
 size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, int *pFormatVersion);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _EXPAND_INMEM_H */

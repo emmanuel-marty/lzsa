@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-O3 -fomit-frame-pointer -Isrc/libdivsufsort/include -Isrc -DHAVE_CONFIG_H
+CFLAGS=-O3 -fomit-frame-pointer -Isrc/libdivsufsort/include -Isrc
 OBJDIR=obj
 LDFLAGS=
 STRIP=strip
@@ -26,9 +26,9 @@ OBJS += $(OBJDIR)/src/shrink_inmem.o
 OBJS += $(OBJDIR)/src/shrink_streaming.o
 OBJS += $(OBJDIR)/src/stream.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/divsufsort.o
+OBJS += $(OBJDIR)/src/libdivsufsort/lib/divsufsort_utils.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/sssort.o
 OBJS += $(OBJDIR)/src/libdivsufsort/lib/trsort.o
-OBJS += $(OBJDIR)/src/libdivsufsort/lib/utils.o
 
 all: $(APP)
 

@@ -41,8 +41,7 @@
 /**
  * Get maximum compressed size of input(source) data
  *
- * @param pFileData pointer to input(source) data
- * @param nFileSize input(source) size in bytes
+ * @param nInputSize input(source) size in bytes
  *
  * @return maximum compressed size
  */

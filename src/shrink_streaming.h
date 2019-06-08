@@ -35,6 +35,10 @@
 
 #include "stream.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Forward declaration */
 typedef enum _lzsa_status_t lzsa_status_t;
 
@@ -82,5 +86,9 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
 lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
    void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SHRINK_STREAMING_H */

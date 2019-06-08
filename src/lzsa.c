@@ -772,7 +772,7 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
    for (i = 0; i < 50; i++) {
       long long t0 = do_get_time();
       if (nOptions & OPT_RAW)
-         nActualDecompressedSize = lzsa_decompressor_expand_block(nFormatVersion, pFileData, (int)nFileSize - 4 /* EOD marker */, pDecompressedData, 0, (int)nMaxDecompressedSize);
+         nActualDecompressedSize = lzsa_decompressor_expand_block(pFileData, (int)nFileSize - 4 /* EOD marker */, pDecompressedData, 0, (int)nMaxDecompressedSize, nFormatVersion);
       else
          nActualDecompressedSize = lzsa_decompress_inmem(pFileData, pDecompressedData, nFileSize, nMaxDecompressedSize, &nFormatVersion);
       long long t1 = do_get_time();

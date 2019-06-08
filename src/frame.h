@@ -33,6 +33,10 @@
 #ifndef _FRAME_H
 #define _FRAME_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Get compressed file header size
  *
@@ -110,5 +114,9 @@ int lzsa_decode_header(const unsigned char *pFrameData, const int nFrameDataSize
  * @return 0 for success, or -1 for failure
  */
 int lzsa_decode_frame(const unsigned char *pFrameData, const int nFrameDataSize, unsigned int *nBlockSize, int *nIsUncompressed);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _FRAME_H */

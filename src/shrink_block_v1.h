@@ -48,6 +48,6 @@ typedef struct _lzsa_compressor lzsa_compressor;
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
+int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize);
 
 #endif /* _SHRINK_BLOCK_V1_H */

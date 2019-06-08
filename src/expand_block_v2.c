@@ -99,7 +99,7 @@ static inline FORCE_INLINE int lzsa_build_len_v2(const unsigned char **ppInBlock
  * Decompress one LZSA2 data block
  *
  * @param pInBlock pointer to compressed data
- * @param nInBlockSize size of compressed data, in bytes
+ * @param nBlockSize size of compressed data, in bytes
  * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
  * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
  * @param nBlockMaxSize total size of output decompression buffer, in bytes
@@ -152,9 +152,9 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
             /* 5 bit offset */
             if (lzsa_get_nibble_v2(&pInBlock, pInBlockEnd, &nCurNibbles, &nibbles, &nValue))
                return -1;
-            nMatchOffset = nValue;
-            nMatchOffset |= ((token & 0x20) >> 1);
-            nMatchOffset ^= 0x1f;
+            nMatchOffset = nValue << 1;
+            nMatchOffset |= ((token & 0x20) >> 5);
+            nMatchOffset ^= 0x1e;
             nMatchOffset++;
             break;
 
@@ -162,7 +162,7 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
             /* 9 bit offset */
             nMatchOffset = (unsigned int)(*pInBlock++);
             nMatchOffset |= (((unsigned int)(token & 0x20)) << 3);
-            nMatchOffset ^= 0x1ff;
+            nMatchOffset ^= 0x0ff;
             nMatchOffset++;
             break;
 
@@ -171,9 +171,9 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
             if (lzsa_get_nibble_v2(&pInBlock, pInBlockEnd, &nCurNibbles, &nibbles, &nValue))
                return -1;
             nMatchOffset = (unsigned int)(*pInBlock++);
-            nMatchOffset |= (nValue << 8);
-            nMatchOffset |= (((unsigned int)(token & 0x20)) << 7);
-            nMatchOffset ^= 0x1fff;
+            nMatchOffset |= (nValue << 9);
+            nMatchOffset |= (((unsigned int)(token & 0x20)) << 3);
+            nMatchOffset ^= 0x1eff;
             nMatchOffset += (512 + 1);
             break;
 

@@ -566,7 +566,6 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, const unsigned char
    int nOutOffset = 0;
    int nCurNibbleOffset = -1, nCurFreeNibbles = 0;
    int nRepMatchOffset = 0;
-   lzsa_repmatch_opt *repmatch_opt = pCompressor->repmatch_opt;
 
    for (i = nStartOffset; i < nEndOffset; ) {
       lzsa_match *pMatch = pCompressor->best_match + i;
@@ -586,15 +585,15 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, const unsigned char
          }
          else {
             if (nMatchOffset <= 32) {
-               nTokenOffsetMode = 0x00 | (((-nMatchOffset) & 0x10) << 1);
+               nTokenOffsetMode = 0x00 | ((((-nMatchOffset) & 0x01) << 5) ^ 0x20);
                nOffsetSize = 4;
             }
             else if (nMatchOffset <= 512) {
-               nTokenOffsetMode = 0x40 | (((-nMatchOffset) & 0x100) >> 3);
+               nTokenOffsetMode = 0x40 | ((((-nMatchOffset) & 0x100) >> 3) ^ 0x20);
                nOffsetSize = 8;
             }
             else if (nMatchOffset <= (8192 + 512)) {
-               nTokenOffsetMode = 0x80 | (((-(nMatchOffset - 512)) & 0x1000) >> 7);
+               nTokenOffsetMode = 0x80 | ((((-(nMatchOffset - 512)) & 0x0100) >> 3) ^ 0x20);
                nOffsetSize = 12;
             }
             else {
@@ -621,14 +620,14 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, const unsigned char
          }
 
          if (nTokenOffsetMode == 0x00 || nTokenOffsetMode == 0x20) {
-            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, (-nMatchOffset) & 0x0f);
+            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, ((-nMatchOffset) & 0x1e) >> 1);
             if (nOutOffset < 0) return -1;
          }
          else if (nTokenOffsetMode == 0x40 || nTokenOffsetMode == 0x60) {
             pOutData[nOutOffset++] = (-nMatchOffset) & 0xff;
          }
          else if (nTokenOffsetMode == 0x80 || nTokenOffsetMode == 0xa0) {
-            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, ((-(nMatchOffset - 512)) >> 8) & 0x0f);
+            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, ((-(nMatchOffset - 512)) >> 9) & 0x0f);
             if (nOutOffset < 0) return -1;
             pOutData[nOutOffset++] = (-(nMatchOffset - 512)) & 0xff;
          }

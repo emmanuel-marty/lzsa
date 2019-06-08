@@ -75,10 +75,11 @@ lzsa2_decompress:
    xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
    mov al,020H             ; shift Z (offset bit 4) in place
    and al,dl
-   shr al,1
+   shl al,2
    call .get_nibble        ; get nibble for offset bits 0-3
    or al,cl                ; merge nibble
-   or al,0E0H              ; set offset bits 7-5 to 1
+   rol al,1
+   xor al,0E1H             ; set offset bits 7-5 to 1
    dec ah                  ; set offset bits 15-8 to 1
    jmp short .get_match_length
 
@@ -87,7 +88,7 @@ lzsa2_decompress:
    lodsb                   ; get 8 bit offset from stream in A
    dec ah                  ; set offset bits 15-8 to 1
    test dl,020H            ; test bit Z (offset bit 8)
-   jne .get_match_length
+   je .get_match_length
    dec ah                  ; clear bit 8 if Z bit is clear
    jmp short .get_match_length
 
@@ -99,10 +100,11 @@ lzsa2_decompress:
 
    mov ah,020H             ; shift Z (offset bit 12) in place
    and ah,dl
-   shr ah,1
+   shl ah,2
    call .get_nibble        ; get nibble for offset bits 8-11
    or ah,cl                ; merge nibble
-   or ah,0E0H              ; set offset bits 15-13 to 1
+   rol ah,1
+   xor ah,0E1H             ; set offset bits 15-13 to 1
    sub ah,2                ; substract 512
    lodsb                   ; load match offset bits 0-7
    jmp short .get_match_length

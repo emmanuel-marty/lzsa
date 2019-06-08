@@ -35,6 +35,10 @@
 
 #include "divsufsort.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define LCP_BITS 15
 #define LCP_MAX (1U<<(LCP_BITS - 1))
 #define LCP_SHIFT (32-LCP_BITS)
@@ -119,5 +123,9 @@ int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, const unsigned ch
  * @return number of commands
  */
 int lzsa_compressor_get_command_count(lzsa_compressor *pCompressor);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SHRINK_CONTEXT_H */

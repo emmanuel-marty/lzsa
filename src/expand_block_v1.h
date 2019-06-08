@@ -37,7 +37,7 @@
  * Decompress one LZSA1 data block
  *
  * @param pInBlock pointer to compressed data
- * @param nInBlockSize size of compressed data, in bytes
+ * @param nBlockSize size of compressed data, in bytes
  * @param pOutData pointer to output decompression buffer (previously decompressed bytes + room for decompressing this block)
  * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
  * @param nBlockMaxSize total size of output decompression buffer, in bytes

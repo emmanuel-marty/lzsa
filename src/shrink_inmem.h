@@ -35,11 +35,14 @@
 
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Get maximum compressed size of input(source) data
  *
- * @param pFileData pointer to input(source) data
- * @param nFileSize input(source) size in bytes
+ * @param nInputSize input(source) size in bytes
  *
  * @return maximum compressed size
  */
@@ -60,5 +63,9 @@ size_t lzsa_get_max_compressed_size_inmem(size_t nInputSize);
  */
 size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutBuffer, size_t nInputSize, size_t nMaxOutBufferSize,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SHRINK_INMEM_H */
