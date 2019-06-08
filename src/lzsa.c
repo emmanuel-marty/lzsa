@@ -470,11 +470,11 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
    size_t nDataSizeStep = 128;
    float fProbabilitySizeStep = 0.0005f;
 
-   for (nGeneratedDataSize = 1024; nGeneratedDataSize <= (4 * BLOCK_SIZE); nGeneratedDataSize += nDataSizeStep) {
+   for (nGeneratedDataSize = 1024; nGeneratedDataSize <= ((nOptions & OPT_RAW) ? BLOCK_SIZE : (4 * BLOCK_SIZE)); nGeneratedDataSize += nDataSizeStep) {
       float fMatchProbability;
 
       fprintf(stdout, "size %zd", nGeneratedDataSize);
-      for (fMatchProbability = 0; fMatchProbability <= 0.995f; fMatchProbability += fProbabilitySizeStep) {
+      for (fMatchProbability = ((nOptions & OPT_RAW) ? 0.5f : 0.1f); fMatchProbability <= 0.995f; fMatchProbability += fProbabilitySizeStep) {
          int nNumLiteralValues[12] = { 1, 2, 3, 15, 30, 56, 96, 137, 178, 191, 255, 256 };
          float fXorProbability;
 
@@ -504,8 +504,8 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
 
             /* Try to decompress it, expected to succeed */
             size_t nActualDecompressedSize;
-            int nDecFormatVersion = 0;
-            nActualDecompressedSize = lzsa_decompress_inmem(pCompressedData, pTmpDecompressedData, nActualCompressedSize, nGeneratedDataSize, &nDecFormatVersion);
+            int nDecFormatVersion = nFormatVersion;
+            nActualDecompressedSize = lzsa_decompress_inmem(pCompressedData, pTmpDecompressedData, nActualCompressedSize, nGeneratedDataSize, nFlags, &nDecFormatVersion);
             if (nActualDecompressedSize == -1) {
                free(pTmpDecompressedData);
                pTmpDecompressedData = NULL;
@@ -538,7 +538,8 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
             for (fXorProbability = 0.05f; fXorProbability <= 0.5f; fXorProbability += 0.05f) {
                memcpy(pTmpCompressedData, pCompressedData, nActualCompressedSize);
                xor_data(pTmpCompressedData + lzsa_get_header_size() + lzsa_get_frame_size(), nActualCompressedSize - lzsa_get_header_size() - lzsa_get_frame_size() - lzsa_get_frame_size() /* footer */, nSeed, fXorProbability);
-               lzsa_decompress_inmem(pTmpCompressedData, pGeneratedData, nActualCompressedSize, nGeneratedDataSize, &nDecFormatVersion);
+               nDecFormatVersion = nFormatVersion;
+               lzsa_decompress_inmem(pTmpCompressedData, pGeneratedData, nActualCompressedSize, nGeneratedDataSize, nFlags, &nDecFormatVersion);
             }
          }
 
@@ -710,7 +711,12 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
    size_t nFileSize, nMaxDecompressedSize;
    unsigned char *pFileData;
    unsigned char *pDecompressedData;
+   int nFlags;
    int i;
+
+   nFlags = 0;
+   if (nOptions & OPT_RAW)
+      nFlags |= LZSA_FLAG_RAW_BLOCK;
 
    if (pszDictionaryFilename) {
       fprintf(stderr, "in-memory benchmarking does not support dictionaries\n");
@@ -771,10 +777,7 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
    size_t nActualDecompressedSize = 0;
    for (i = 0; i < 50; i++) {
       long long t0 = do_get_time();
-      if (nOptions & OPT_RAW)
-         nActualDecompressedSize = lzsa_decompressor_expand_block(pFileData, (int)nFileSize - 4 /* EOD marker */, pDecompressedData, 0, (int)nMaxDecompressedSize, nFormatVersion);
-      else
-         nActualDecompressedSize = lzsa_decompress_inmem(pFileData, pDecompressedData, nFileSize, nMaxDecompressedSize, &nFormatVersion);
+      nActualDecompressedSize = lzsa_decompress_inmem(pFileData, pDecompressedData, nFileSize, nMaxDecompressedSize, nFlags, &nFormatVersion);
       long long t1 = do_get_time();
       if (nActualDecompressedSize == -1) {
          free(pDecompressedData);

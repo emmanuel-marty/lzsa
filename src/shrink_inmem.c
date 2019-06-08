@@ -102,11 +102,17 @@ size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutB
 
          int nOutDataSize;
          int nOutDataEnd = (int)(nMaxOutBufferSize - (lzsa_get_frame_size() + nCompressedSize + lzsa_get_frame_size() /* footer */));
+         int nFrameSize = lzsa_get_frame_size();
+
+         if ((nFlags & LZSA_FLAG_RAW_BLOCK) != 0) {
+            nFrameSize = 0;
+            nOutDataEnd = (int)(nMaxOutBufferSize);
+         }
 
          if (nOutDataEnd > BLOCK_SIZE)
             nOutDataEnd = BLOCK_SIZE;
 
-         nOutDataSize = lzsa_compressor_shrink_block(&compressor, pInputData + nOriginalSize - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutBuffer + lzsa_get_frame_size() + nCompressedSize, nOutDataEnd);
+         nOutDataSize = lzsa_compressor_shrink_block(&compressor, pInputData + nOriginalSize - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutBuffer + nFrameSize + nCompressedSize, nOutDataEnd);
          if (nOutDataSize >= 0) {
             /* Write compressed block */
 
@@ -116,10 +122,12 @@ size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutB
                   nError = LZSA_ERROR_COMPRESSION;
                else {
                   nCompressedSize += nBlockheaderSize;
-
-                  nOriginalSize += nInDataSize;
-                  nCompressedSize += nOutDataSize;
                }
+            }
+
+            if (!nError) {
+               nOriginalSize += nInDataSize;
+               nCompressedSize += nOutDataSize;
             }
          }
          else {

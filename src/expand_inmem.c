@@ -93,22 +93,27 @@ size_t lzsa_get_max_decompressed_size_inmem(const unsigned char *pFileData, size
  * @param pOutBuffer buffer for decompressed data
  * @param nFileSize compressed size in bytes
  * @param nMaxOutBufferSize maximum capacity of decompression buffer
+ * @param nFlags compression flags (LZSA_FLAG_xxx)
  * @param pFormatVersion pointer to format version, updated if this function is successful
  *
  * @return actual decompressed size, or -1 for error
  */
-size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, int *pFormatVersion) {
+size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, const unsigned int nFlags, int *pFormatVersion) {
    const unsigned char *pCurFileData = pFileData;
    const unsigned char *pEndFileData = pCurFileData + nFileSize;
    unsigned char *pCurOutBuffer = pOutBuffer;
    const unsigned char *pEndOutBuffer = pCurOutBuffer + nMaxOutBufferSize;
-   int nFormatVersion = 0;
    int nPreviousBlockSize;
    const int nHeaderSize = lzsa_get_header_size();
 
+   if (nFlags & LZSA_FLAG_RAW_BLOCK) {
+      int nEODBytes = (*pFormatVersion == 2) ? 2 : 4;
+      return (size_t)lzsa_decompressor_expand_block(pFileData, (int)nFileSize - nEODBytes /* EOD marker */, pOutBuffer, 0, (int)nMaxOutBufferSize, *pFormatVersion);
+   }
+
    /* Check header */
    if ((pCurFileData + nHeaderSize) > pEndFileData ||
-      lzsa_decode_header(pCurFileData, nHeaderSize, &nFormatVersion) != 0)
+      lzsa_decode_header(pCurFileData, nHeaderSize, pFormatVersion) != 0)
       return -1;
 
    pCurFileData += nHeaderSize;
@@ -135,7 +140,7 @@ size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOut
          if ((pCurFileData + nBlockDataSize) > pEndFileData)
             return -1;
 
-         nDecompressedSize = lzsa_decompressor_expand_block(pCurFileData, nBlockDataSize, pCurOutBuffer - nPreviousBlockSize, nPreviousBlockSize, (int)(pEndOutBuffer - pCurOutBuffer + nPreviousBlockSize), nFormatVersion);
+         nDecompressedSize = lzsa_decompressor_expand_block(pCurFileData, nBlockDataSize, pCurOutBuffer - nPreviousBlockSize, nPreviousBlockSize, (int)(pEndOutBuffer - pCurOutBuffer + nPreviousBlockSize), *pFormatVersion);
          if (nDecompressedSize < 0)
             return -1;
 
@@ -155,6 +160,5 @@ size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOut
       pCurFileData += nBlockDataSize;
    }
 
-   *pFormatVersion = nFormatVersion;
    return (int)(pCurOutBuffer - pOutBuffer);
 }
