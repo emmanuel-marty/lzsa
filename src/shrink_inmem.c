@@ -106,7 +106,7 @@ size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutB
 
          if ((nFlags & LZSA_FLAG_RAW_BLOCK) != 0) {
             nFrameSize = 0;
-            nOutDataEnd = (int)(nMaxOutBufferSize);
+            nOutDataEnd = (int)(nMaxOutBufferSize - nCompressedSize);
          }
 
          if (nOutDataEnd > BLOCK_SIZE)
