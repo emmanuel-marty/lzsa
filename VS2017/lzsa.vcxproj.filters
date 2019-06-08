@@ -30,9 +30,6 @@
     <ClInclude Include="..\src\format.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\libdivsufsort\include\config.h">
-      <Filter>Fichiers sources\libdivsufsort\include</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort.h">
       <Filter>Fichiers sources\libdivsufsort\include</Filter>
     </ClInclude>
@@ -84,11 +81,11 @@
     <ClInclude Include="..\src\shrink_inmem.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\libdivsufsort\include\divsufsort_config.h">
+      <Filter>Fichiers sources\libdivsufsort\include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\libdivsufsort\lib\utils.c">
-      <Filter>Fichiers sources\libdivsufsort\lib</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort.c">
       <Filter>Fichiers sources\libdivsufsort\lib</Filter>
     </ClCompile>
@@ -142,6 +139,9 @@
     </ClCompile>
     <ClCompile Include="..\src\shrink_inmem.c">
       <Filter>Fichiers sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libdivsufsort\lib\divsufsort_utils.c">
+      <Filter>Fichiers sources\libdivsufsort\lib</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
