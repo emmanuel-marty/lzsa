@@ -44,8 +44,9 @@ DECODE_TOKEN
    BNE EMBEDDED_LITERALS                ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable literals count
-   CLC                                  ; add extra byte to len from token
-   ADC #$07                             ; (LITERALS_RUN_LEN)
+                                        ; the carry is always set by the CMP above
+                                        ; GETSRC doesn't change it
+   SBC #$F9                             ; (LITERALS_RUN_LEN)
    BCC PREPARE_COPY_LITERALS
    BEQ LARGE_VARLEN_LITERALS            ; if adding up to zero, go grab 16-bit count
 
@@ -84,14 +85,34 @@ NO_LITERALS
 
    JSR GETSRC                           ; get 8 bit offset from stream in A
 
-   STA OFFSLO                           ; store final match offset
-
    CLC                                  ; add dest + match offset
-   LDA PUTDST+1                         ; low 8 bits
-   ADC OFFSLO
+   ADC PUTDST+1                         ; low 8 bits
    STA COPY_MATCH_LOOP+1                ; store back reference address
    LDA #$0FF                            ; high 8 bits
-   JMP GOT_OFFSET                       ; go prepare match
+   BNE GOT_OFFSET                       ; go prepare match
+                                        ; (*like JMP GOT_OFFSET but shorter)
+
+SHORT_VARLEN_MATCHLEN
+   JSR GETSRC                           ; get single extended byte of variable match len
+   INY                                  ; add 256 to match length
+
+PREPARE_COPY_MATCH
+   TAX
+PREPARE_COPY_MATCH_Y
+   INY
+
+COPY_MATCH_LOOP
+   LDA $AAAA                            ; get one byte of backreference
+   INC COPY_MATCH_LOOP+1
+   BNE GETMATCH_DONE
+   INC COPY_MATCH_LOOP+2
+GETMATCH_DONE
+   JSR PUTDST                           ; copy to destination
+   DEX
+   BNE COPY_MATCH_LOOP
+   DEY
+   BNE COPY_MATCH_LOOP
+   BEQ DECODE_TOKEN                     ; (*like JMP DECODE_TOKEN but shorter)
 
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
@@ -117,8 +138,9 @@ GOT_OFFSET
    BNE PREPARE_COPY_MATCH               ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable match length
-   CLC
-   ADC #$12                             ; add MATCH_RUN_LEN and MIN_MATCH_SIZE to match length
+                                        ; the carry is always set by the CMP above
+                                        ; GETSRC doesn't change it
+   SBC #$EE                             ; add MATCH_RUN_LEN and MIN_MATCH_SIZE to match length
    BCC PREPARE_COPY_MATCH
    BNE SHORT_VARLEN_MATCHLEN
 
@@ -127,29 +149,7 @@ GOT_OFFSET
    TAY                                  ; put high 8 bits in Y
                                         ; large match length with zero high byte?
    BEQ DECOMPRESSION_DONE               ; if so, this is the EOD code, bail
-   JMP PREPARE_COPY_MATCH_Y
-
-SHORT_VARLEN_MATCHLEN
-   JSR GETSRC                           ; get single extended byte of variable match len
-   INY                                  ; add 256 to match length
-
-PREPARE_COPY_MATCH
-   TAX
-PREPARE_COPY_MATCH_Y
-   INY
-
-COPY_MATCH_LOOP
-   LDA $AAAA                            ; get one byte of backreference
-   INC COPY_MATCH_LOOP+1
-   BNE GETMATCH_DONE
-   INC COPY_MATCH_LOOP+2
-GETMATCH_DONE
-   JSR PUTDST                           ; copy to destination
-   DEX
-   BNE COPY_MATCH_LOOP
-   DEY
-   BNE COPY_MATCH_LOOP
-   JMP DECODE_TOKEN
+   BNE PREPARE_COPY_MATCH_Y             ; (*like JMP PREPARE_COPY_MATCH_Y but shorter)
 
 GETPUT
    JSR GETSRC
