@@ -28,8 +28,7 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 ; -----------------------------------------------------------------------------
 
-OFFSLO = $43                            ; zero-page location for temp offset
-OFFSHI = $44
+OFFSHI = $43                            ; zero-page location for temp offset
 
 DECOMPRESS_LZSA1
    LDY #$00
@@ -117,12 +116,11 @@ GETMATCH_DONE
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
 
-   STX OFFSLO                           ; store final match offset
-   STA OFFSHI
+   STA OFFSHI                           ; store high 8 bits of offset
+   TXA
 
    CLC                                  ; add dest + match offset
-   LDA PUTDST+1                         ; low 8 bits
-   ADC OFFSLO
+   ADC PUTDST+1                         ; low 8 bits
    STA COPY_MATCH_LOOP+1                ; store back reference address
    LDA OFFSHI                           ; high 8 bits
 
