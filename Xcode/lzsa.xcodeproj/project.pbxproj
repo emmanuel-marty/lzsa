@@ -13,7 +13,6 @@
 		0CADC63422AAD8EB003E9821 /* shrink_block_v1.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC5FA22AAD8EB003E9821 /* shrink_block_v1.c */; };
 		0CADC63A22AAD8EB003E9821 /* trsort.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC61622AAD8EB003E9821 /* trsort.c */; };
 		0CADC63B22AAD8EB003E9821 /* divsufsort.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC61722AAD8EB003E9821 /* divsufsort.c */; };
-		0CADC63C22AAD8EB003E9821 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC61822AAD8EB003E9821 /* utils.c */; };
 		0CADC63D22AAD8EB003E9821 /* sssort.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC61922AAD8EB003E9821 /* sssort.c */; };
 		0CADC63E22AAD8EB003E9821 /* expand_block_v1.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC62122AAD8EB003E9821 /* expand_block_v1.c */; };
 		0CADC63F22AAD8EB003E9821 /* lzsa.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC62222AAD8EB003E9821 /* lzsa.c */; };
@@ -26,6 +25,7 @@
 		0CADC64622AAD8EB003E9821 /* dictionary.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC62E22AAD8EB003E9821 /* dictionary.c */; };
 		0CADC64722AAD8EB003E9821 /* expand_context.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC62F22AAD8EB003E9821 /* expand_context.c */; };
 		0CADC64822AAD8EB003E9821 /* shrink_block_v2.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC63022AAD8EB003E9821 /* shrink_block_v2.c */; };
+		0CADC64A22AB8DAD003E9821 /* divsufsort_utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC64922AB8DAD003E9821 /* divsufsort_utils.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -57,12 +57,10 @@
 		0CADC5F922AAD8EB003E9821 /* expand_block_v2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = expand_block_v2.h; path = ../../src/expand_block_v2.h; sourceTree = "<group>"; };
 		0CADC5FA22AAD8EB003E9821 /* shrink_block_v1.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = shrink_block_v1.c; path = ../../src/shrink_block_v1.c; sourceTree = "<group>"; };
 		0CADC5FB22AAD8EB003E9821 /* expand_context.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = expand_context.h; path = ../../src/expand_context.h; sourceTree = "<group>"; };
-		0CADC60522AAD8EB003E9821 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		0CADC60922AAD8EB003E9821 /* divsufsort_private.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = divsufsort_private.h; sourceTree = "<group>"; };
 		0CADC60A22AAD8EB003E9821 /* divsufsort.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = divsufsort.h; sourceTree = "<group>"; };
 		0CADC61622AAD8EB003E9821 /* trsort.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = trsort.c; sourceTree = "<group>"; };
 		0CADC61722AAD8EB003E9821 /* divsufsort.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = divsufsort.c; sourceTree = "<group>"; };
-		0CADC61822AAD8EB003E9821 /* utils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = utils.c; sourceTree = "<group>"; };
 		0CADC61922AAD8EB003E9821 /* sssort.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sssort.c; sourceTree = "<group>"; };
 		0CADC62122AAD8EB003E9821 /* expand_block_v1.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = expand_block_v1.c; path = ../../src/expand_block_v1.c; sourceTree = "<group>"; };
 		0CADC62222AAD8EB003E9821 /* lzsa.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = lzsa.c; path = ../../src/lzsa.c; sourceTree = "<group>"; };
@@ -80,6 +78,8 @@
 		0CADC62E22AAD8EB003E9821 /* dictionary.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = dictionary.c; path = ../../src/dictionary.c; sourceTree = "<group>"; };
 		0CADC62F22AAD8EB003E9821 /* expand_context.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = expand_context.c; path = ../../src/expand_context.c; sourceTree = "<group>"; };
 		0CADC63022AAD8EB003E9821 /* shrink_block_v2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = shrink_block_v2.c; path = ../../src/shrink_block_v2.c; sourceTree = "<group>"; };
+		0CADC64922AB8DAD003E9821 /* divsufsort_utils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = divsufsort_utils.c; sourceTree = "<group>"; };
+		0CADC64B22AB8DC3003E9821 /* divsufsort_config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = divsufsort_config.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -161,7 +161,7 @@
 		0CADC60322AAD8EB003E9821 /* include */ = {
 			isa = PBXGroup;
 			children = (
-				0CADC60522AAD8EB003E9821 /* config.h */,
+				0CADC64B22AB8DC3003E9821 /* divsufsort_config.h */,
 				0CADC60922AAD8EB003E9821 /* divsufsort_private.h */,
 				0CADC60A22AAD8EB003E9821 /* divsufsort.h */,
 			);
@@ -171,9 +171,9 @@
 		0CADC61422AAD8EB003E9821 /* lib */ = {
 			isa = PBXGroup;
 			children = (
+				0CADC64922AB8DAD003E9821 /* divsufsort_utils.c */,
 				0CADC61622AAD8EB003E9821 /* trsort.c */,
 				0CADC61722AAD8EB003E9821 /* divsufsort.c */,
-				0CADC61822AAD8EB003E9821 /* utils.c */,
 				0CADC61922AAD8EB003E9821 /* sssort.c */,
 			);
 			path = lib;
@@ -246,10 +246,10 @@
 				0CADC63B22AAD8EB003E9821 /* divsufsort.c in Sources */,
 				0CADC64622AAD8EB003E9821 /* dictionary.c in Sources */,
 				0CADC63422AAD8EB003E9821 /* shrink_block_v1.c in Sources */,
+				0CADC64A22AB8DAD003E9821 /* divsufsort_utils.c in Sources */,
 				0CADC64222AAD8EB003E9821 /* stream.c in Sources */,
 				0CADC64022AAD8EB003E9821 /* shrink_streaming.c in Sources */,
 				0CADC63A22AAD8EB003E9821 /* trsort.c in Sources */,
-				0CADC63C22AAD8EB003E9821 /* utils.c in Sources */,
 				0CADC64122AAD8EB003E9821 /* expand_inmem.c in Sources */,
 				0CADC63322AAD8EB003E9821 /* matchfinder.c in Sources */,
 				0CADC64722AAD8EB003E9821 /* expand_context.c in Sources */,
@@ -312,16 +312,16 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = (
-					../src/huffman,
 					../src/libdivsufsort/include,
 					../src/xxhash,
 					../src,
 				);
+				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
+				OTHER_CFLAGS = "";
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -373,15 +373,15 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HEADER_SEARCH_PATHS = (
-					../src/huffman,
 					../src/libdivsufsort/include,
 					../src/xxhash,
 					../src,
 				);
+				LLVM_LTO = YES;
 				MACOSX_DEPLOYMENT_TARGET = 10.8;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				OTHER_CFLAGS = "-DHAVE_CONFIG_H";
+				OTHER_CFLAGS = "";
 				SDKROOT = macosx;
 			};
 			name = Release;
