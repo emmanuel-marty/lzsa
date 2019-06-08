@@ -56,8 +56,9 @@ DECODE_TOKEN
    BNE PREPARE_COPY_LITERALS            ; if less, literals count is complete
 
    JSR GETSRC                           ; get extra byte of variable literals count
-   CLC
-   ADC #$12                             ; overflow?
+                                        ; the carry is always set by the CMP above
+                                        ; GETSRC doesn't change it
+   SBC #$EE                             ; overflow?
    BCC PREPARE_COPY_LITERALS            ; if not, literals count is complete
 
                                         ; handle 16 bits literals count
@@ -155,8 +156,9 @@ REP_MATCH
    BNE PREPARE_COPY_MATCH               ; if less, match length is complete
 
    JSR GETSRC                           ; get extra byte of variable match length
-   CLC
-   ADC #$18                             ; overflow?
+                                        ; the carry is always set by the CMP above
+                                        ; GETSRC doesn't change it
+   SBC #$E8                             ; overflow?
    BCC PREPARE_COPY_MATCH               ; if not, the match length is complete
    BEQ DECOMPRESSION_DONE               ; if EOD code, bail
 

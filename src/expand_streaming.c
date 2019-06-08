@@ -185,8 +185,9 @@ lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pO
          }
          size_t nReadBytes = pInStream->read(pInStream, pInBlock, nBlockSize);
          if (nFlags & LZSA_FLAG_RAW_BLOCK) {
-            if (nReadBytes > 2)
-               nReadBytes -= 2;
+            size_t nEODBytes = (nFormatVersion == 2) ? 2 : 4;
+            if (nReadBytes > nEODBytes)
+               nReadBytes -= nEODBytes;
             else
                nReadBytes = 0;
             nBlockSize = (unsigned int)nReadBytes;
