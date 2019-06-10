@@ -46,7 +46,7 @@
 #define OPT_RAW         2
 #define OPT_FAVOR_RATIO 4
 
-#define TOOL_VERSION "0.6.0"
+#define TOOL_VERSION "1.0.0"
 
  /*---------------------------------------------------------------------------*/
 
