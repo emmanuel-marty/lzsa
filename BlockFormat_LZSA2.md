@@ -63,7 +63,6 @@ If the encoded match length is 7 or more, the 'M' bits in the token form the val
 
 If an extra byte follows here, it can have two possible types of value:
 
-* 2-255: the final match length is this byte.
 * 0-231: 24 is added to the value (7 from the token + 15 from the nibble + minmatch of 2), to compose the final match length. For instance a length of 150 will be stored as 7 in the token + a nibble with the value of 15 + a single byte with the value of 126.
 * 233: a second and third byte follow, forming a little-endian 16-bit value. The final encoded match length is that 16-bit value.
 
