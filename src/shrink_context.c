@@ -51,6 +51,7 @@
 int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize, const int nFormatVersion, const int nFlags) {
    int nResult;
    int nMinMatchSizeForFormat = (nFormatVersion == 1) ? MIN_MATCH_SIZE_V1 : MIN_MATCH_SIZE_V2;
+   int nMaxMinMatchForFormat = (nFormatVersion == 1) ? 5 : 3;
 
    nResult = divsufsort_init(&pCompressor->divsufsort_context);
    pCompressor->intervals = NULL;
@@ -63,8 +64,8 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->min_match_size = nMinMatchSize;
    if (pCompressor->min_match_size < nMinMatchSizeForFormat)
       pCompressor->min_match_size = nMinMatchSizeForFormat;
-   else if (pCompressor->min_match_size > 5)
-      pCompressor->min_match_size = 5;
+   else if (pCompressor->min_match_size > nMaxMinMatchForFormat)
+      pCompressor->min_match_size = nMaxMinMatchForFormat;
    pCompressor->format_version = nFormatVersion;
    pCompressor->flags = nFlags;
    pCompressor->num_commands = 0;
