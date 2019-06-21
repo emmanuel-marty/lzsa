@@ -451,6 +451,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
    int nNumLiterals = 0;
    int nDidReduce = 0;
    int nPreviousMatchOffset = -1;
+   int nRepMatchOffset = 0;
    lzsa_repmatch_opt *repmatch_opt = pCompressor->repmatch_opt;
 
    for (i = nStartOffset; i < nEndOffset; ) {
@@ -480,6 +481,19 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
                    * match command by literals, the output size will not increase and it will remove one command. */
                   nReduce = 1;
                }
+               else {
+                  if (nMatchOffset != nRepMatchOffset &&
+                      pCompressor->best_match[i + nMatchLen].offset == nRepMatchOffset) {
+                     int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
+
+                     if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nMatchLen) - nRepMatchSize)) {
+                        /* Same case, replacing this command by literals alone isn't enough on its own to have savings, however this match command is inbetween two matches with
+                         * identical offsets, while this command has a different match offset. Replacing it with literals allows to use a rep-match for the two commands around it, and
+                         * that is enough for some savings. Replace. */
+                        nReduce = 1;
+                     }
+                  }
+               }
             }
             else {
                int nCurIndex = i + nMatchLen;
@@ -501,8 +515,22 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
                    * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
                   nReduce = 1;
                }
+               else {
+                  if (nCurIndex < nEndOffset && pCompressor->best_match[nCurIndex].length >= MIN_MATCH_SIZE_V2 &&
+                     pCompressor->best_match[nCurIndex].offset != nMatchOffset &&
+                     pCompressor->best_match[nCurIndex].offset == nRepMatchOffset) {
+                     int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
+                     if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size_v2(nNextNumLiterals) - nRepMatchSize)) {
+                        /* Same case, but now replacing this command allows to use a rep-match and get savings, so do it */
+                        nReduce = 1;
+                     }
+                  }
+               }
             }
          }
+
+         if (pMatch->length)
+            nRepMatchOffset = pMatch->offset;
 
          if (nReduce) {
             int j;
