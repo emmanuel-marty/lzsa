@@ -1,7 +1,7 @@
 ;
 ;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019, 145 bytes)
 ;
-;  The data must be comressed using the command line compressor by Emmanuel Marty
+;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
 ;
 ;  lzsa.exe -f2 -r <sourcefile> <outfile>
