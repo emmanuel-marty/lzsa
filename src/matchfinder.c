@@ -192,33 +192,27 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
    /* Ascend until we reach a visited interval, the root, or a child of the
     * root.  Link unvisited intervals to the current suffix as we go.  */
    while ((super_ref = intervals[ref & POS_MASK]) & LCP_MASK) {
-      intervals[ref & POS_MASK] = nOffset;
+      intervals[ref & POS_MASK] = nOffset | VISITED_FLAG;
       ref = super_ref;
    }
 
    if (super_ref == 0) {
       /* In this case, the current interval may be any of:
        * (1) the root;
-       * (2) an unvisited child of the root;
-       * (3) an interval last visited by suffix 0
-       *
-       * We could avoid the ambiguity with (3) by using an lcp
-       * placeholder value other than 0 to represent "visited", but
-       * it's fastest to use 0.  So we just don't allow matches with
-       * position 0.  */
+       * (2) an unvisited child of the root */
 
       if (ref != 0)  /* Not the root?  */
-         intervals[ref & POS_MASK] = nOffset;
+         intervals[ref & POS_MASK] = nOffset | VISITED_FLAG;
       return 0;
    }
 
    /* Ascend indirectly via pos_data[] links.  */
-   match_pos = super_ref;
+   match_pos = super_ref & EXCL_VISITED_MASK;
    matchptr = pMatches;
    for (;;) {
       while ((super_ref = pos_data[match_pos]) > ref)
-         match_pos = intervals[super_ref & POS_MASK];
-      intervals[ref & POS_MASK] = nOffset;
+         match_pos = intervals[super_ref & POS_MASK] & EXCL_VISITED_MASK;
+      intervals[ref & POS_MASK] = nOffset | VISITED_FLAG;
       pos_data[match_pos] = ref;
 
       if ((matchptr - pMatches) < nMaxMatches) {
@@ -234,7 +228,7 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
       if (super_ref == 0)
          break;
       ref = super_ref;
-      match_pos = intervals[ref & POS_MASK];
+      match_pos = intervals[ref & POS_MASK] & EXCL_VISITED_MASK;
    }
 
    return (int)(matchptr - pMatches);
@@ -263,6 +257,7 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
  * the optimizer to look at.
  *
  * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */

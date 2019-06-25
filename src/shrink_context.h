@@ -39,11 +39,13 @@
 extern "C" {
 #endif
 
-#define LCP_BITS 15
+#define LCP_BITS 14
 #define LCP_MAX (1U<<(LCP_BITS - 1))
-#define LCP_SHIFT (32-LCP_BITS)
+#define LCP_SHIFT (31-LCP_BITS)
 #define LCP_MASK (((1U<<LCP_BITS) - 1) << LCP_SHIFT)
 #define POS_MASK ((1U<<LCP_SHIFT) - 1)
+#define VISITED_FLAG 0x80000000
+#define EXCL_VISITED_MASK  0x7fffffff
 
 #define NMATCHES_PER_OFFSET 8
 #define MATCHES_PER_OFFSET_SHIFT 3
