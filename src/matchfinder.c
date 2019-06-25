@@ -257,7 +257,6 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
  * the optimizer to look at.
  *
  * @param pCompressor compression context
- * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
