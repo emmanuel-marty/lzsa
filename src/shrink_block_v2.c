@@ -465,7 +465,8 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
          if (nMatchLen <= 9 && (i + nMatchLen) < nEndOffset) /* max reducable command size: <token> <EE> <ll> <ll> <offset> <offset> <EE> <mm> <mm> */ {
             int nMatchOffset = pMatch->offset;
             int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V2;
-            int nUndoRepMatchCost = (nPreviousMatchOffset < 0 || !repmatch_opt[nPreviousMatchOffset].expected_repmatch) ? 0 : 16;
+            int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
+            int nUndoRepMatchCost = (nPreviousMatchOffset < 0 || !repmatch_opt[nPreviousMatchOffset].expected_repmatch) ? 0 : nRepMatchSize;
 
             if (pCompressor->best_match[i + nMatchLen].length >= MIN_MATCH_SIZE_V2) {
                int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(nEncodedMatchLen) - nUndoRepMatchCost;
@@ -484,7 +485,6 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
                else {
                   if (nMatchOffset != nRepMatchOffset &&
                       pCompressor->best_match[i + nMatchLen].offset == nRepMatchOffset) {
-                     int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
 
                      if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nMatchLen) - nRepMatchSize)) {
                         /* Same case, replacing this command by literals alone isn't enough on its own to have savings, however this match command is inbetween two matches with
@@ -519,7 +519,6 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
                   if (nCurIndex < nEndOffset && pCompressor->best_match[nCurIndex].length >= MIN_MATCH_SIZE_V2 &&
                      pCompressor->best_match[nCurIndex].offset != nMatchOffset &&
                      pCompressor->best_match[nCurIndex].offset == nRepMatchOffset) {
-                     int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
                      if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size_v2(nNextNumLiterals) - nRepMatchSize)) {
                         /* Same case, but now replacing this command allows to use a rep-match and get savings, so do it */
                         nReduce = 1;
@@ -528,9 +527,6 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
                }
             }
          }
-
-         if (pMatch->length)
-            nRepMatchOffset = pMatch->offset;
 
          if (nReduce) {
             int j;
@@ -549,6 +545,9 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const in
             }
          }
          else {
+            if (pMatch->length)
+               nRepMatchOffset = pMatch->offset;
+
             if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
                pMatch->offset && pMatch->offset <= 32 && pCompressor->best_match[i + nMatchLen].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
                (nMatchLen + pCompressor->best_match[i + nMatchLen].length) <= MAX_VARLEN) {
