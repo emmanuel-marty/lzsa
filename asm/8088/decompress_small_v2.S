@@ -75,7 +75,8 @@ lzsa2_decompress:
    xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
    mov al,020H             ; shift Z (offset bit 4) in place
    and al,dl
-   shl al,2
+   shl al,1
+   shl al,1
    call .get_nibble        ; get nibble for offset bits 0-3
    or al,cl                ; merge nibble
    rol al,1
@@ -100,7 +101,8 @@ lzsa2_decompress:
 
    mov ah,020H             ; shift Z (offset bit 12) in place
    and ah,dl
-   shl ah,2
+   shl ah,1
+   shl ah,1
    call .get_nibble        ; get nibble for offset bits 8-11
    or ah,cl                ; merge nibble
    rol ah,1
