@@ -46,7 +46,7 @@
 #define OPT_RAW         2
 #define OPT_FAVOR_RATIO 4
 
-#define TOOL_VERSION "1.0.2"
+#define TOOL_VERSION "1.0.3"
 
  /*---------------------------------------------------------------------------*/
 
@@ -127,7 +127,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       case LZSA_ERROR_MEMORY: fprintf(stderr, "out of memory\n"); break;
       case LZSA_ERROR_COMPRESSION: fprintf(stderr, "internal compression error\n"); break;
       case LZSA_ERROR_RAW_TOOLARGE: fprintf(stderr, "error: raw blocks can only be used with files <= 64 Kb\n"); break;
-      case LZSA_ERROR_RAW_UNCOMPRESSED: fprintf(stderr, "error: data is incompressible, raw blocks only support compressed data\n"); break;
+      case LZSA_ERROR_RAW_UNCOMPRESSED: fprintf(stderr, "error: incompressible data needs to be <= 64 Kb in raw blocks\n"); break;
       case LZSA_OK: break;
       default: fprintf(stderr, "unknown compression error %d\n", nStatus); break;
    }

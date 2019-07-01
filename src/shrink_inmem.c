@@ -84,6 +84,21 @@ size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutB
       }
    }
 
+   if ((compressor.flags & LZSA_FLAG_FAVOR_RATIO)) {
+      if (nInputSize < 16384)
+         compressor.max_forward_depth = 25;
+      else {
+         if (nInputSize < 32768)
+            compressor.max_forward_depth = 15;
+         else {
+            if (nInputSize < BLOCK_SIZE)
+               compressor.max_forward_depth = 10;
+            else
+               compressor.max_forward_depth = 0;
+         }
+      }
+   }
+
    int nPreviousBlockSize = 0;
    int nNumBlocks = 0;
 

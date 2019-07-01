@@ -58,7 +58,9 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
    pCompressor->match = NULL;
+   pCompressor->selected_match = NULL;
    pCompressor->best_match = NULL;
+   pCompressor->improved_match = NULL;
    pCompressor->slot_cost = NULL;
    pCompressor->repmatch_opt = NULL;
    pCompressor->min_match_size = nMinMatchSize;
@@ -66,6 +68,7 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
       pCompressor->min_match_size = nMinMatchSizeForFormat;
    else if (pCompressor->min_match_size > nMaxMinMatchForFormat)
       pCompressor->min_match_size = nMaxMinMatchForFormat;
+   pCompressor->max_forward_depth = 0;
    pCompressor->format_version = nFormatVersion;
    pCompressor->flags = nFlags;
    pCompressor->num_commands = 0;
@@ -84,16 +87,24 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
 
                if (pCompressor->match) {
                   if (pCompressor->format_version == 2) {
-                     pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
+                     pCompressor->selected_match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
 
-                     if (pCompressor->best_match) {
-                        pCompressor->slot_cost = (int *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(int));
+                     if (pCompressor->selected_match) {
+                        pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
-                        if (pCompressor->slot_cost) {
-                           pCompressor->repmatch_opt = (lzsa_repmatch_opt *)malloc(nMaxWindowSize * sizeof(lzsa_repmatch_opt));
+                        if (pCompressor->best_match) {
+                           pCompressor->improved_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
-                           if (pCompressor->repmatch_opt)
-                              return 0;
+                           if (pCompressor->improved_match) {
+                              pCompressor->slot_cost = (int *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(int));
+
+                              if (pCompressor->slot_cost) {
+                                 pCompressor->repmatch_opt = (lzsa_repmatch_opt *)malloc(nMaxWindowSize * sizeof(lzsa_repmatch_opt));
+
+                                 if (pCompressor->repmatch_opt)
+                                    return 0;
+                              }
+                           }
                         }
                      }
                   }
@@ -128,9 +139,19 @@ void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
       pCompressor->slot_cost = NULL;
    }
 
+   if (pCompressor->improved_match) {
+      free(pCompressor->improved_match);
+      pCompressor->improved_match = NULL;
+   }
+
    if (pCompressor->best_match) {
       free(pCompressor->best_match);
       pCompressor->best_match = NULL;
+   }
+
+   if (pCompressor->selected_match) {
+      free(pCompressor->selected_match);
+      pCompressor->selected_match = NULL;
    }
 
    if (pCompressor->match) {

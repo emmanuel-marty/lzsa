@@ -36,6 +36,24 @@
 #include "format.h"
 #include "frame.h"
 #include "lib.h"
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <stdio.h>
+#endif
+
+/**
+ * Delete file
+ *
+ * @param pszInFilename name of file to delete
+ */
+static void lzsa_delete_file(const char *pszInFilename) {
+#ifdef _WIN32
+   DeleteFileA(pszInFilename);
+#else
+   remove(pszInFilename);
+#endif
+}
 
 /*-------------- File API -------------- */
 
@@ -76,6 +94,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
    if (nStatus) {
       outStream.close(&outStream);
       inStream.close(&inStream);
+      lzsa_delete_file(pszOutFilename);
       return nStatus;
    }
 
@@ -84,6 +103,11 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
    lzsa_dictionary_free(&pDictionaryData);
    outStream.close(&outStream);
    inStream.close(&inStream);
+
+   if (nStatus) {
+      lzsa_delete_file(pszOutFilename);
+   }
+
    return nStatus;
 }
 
@@ -115,6 +139,7 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
    int nResult;
    unsigned char cFrameData[16];
    int nError = 0;
+   int nRawPadding = (nFlags & LZSA_FLAG_RAW_BLOCK) ? 8 : 0;
 
    pInData = (unsigned char*)malloc(BLOCK_SIZE * 2);
    if (!pInData) {
@@ -175,9 +200,24 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
          }
          nDictionaryDataSize = 0;
 
+         if (nNumBlocks == 0 && (compressor.flags & LZSA_FLAG_FAVOR_RATIO)) {
+            if (nInDataSize < 16384)
+               compressor.max_forward_depth = 25;
+            else {
+               if (nInDataSize < 32768)
+                  compressor.max_forward_depth = 15;
+               else {
+                  if (nInDataSize < BLOCK_SIZE)
+                     compressor.max_forward_depth = 10;
+                  else
+                     compressor.max_forward_depth = 0;
+               }
+            }
+         }
+
          int nOutDataSize;
 
-         nOutDataSize = lzsa_compressor_shrink_block(&compressor, pInData + BLOCK_SIZE - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutData, (nInDataSize >= BLOCK_SIZE) ? BLOCK_SIZE : nInDataSize);
+         nOutDataSize = lzsa_compressor_shrink_block(&compressor, pInData + BLOCK_SIZE - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutData, ((nInDataSize + nRawPadding) >= BLOCK_SIZE) ? BLOCK_SIZE : (nInDataSize + nRawPadding));
          if (nOutDataSize >= 0) {
             /* Write compressed block */
 

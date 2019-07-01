@@ -434,6 +434,50 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const unsigned char
 }
 
 /**
+ * Emit raw block of uncompressible data
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param pOutData pointer to output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ *
+ * @return size of compressed data in output buffer, or -1 if the data is uncompressible
+ */
+static int lzsa_write_raw_uncompressed_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
+   int nNumLiterals = nEndOffset - nStartOffset;
+   int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V1) ? LITERALS_RUN_LEN_V1 : nNumLiterals;
+   int nOutOffset = 0;
+
+   int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3) + 4;
+   if ((nOutOffset + (nCommandSize >> 3)) > nMaxOutDataSize)
+      return -1;
+
+   pCompressor->num_commands = 0;
+   pOutData[nOutOffset++] = (nTokenLiteralsLen << 4) | 0x0f;
+   
+   nOutOffset = lzsa_write_literals_varlen_v1(pOutData, nOutOffset, nNumLiterals);
+
+   if (nNumLiterals != 0) {
+      memcpy(pOutData + nOutOffset, pInWindow + nStartOffset, nNumLiterals);
+      nOutOffset += nNumLiterals;
+      nNumLiterals = 0;
+   }
+
+   pCompressor->num_commands++;
+
+   /* Emit EOD marker for raw block */
+
+   pOutData[nOutOffset++] = 0;
+   pOutData[nOutOffset++] = 238;
+   pOutData[nOutOffset++] = 0;
+   pOutData[nOutOffset++] = 0;
+
+   return nOutOffset;
+}
+
+/**
  * Select the most optimal matches, reduce the token count if possible, and then emit a block of compressed LZSA1 data
  *
  * @param pCompressor compression context
@@ -446,6 +490,8 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const unsigned char
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
+   int nResult;
+
    lzsa_optimize_matches_v1(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
 
    int nDidReduce;
@@ -455,5 +501,10 @@ int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigne
       nPasses++;
    } while (nDidReduce && nPasses < 20);
 
-   return lzsa_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
+   nResult = lzsa_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
+   if (nResult < 0 && pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
+      nResult = lzsa_write_raw_uncompressed_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
+   }
+
+   return nResult;
 }
