@@ -144,8 +144,7 @@ REP_MATCH
    
    PLA                                  ; retrieve token from stack again
    AND #$07                             ; isolate match len (MMM)
-   ;;CLC                                ; carry cleared by high ADC above
-                                        ; (assuming no overflow can occur)
+   CLC
    ADC #$02                             ; add MIN_MATCH_SIZE_V2
    CMP #$09                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
    BNE PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
