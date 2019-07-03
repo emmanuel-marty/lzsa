@@ -65,7 +65,7 @@ DECODE_TOKEN
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   JMP PREPARE_COPY_LITERALS_HIGH
+   BCS PREPARE_COPY_LITERALS_HIGH       ; (*like JMP PREPARE_COPY_LITERALS_HIGH but shorter)
 
 EMBEDDED_LITERALS
    LSR A                                ; shift literals count into place
@@ -144,7 +144,8 @@ REP_MATCH
    
    PLA                                  ; retrieve token from stack again
    AND #$07                             ; isolate match len (MMM)
-   CLC
+   ;;CLC                                ; carry cleared by high ADC above
+                                        ; (assuming no overflow can occur)
    ADC #$02                             ; add MIN_MATCH_SIZE_V2
    CMP #$09                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
    BNE PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
@@ -175,8 +176,7 @@ PREPARE_COPY_MATCH_Y
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    INC COPY_MATCH_LOOP+1
-   BNE GETMATCH_DONE
-   INC COPY_MATCH_LOOP+2
+   BEQ GETMATCH_INC_HI
 GETMATCH_DONE
    JSR PUTDST                           ; copy to destination
    DEX
@@ -184,6 +184,9 @@ GETMATCH_DONE
    DEY
    BNE COPY_MATCH_LOOP
    JMP DECODE_TOKEN
+GETMATCH_INC_HI
+   INC COPY_MATCH_LOOP+2
+   BNE GETMATCH_DONE                    ; (*like JMP GETMATCH_DONE but shorter)
 
 GETCOMBINEDBITS
    STA FIXUP
@@ -223,10 +226,12 @@ LZSA_DST_LO = *+1
 LZSA_DST_HI = *+2
    STA $AAAA
    INC PUTDST+1
-   BNE PUTDST_DONE
-   INC PUTDST+2
+   BEQ PUTDST_INC_HI
 PUTDST_DONE
 DECOMPRESSION_DONE
+   RTS
+PUTDST_INC_HI
+   INC PUTDST+2
    RTS
 
 GETLARGESRC
@@ -239,7 +244,9 @@ LZSA_SRC_LO = *+1
 LZSA_SRC_HI = *+2
    LDA $AAAA
    INC GETSRC+1
-   BNE GETSRC_DONE
-   INC GETSRC+2
+   BEQ GETSRC_INC_HI
 GETSRC_DONE
+   RTS
+GETSRC_INC_HI
+   INC GETSRC+2
    RTS
