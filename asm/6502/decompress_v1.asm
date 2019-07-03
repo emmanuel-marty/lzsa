@@ -28,8 +28,6 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 ; -----------------------------------------------------------------------------
 
-OFFSHI = $43                            ; zero-page location for temp offset
-
 DECOMPRESS_LZSA1
    LDY #$00
 
@@ -51,13 +49,13 @@ DECODE_TOKEN
 
    JSR GETSRC                           ; get single extended byte of variable literals count
    INY                                  ; add 256 to literals count
-   JMP PREPARE_COPY_LITERALS
+   BCS PREPARE_COPY_LITERALS            ; (*like JMP PREPARE_COPY_LITERALS but shorter)
 
 LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   JMP PREPARE_COPY_LITERALS_HIGH
+   BCS PREPARE_COPY_LITERALS_HIGH       ; (*like JMP PREPARE_COPY_LITERALS_HIGH but shorter)
 
 EMBEDDED_LITERALS
    LSR A                                ; shift literals count into place
@@ -103,8 +101,7 @@ PREPARE_COPY_MATCH_Y
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    INC COPY_MATCH_LOOP+1
-   BNE GETMATCH_DONE
-   INC COPY_MATCH_LOOP+2
+   BEQ GETMATCH_INC_HI
 GETMATCH_DONE
    JSR PUTDST                           ; copy to destination
    DEX
@@ -112,6 +109,10 @@ GETMATCH_DONE
    DEY
    BNE COPY_MATCH_LOOP
    BEQ DECODE_TOKEN                     ; (*like JMP DECODE_TOKEN but shorter)
+
+GETMATCH_INC_HI
+   INC COPY_MATCH_LOOP+2
+   BNE GETMATCH_DONE                    ; (*like JMP GETMATCH_DONE but shorter)
 
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
@@ -122,7 +123,8 @@ GET_LONG_OFFSET                         ; handle 16 bit offset:
    CLC                                  ; add dest + match offset
    ADC PUTDST+1                         ; low 8 bits
    STA COPY_MATCH_LOOP+1                ; store back reference address
-   LDA OFFSHI                           ; high 8 bits
+OFFSHI = *+1
+   LDA #$AA                             ; high 8 bits
 
 GOT_OFFSET
    ADC PUTDST+2
@@ -146,8 +148,10 @@ GOT_OFFSET
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
                                         ; large match length with zero high byte?
-   BEQ DECOMPRESSION_DONE               ; if so, this is the EOD code, bail
-   BNE PREPARE_COPY_MATCH_Y             ; (*like JMP PREPARE_COPY_MATCH_Y but shorter)
+   BNE PREPARE_COPY_MATCH_Y             ; if not, continue
+                                        ; (*like JMP PREPARE_COPY_MATCH_Y but shorter)
+DECOMPRESSION_DONE
+   RTS
 
 GETPUT
    JSR GETSRC
@@ -156,10 +160,11 @@ LZSA_DST_LO = *+1
 LZSA_DST_HI = *+2
    STA $AAAA
    INC PUTDST+1
-   BNE PUTDST_DONE
-   INC PUTDST+2
+   BEQ PUTDST_INC_HI
 PUTDST_DONE
-DECOMPRESSION_DONE
+   RTS
+PUTDST_INC_HI
+   INC PUTDST+2
    RTS
 
 GETLARGESRC
@@ -172,7 +177,9 @@ LZSA_SRC_LO = *+1
 LZSA_SRC_HI = *+2
    LDA $AAAA
    INC GETSRC+1
-   BNE GETSRC_DONE
-   INC GETSRC+2
+   BEQ GETSRC_INC_HI
 GETSRC_DONE
+   RTS
+GETSRC_INC_HI
+   INC GETSRC+2
    RTS
