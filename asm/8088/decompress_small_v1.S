@@ -54,7 +54,7 @@ lzsa1_decompress:
    jne .mid_literals
 
    lodsw                   ; grab 16-bit extra length
-   .byte 81H               ; mask inc ah/lodsb
+   db 81H                  ; mask inc ah/lodsb
                            ; (*like jmp short .got_literals but faster)
 
 .mid_literals:
@@ -71,7 +71,7 @@ lzsa1_decompress:
    dec cx
    xchg cx,ax              ; ah to 0xff - cx was zero from the rep movsb above
    lodsb
-   .byte 3CH               ; mask lodsw
+   db 3CH                  ; mask lodsw
                            ; (*like jmp short .get_match_length but faster)
 
 .get_long_offset:
