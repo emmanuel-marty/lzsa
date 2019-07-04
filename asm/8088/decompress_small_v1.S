@@ -54,11 +54,12 @@ lzsa1_decompress:
    jne .mid_literals
 
    lodsw                   ; grab 16-bit extra length
-   jmp short .got_literals
+   .byte 81H               ; mask inc ah/lodsb
+                           ; (*like jmp short .got_literals but faster)
 
 .mid_literals:
-   lodsb                   ; grab single extra length byte
    inc ah                  ; add 256
+   lodsb                   ; grab single extra length byte
 
 .got_literals:
    xchg cx,ax
@@ -67,16 +68,17 @@ lzsa1_decompress:
    test dl,dl              ; check match offset size in token (O bit)
    js .get_long_offset
 
-   xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
+   dec cx
+   xchg cx,ax              ; ah to 0xff - cx was zero from the rep movsb above
    lodsb
-   dec ah
-   jmp short .get_match_length
+   .byte 3CH               ; mask lodsw
+                           ; (*like jmp short .get_match_length but faster)
 
 .get_long_offset:
    lodsw                   ; Get 2-byte match offset
 
 .get_match_length:
-   xchg ax,dx              ; dx: match offset  ax: original token
+   xchg dx,ax              ; dx: match offset  ax: original token
    and al,0FH              ; isolate match length in token (MMMM)
    add al,3                ; add MIN_MATCH_SIZE
 
@@ -90,8 +92,13 @@ lzsa1_decompress:
 
    lodsw                   ; grab 16-bit length
    test ax,ax              ; bail if we hit EOD
-   je short .done_decompressing 
-   jmp short .got_matchlen
+   jne short .got_matchlen
+
+.done_decompressing:
+   pop ax                  ; retrieve the original decompression offset
+   xchg ax,di              ; compute decompressed size
+   sub ax,di
+   ret                     ; done
 
 .mid_matchlen:
    lodsb                   ; grab single extra length byte
@@ -109,9 +116,3 @@ lzsa1_decompress:
    xchg si,ax              ; restore ds:si
    pop ds
    jmp short .decode_token ; go decode another token
-
-.done_decompressing:
-   pop ax                  ; retrieve the original decompression offset
-   xchg ax,di              ; compute decompressed size
-   sub ax,di
-   ret                     ; done

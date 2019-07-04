@@ -72,7 +72,7 @@ lzsa2_decompress:
    jnb .offset_9_bit
 
                            ; 5 bit offset
-   xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
+   xchg cx,ax              ; clear ah - cx is zero from the rep movsb above
    mov al,020H             ; shift Z (offset bit 4) in place
    and al,dl
    shl al,1
@@ -85,7 +85,7 @@ lzsa2_decompress:
    jmp short .get_match_length
 
 .offset_9_bit:             ; 9 bit offset
-   xchg ax,cx              ; clear ah - cx is zero from the rep movsb above
+   xchg cx,ax              ; clear ah - cx is zero from the rep movsb above
    lodsb                   ; get 8 bit offset from stream in A
    dec ah                  ; set offset bits 15-8 to 1
    test dl,020H            ; test bit Z (offset bit 8)
@@ -120,9 +120,9 @@ lzsa2_decompress:
    xchg ah,al
 
 .get_match_length:
-   mov bp,ax               ; bp: offset
+   xchg bp,ax              ; bp: offset
 .repeat_match:
-   mov ax,dx               ; ax: original token
+   xchg ax,dx              ; ax: original token
    and al,07H              ; isolate match length in token (MMM)
    add al,2                ; add MIN_MATCH_SIZE_V2
 
@@ -156,7 +156,7 @@ lzsa2_decompress:
 
 .done_decompressing:
    pop ax                  ; retrieve the original decompression offset
-   xchg ax,di              ; compute decompressed size
+   xchg di,ax              ; compute decompressed size
    sub ax,di
    ret                     ; done
 
@@ -166,7 +166,7 @@ lzsa2_decompress:
    
    xchg bx,ax
    lodsb                   ; load two nibbles
-   xchg ax,bx
+   xchg bx,ax
 
 .has_nibble:
    mov cl,4                ; swap 4 high and low bits of nibble
