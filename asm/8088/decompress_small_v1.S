@@ -92,17 +92,13 @@ lzsa1_decompress:
 
    lodsw                   ; grab 16-bit length
    test ax,ax              ; bail if we hit EOD
-   jne short .got_matchlen
+   je short .done_decompressing
 
-.done_decompressing:
-   pop ax                  ; retrieve the original decompression offset
-   xchg ax,di              ; compute decompressed size
-   sub ax,di
-   ret                     ; done
-
+   db 81H                  ; mask inc ah/lodsb
+                           ; (*like jmp short .got_literals but faster)
 .mid_matchlen:
-   lodsb                   ; grab single extra length byte
    inc ah                  ; add 256
+   lodsb                   ; grab single extra length byte
 
 .got_matchlen:
    xchg cx,ax              ; copy match length into cx
@@ -116,3 +112,9 @@ lzsa1_decompress:
    xchg si,ax              ; restore ds:si
    pop ds
    jmp short .decode_token ; go decode another token
+
+.done_decompressing:
+   pop ax                  ; retrieve the original decompression offset
+   xchg ax,di              ; compute decompressed size
+   sub ax,di
+   ret                     ; done
