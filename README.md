@@ -55,6 +55,12 @@ License:
 * The LZSA code is available under the Zlib license.
 * The match finder (matchfinder.c) is available under the CC0 license due to using portions of code from Eric Bigger's Wimlib in the suffix array-based matchfinder.
 
+8-bit assembly code:
+
+* Z80 decompressors (size- and speed-optimized) written by [introspec](https://github.com/specke)
+* 6502 and 8088 size-optimized improvements by [Peter Ferrie](https://github.com/peterferrie)
+* 8088 speed-optimized decompressor by [Jim Leonard](https://github.com/mobygamer)
+
 # Compressed format
 
 Decompression code is provided for common 8-bit CPUs such as Z80 and 6502. However, if you would like to write your own, or understand the encoding, LZSA compresses data to a format that is fast and simple to decompress on 8-bit CPUs. It is encoded in either a stream of blocks, or as a single raw block, depending on command-line settings. The encoding is deliberately designed to avoid complicated operations on 8-bits (such as 16-bit math).
