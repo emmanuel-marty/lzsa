@@ -445,6 +445,7 @@ static void lzsa_optimize_matches_v2(lzsa_compressor *pCompressor, const int nSt
  * impacting the compression ratio
  *
  * @param pCompressor compression context
+ * @param pBestMatch optimal matches to evaluate and update
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  *
@@ -754,13 +755,12 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const int nSt
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  *
- * @return compressed size
+ * @return compressed size, in bits
  */
 static int lzsa_get_compressed_size_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
    int nCompressedSize = 0;
-   int nCurNibbleOffset = -1, nCurFreeNibbles = 0;
    int nRepMatchOffset = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
