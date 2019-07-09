@@ -67,14 +67,13 @@ lzsa1_start:
         mov     dx,ax           ;keep token in dl
 
         and     al,070H         ;isolate literals length in token (LLL)
-        segcs   xlat            ;shift literals length into place
-
-        cmp     al,07H          ;LITERALS_RUN_LEN?
+        jz      @@check_offset_size ;if LLL=0, we have no literals; goto match
+        cmp     al,070H         ;LITERALS_RUN_LEN?
         jne     @@got_literals  ;no, we have full count from token; go copy
 
         lodsb                   ;grab extra length byte
         add     al,07H          ;add LITERALS_RUN_LEN
-        jnc     @@got_literals  ;if no overflow, we have full count; go copy
+        jnc     @@got_literals_exact ;if no overflow, we have full count
         jne     @@mid_literals
 
 @@big_literals:
@@ -97,6 +96,8 @@ lzsa1_start:
         jmp     @@check_offset_size
 
 @@got_literals:
+        segcs   xlat            ;shift literals length into place
+@@got_literals_exact:
         xchg    cx,ax
         rep     movsb           ;copy cx literals from ds:si to es:di
 @@check_offset_size:
@@ -233,3 +234,5 @@ END
 ; reverse 16-bit len compar shuttle 102000 alice 59263 robotron 364460 --- rb
 ; jcxz for EOD detection    no change to speed, but is 1 byte shorter  +++
 ; force movsw for literals  shuttle 107183 alice 62555 robotron 379524 --- rb
+; defer shr4 until necessry shuttle 102069 alice 60236 robotron 364096 --- rb
+; skip literals if LLL=0    shuttle  98655 alice 57849 robotron 363358 --- rb
