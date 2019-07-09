@@ -65,27 +65,21 @@ lzsa2_decompress:
    xchg cx,ax
    rep movsb               ; copy cx literals from ds:si to es:di
 
-   test dl,dl              ; check match offset mode in token (X bit)
+   test dl,0C0h            ; check match offset mode in token (X bit)
    js .rep_match_or_large_offset
 
-   cmp dl,040H             ; check if this is a 5 or 9-bit offset (Y bit)
-   jnb .offset_9_bit
+   ;;cmp dl,040H             ; check if this is a 5 or 9-bit offset (Y bit)
+                           ; discovered via the test with bit 6 set
+   xchg cx,ax              ; clear ah - cx is zero from the rep movsb above
+   jne .offset_9_bit
 
                            ; 5 bit offset
-   xchg cx,ax              ; clear ah - cx is zero from the rep movsb above
-   mov al,020H             ; shift Z (offset bit 4) in place
-   and al,dl
-   shl al,1
-   shl al,1
-   call .get_nibble        ; get nibble for offset bits 0-3
-   or al,cl                ; merge nibble
-   rol al,1
-   xor al,0E1H             ; set offset bits 7-5 to 1
+   cmp dl,020H             ; test bit 5
+   call .get_nibble_x
    dec ah                  ; set offset bits 15-8 to 1
    jmp short .get_match_length
 
 .offset_9_bit:             ; 9 bit offset
-   xchg cx,ax              ; clear ah - cx is zero from the rep movsb above
    lodsb                   ; get 8 bit offset from stream in A
    dec ah                  ; set offset bits 15-8 to 1
    test dl,020H            ; test bit Z (offset bit 8)
@@ -99,15 +93,11 @@ lzsa2_decompress:
 
                            ; 13 bit offset
 
-   mov ah,020H             ; shift Z (offset bit 12) in place
-   and ah,dl
-   shl ah,1
-   shl ah,1
-   call .get_nibble        ; get nibble for offset bits 8-11
-   or ah,cl                ; merge nibble
-   rol ah,1
-   xor ah,0E1H             ; set offset bits 15-13 to 1
-   sub ah,2                ; substract 512
+   cmp dl,0A0H             ; test bit 5 (knowing that bit 7 is also set)
+   xchg ah,al
+   call .get_nibble_x
+   sub al,2                ; substract 512
+   xchg ah,al
    lodsb                   ; load match offset bits 0-7
    jmp short .get_match_length
 
@@ -159,6 +149,15 @@ lzsa2_decompress:
    xchg di,ax              ; compute decompressed size
    sub ax,di
    ret                     ; done
+
+.get_nibble_x:
+   cmc                     ; carry set if bit 4 was set
+   rcr al,1
+   call .get_nibble        ; get nibble for offset bits 0-3
+   or al,cl                ; merge nibble
+   rol al,1
+   xor al,0E1H             ; set offset bits 7-5 to 1
+   ret
 
 .get_nibble:
    neg bh                  ; nibble ready?
