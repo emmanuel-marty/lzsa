@@ -76,15 +76,16 @@ lzsa2_decompress:
                            ; 5 bit offset
    cmp dl,020H             ; test bit 5
    call .get_nibble_x
-   dec ah                  ; set offset bits 15-8 to 1
-   jmp short .get_match_length
+   jmp short .dec_offset_top
 
 .offset_9_bit:             ; 9 bit offset
    lodsb                   ; get 8 bit offset from stream in A
    dec ah                  ; set offset bits 15-8 to 1
    test dl,020H            ; test bit Z (offset bit 8)
    je .get_match_length
+.dec_offset_top:
    dec ah                  ; clear bit 8 if Z bit is clear
+                           ; or set offset bits 15-8 to 1
    jmp short .get_match_length
 
 .rep_match_or_large_offset:
@@ -97,17 +98,18 @@ lzsa2_decompress:
    xchg ah,al
    call .get_nibble_x
    sub al,2                ; substract 512
-   xchg ah,al
-   lodsb                   ; load match offset bits 0-7
-   jmp short .get_match_length
+   jmp short .get_match_length_1
 
 .rep_match_or_16_bit:
    test dl,020H            ; test bit Z (offset bit 8)
    jne .repeat_match       ; rep-match
 
                            ; 16 bit offset
-   lodsw                   ; Get 2-byte match offset
+   lodsb                   ; Get 2-byte match offset
+
+.get_match_length_1:
    xchg ah,al
+   lodsb                   ; load match offset bits 0-7
 
 .get_match_length:
    xchg bp,ax              ; bp: offset
