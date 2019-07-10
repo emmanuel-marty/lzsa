@@ -81,10 +81,7 @@ NO_LITERALS
    BMI GET_LONG_OFFSET                  ; $80: 16 bit offset
 
    JSR GETSRC                           ; get 8 bit offset from stream in A
-
-   CLC                                  ; add dest + match offset
-   ADC PUTDST+1                         ; low 8 bits
-   STA COPY_MATCH_LOOP+1                ; store back reference address
+   TAX                                  ; save for later
    LDA #$0FF                            ; high 8 bits
    BNE GOT_OFFSET                       ; go prepare match
                                         ; (*like JMP GOT_OFFSET but shorter)
@@ -117,6 +114,7 @@ GETMATCH_INC_HI
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
 
+GOT_OFFSET
    STA OFFSHI                           ; store high 8 bits of offset
    TXA
 
@@ -126,7 +124,6 @@ GET_LONG_OFFSET                         ; handle 16 bit offset:
 OFFSHI = *+1
    LDA #$AA                             ; high 8 bits
 
-GOT_OFFSET
    ADC PUTDST+2
    STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
    
