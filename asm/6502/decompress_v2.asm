@@ -162,7 +162,7 @@ OFFSHI = *+1
                                         ; Handle 16 bits match length
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   .DB $A9                              ; mask TAX, faster than TXA/TAX
+   BYTE $A9                             ; mask TAX, faster than TXA/TAX
 
 PREPARE_COPY_MATCH
    TAX
