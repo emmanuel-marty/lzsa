@@ -129,8 +129,7 @@ OFFSHI = *+1
    
    PLA                                  ; retrieve token from stack again
    AND #$0F                             ; isolate match len (MMMM)
-   CLC
-   ADC #$03
+   ADC #$02                             ; plus carry which is always set by the high ADC
    CMP #$12                             ; MATCH_RUN_LEN?
    BNE PREPARE_COPY_MATCH               ; if not, count is directly embedded in token
 
