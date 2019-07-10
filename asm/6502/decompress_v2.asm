@@ -29,15 +29,10 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 ; -----------------------------------------------------------------------------
 
-OFFSLO = $43                            ; zero-page location for temp offset
-OFFSHI = $44
-FIXUP = $4B
-NIBBLES = $FB
-NIBCOUNT = $FC
+NIBCOUNT = $FC                          ; zero-page location for temp offset
 
 DECOMPRESS_LZSA2
    LDY #$00
-   STY NIBBLES
    STY NIBCOUNT
 
 DECODE_TOKEN
@@ -51,7 +46,7 @@ DECODE_TOKEN
 
    JSR GETNIBBLE                        ; get extra literals length nibble
                                         ; add nibble to len from token
-   ADC #$03                             ; (LITERALS_RUN_LEN_V2)
+   ADC #$02                             ; (LITERALS_RUN_LEN_V2) minus carry
    CMP #$12                             ; LITERALS_RUN_LEN_V2 + 15 ?
    BNE PREPARE_COPY_LITERALS            ; if less, literals count is complete
 
@@ -87,22 +82,22 @@ COPY_LITERALS
 NO_LITERALS
    PLA                                  ; retrieve token from stack
    PHA                                  ; preserve token again
-   BMI REPMATCH_OR_LARGE_OFFSET         ; 1YZ: rep-match or 13/16 bit offset
+   ASL
+   BCS REPMATCH_OR_LARGE_OFFSET         ; 1YZ: rep-match or 13/16 bit offset
 
    ASL                                  ; 0YZ: 5 or 9 bit offset
-   BMI OFFSET_9_BIT         
+   BCS OFFSET_9_BIT         
     
                                         ; 00Z: 5 bit offset
 
    LDX #$0FF                            ; set offset bits 15-8 to 1
-   STX OFFSHI
 
    JSR GETCOMBINEDBITS                  ; rotate Z bit into bit 0, read nibble for bits 4-1
    ORA #$E0                             ; set bits 7-5 to 1
    BNE GOT_OFFSET_LO                    ; go store low byte of match offset and prepare match
    
 OFFSET_9_BIT                            ; 01Z: 9 bit offset
-   ASL                                  ; shift Z (offset bit 8) in place
+   ;;ASL                                  ; shift Z (offset bit 8) in place
    ROL
    ROL
    AND #$01
@@ -112,7 +107,7 @@ OFFSET_9_BIT                            ; 01Z: 9 bit offset
 
 REPMATCH_OR_LARGE_OFFSET
    ASL                                  ; 13 bit offset?
-   BMI REPMATCH_OR_16_BIT               ; handle rep-match or 16-bit offset if not
+   BCS REPMATCH_OR_16_BIT               ; handle rep-match or 16-bit offset if not
 
                                         ; 10Z: 13 bit offset
 
@@ -122,36 +117,38 @@ REPMATCH_OR_LARGE_OFFSET
                                         ; (*same as JMP GOT_OFFSET_HI but shorter)
 
 REPMATCH_OR_16_BIT                      ; rep-match or 16 bit offset
-   ASL                                  ; XYZ=111?
+   ;;ASL                                  ; XYZ=111?
    BMI REP_MATCH                        ; reuse previous offset if so (rep-match)
    
                                         ; 110: handle 16 bit offset
    JSR GETSRC                           ; grab high 8 bits
 GOT_OFFSET_HI
-   STA OFFSHI                           ; store high byte of match offset
+   TAX
    JSR GETSRC                           ; grab low 8 bits
 GOT_OFFSET_LO
    STA OFFSLO                           ; store low byte of match offset
+   STX OFFSHI                           ; store high byte of match offset
 
 REP_MATCH
    CLC                                  ; add dest + match offset
    LDA PUTDST+1                         ; low 8 bits
-   ADC OFFSLO
+OFFSLO = *+1
+   ADC #$AA
    STA COPY_MATCH_LOOP+1                ; store back reference address
-   LDA OFFSHI                           ; high 8 bits
+OFFSHI = *+1
+   LDA #$AA                             ; high 8 bits
    ADC PUTDST+2
    STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
    
    PLA                                  ; retrieve token from stack again
    AND #$07                             ; isolate match len (MMM)
-   CLC
-   ADC #$02                             ; add MIN_MATCH_SIZE_V2
+   ADC #$01                             ; add MIN_MATCH_SIZE_V2 and carry
    CMP #$09                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
    BNE PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
 
    JSR GETNIBBLE                        ; get extra match length nibble
                                         ; add nibble to len from token
-   ADC #$09                             ; (MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2)
+   ADC #$08                             ; (MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2) minus carry
    CMP #$18                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
    BNE PREPARE_COPY_MATCH               ; if less, match length is complete
 
@@ -165,7 +162,7 @@ REP_MATCH
                                         ; Handle 16 bits match length
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   TXA
+   .DB $A9                              ; mask TAX, faster than TXA/TAX
 
 PREPARE_COPY_MATCH
    TAX
@@ -188,34 +185,33 @@ GETMATCH_INC_HI
    BNE GETMATCH_DONE                    ; (*like JMP GETMATCH_DONE but shorter)
 
 GETCOMBINEDBITS
-   STA FIXUP
+   EOR #$80
+   ASL
+   PHP
 
    JSR GETNIBBLE                        ; get nibble into bits 0-3 (for offset bits 1-4)
-   BIT FIXUP                            ; merge Z bit as the carry bit (for offset bit 0)
-   BVS COMBINEDBITZ
-   SEC
+   PLP                                  ; merge Z bit as the carry bit (for offset bit 0)
 COMBINEDBITZ
    ROL                                  ; nibble -> bits 1-4; carry(!Z bit) -> bit 0 ; carry cleared
    RTS
 
 GETNIBBLE
+NIBBLES = *+1
+   LDA #$AA
    LSR NIBCOUNT
    BCS HAS_NIBBLES
 
    INC NIBCOUNT
    JSR GETSRC                           ; get 2 nibbles
    STA NIBBLES
-   LSR A
-   LSR A
-   LSR A
-   LSR A
-   CLC
-   RTS
+   LSR 
+   LSR 
+   LSR 
+   LSR 
+   SEC
 
 HAS_NIBBLES
-   LDA NIBBLES
    AND #$0F                             ; isolate low 4 bits of nibble
-   CLC
    RTS
 
 GETPUT
