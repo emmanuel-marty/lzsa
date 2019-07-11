@@ -37,8 +37,12 @@ DECODE_TOKEN
 
    AND #$70                             ; isolate literals count
    BEQ NO_LITERALS                      ; skip if no literals to copy
-   CMP #$70                             ; LITERALS_RUN_LEN?
-   BNE EMBEDDED_LITERALS                ; if not, count is directly embedded in token
+   LSR A                                ; shift literals count into place
+   LSR A
+   LSR A
+   LSR A
+   CMP #$07                             ; LITERALS_RUN_LEN?
+   BNE PREPARE_COPY_LITERALS            ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable literals count
                                         ; the carry is always set by the CMP above
@@ -55,14 +59,7 @@ LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   BCS PREPARE_COPY_LITERALS_HIGH       ; (*like JMP PREPARE_COPY_LITERALS_HIGH but shorter)
-
-EMBEDDED_LITERALS
-   LSR A                                ; shift literals count into place
-   LSR A
-   LSR A
-   LSR A
-
+   .DB $A9                              ; mask TAX (faster than BCS)
 PREPARE_COPY_LITERALS
    TAX
 PREPARE_COPY_LITERALS_HIGH
