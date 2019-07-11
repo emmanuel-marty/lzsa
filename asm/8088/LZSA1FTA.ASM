@@ -27,11 +27,21 @@
 
         IDEAL
         P8086
-        MODEL SMALL
 
-        CODESEG
+SEGMENT CODE para public
+
+ASSUME  cs:CODE, ds:CODE
 
 PUBLIC  lzsa1_decompress_speed
+
+;  ---------------------------------------------------------------------------
+;  Decompress raw LZSA1 block
+;  inputs:
+;  * ds:si: raw LZSA1 block
+;  * es:di: output buffer
+;  output:
+;  * ax:    decompressed size
+;  ---------------------------------------------------------------------------
 
 ; Must declare this in the code segment:
 SHR4table:
@@ -44,27 +54,18 @@ SHR4table:
         DB 06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h
         DB 07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h
 
-;  ---------------------------------------------------------------------------
-;  Decompress raw LZSA1 block
-;  inputs:
-;  * ds:si: raw LZSA1 block
-;  * es:di: output buffer
-;  output:
-;  * ax:    decompressed size
-;  ---------------------------------------------------------------------------
-
 PROC    lzsa1_decompress_speed  NEAR
 
 lzsa1_start:
         push    di              ;remember decompression offset
         cld                     ;ensure string ops move forward
-        mov     bx,offset SHR4table ;table lookup faster than bitops if op > 3
+        mov     bx,offset SHR4table
         xor     cx,cx
 
 @@decode_token:
-        mov     ax,cx           ;clear ah (cx = 0 from match copy's rep movsb)
+        xchg    cx,ax           ;clear ah (cx = 0 from match copy's rep movsb)
         lodsb                   ;read token byte: O|LLL|MMMM
-        mov     dx,ax           ;keep token in dl
+        mov     dx,ax           ;copy our token to dl for later MMMM handling
 
         and     al,070H         ;isolate literals length in token (LLL)
         jz      @@check_offset_size ;if LLL=0, we have no literals; goto match
@@ -74,16 +75,7 @@ lzsa1_start:
         lodsb                   ;grab extra length byte
         add     al,07H          ;add LITERALS_RUN_LEN
         jnc     @@got_literals_exact ;if no overflow, we have full count
-        jne     @@mid_literals
-
-@@big_literals:
-        lodsw                   ;grab 16-bit extra length
-        xchg    cx,ax           ;with longer counts, we can save some time
-        shr     cx,1            ;by doing a word copy instead of a byte copy.
-        rep     movsw
-        adc     cx,0
-        rep     movsb
-        jmp     @@check_offset_size
+        je      @@big_literals
 
 @@mid_literals:
         lodsb                   ;grab single extra length byte
@@ -95,11 +87,21 @@ lzsa1_start:
         rep     movsb
         jmp     @@check_offset_size
 
+@@big_literals:
+        lodsw                   ;grab 16-bit extra length
+        xchg    cx,ax           ;with longer counts, we can save some time
+        shr     cx,1            ;by doing a word copy instead of a byte copy.
+        rep     movsw
+        adc     cx,0
+        rep     movsb
+        jmp     @@check_offset_size
+
 @@got_literals:
         segcs   xlat            ;shift literals length into place
 @@got_literals_exact:
         xchg    cx,ax
         rep     movsb           ;copy cx literals from ds:si to es:di
+
 @@check_offset_size:
         test    dl,dl           ;check match offset size in token (O bit)
         js      @@get_long_offset ;load absolute 16-bit match offset
@@ -110,9 +112,7 @@ lzsa1_start:
 @@get_match_length:
         xchg    dx,ax           ;dx: match offset  ax: original token
         and     al,0FH          ;isolate match length in token (MMMM)
-        add     al,3            ;add MIN_MATCH_SIZE
-
-        cmp     al,012H         ;MATCH_RUN_LEN?
+        cmp     al,0FH         ;MATCH_RUN_LEN?
         jne     @@got_matchlen_short  ;no, we have the full match length from the token, go copy
 
         lodsb                   ;grab extra length byte
@@ -126,6 +126,7 @@ lzsa1_start:
         jmp     @@copy_len_preset ;otherwise, do the copy
 
 @@got_matchlen_short:
+        add     al,3            ;add MIN_MATCH_SIZE
         xchg    cx,ax           ;copy match length into cx
         mov     bp,ds           ;save ds
         mov     ax,es
@@ -207,7 +208,7 @@ lzsa1_start:
 
 ENDP    lzsa1_decompress_speed
 
-ENDS
+ENDS    CODE
 
 END
 
@@ -234,5 +235,17 @@ END
 ; reverse 16-bit len compar shuttle 102000 alice 59263 robotron 364460 --- rb
 ; jcxz for EOD detection    no change to speed, but is 1 byte shorter  +++
 ; force movsw for literals  shuttle 107183 alice 62555 robotron 379524 --- rb
-; defer shr4 until necessry shuttle 102069 alice 60236 robotron 364096 --- rb
-; skip literals if LLL=0    shuttle  98655 alice 57849 robotron 363358 --- rb
+; defer shr4 until necessry shuttle 102069 alice 60236 robotron 364096 ---
+; skip literals if LLL=0    shuttle  98655 alice 57849 robotron 363358 ---
+; fall through to mid_liter shuttle  98595 alice 57789 robotron 361998 +++
+; == jumptable experiments begin ==
+; jumptable for small copys shuttle 101594 alice 61078 robotron 386018 ---
+; start:xchg instead of mov shuttle 100948 alice 60467 robotron 381112 +++
+; use table for LLL=0 check shuttle 106972 alice 63333 robotron 388304 --- rb
+; jmptbl to fallthrough mov shuttle 102532 alice 60760 robotron 383070 ---
+; cpy fallthrough check_ofs shuttle  98939 alice 58917 robotron 371019 +**
+; single jumptable jump     shuttle  97528 alice 57264 robotron 362194 ++*
+; conditional check for L=7 shuttle  98610 alice 58521 robotron 368153 --- rb
+; rip out the jumptable :-/ shuttle  97616 alice 57128 robotron 360697 +++
+; defer add MIN_MATCH_SIZE  shuttle  97250 alice 57004 robotron 361191 ++?
+; cache constants in regs   shuttle 104681 alice 59939 robotron 380125 --- rb
