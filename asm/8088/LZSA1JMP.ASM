@@ -1,4 +1,4 @@
-;  lzsa1fta.asm - time-efficient LZSA1 decompressor implementation for 8088
+;  lzsa1jmp.asm  - time-efficient LZSA1 decompressor implementation for 8086.
 ;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
@@ -32,7 +32,7 @@ SEGMENT CODE para public
 
 ASSUME  cs:CODE, ds:CODE
 
-PUBLIC  lzsa1_decompress_speed
+PUBLIC  lzsa1_decompress_speed_jumptable
 
 ;  ---------------------------------------------------------------------------
 ;  Decompress raw LZSA1 block
@@ -43,23 +43,36 @@ PUBLIC  lzsa1_decompress_speed
 ;  * ax:    decompressed size
 ;  ---------------------------------------------------------------------------
 
-; Must declare this in the code segment:
-SHR4table:
-        DB 00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h,00h
-        DB 01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h,01h
-        DB 02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h,02h
-        DB 03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h,03h
-        DB 04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h,04h
-        DB 05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h,05h
-        DB 06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h,06h
-        DB 07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h,07h
+;Jump table for handling LLL bits in initial LZSA1 tokens.
+;Previous code would SHR val,4 to get a count from 0 to 7, then rep movsb.
+;We can overload the shift operation into a jump table that jumps directly
+;to optimized copying routine for 0-7 bytes.  Must declare in code segment.
+;Note: If this looks strange for declaring a jump table, that's because it
+;is a workaround for the Turbo Pascal harness that tests it.  Turbo Pascal
+;treats OFFSET (label) as a relocatble item and throws an error, so we fool
+;it by building the table with absolute EQU/literals instead.
+L0b EQU OFFSET check_offset_size
+L1b EQU OFFSET copy1b
+L2b EQU OFFSET copy2b
+L3b EQU OFFSET copy3b
+L4b EQU OFFSET copy4b
+L5b EQU OFFSET copy5b
+L6b EQU OFFSET copy6b
+L7b EQU OFFSET need_length_byte
+copytable DW L0b,L0b,L0b,L0b,L0b,L0b,L0b,L0b
+          DW L1b,L1b,L1b,L1b,L1b,L1b,L1b,L1b
+          DW L2b,L2b,L2b,L2b,L2b,L2b,L2b,L2b
+          DW L3b,L3b,L3b,L3b,L3b,L3b,L3b,L3b
+          DW L4b,L4b,L4b,L4b,L4b,L4b,L4b,L4b
+          DW L5b,L5b,L5b,L5b,L5b,L5b,L5b,L5b
+          DW L6b,L6b,L6b,L6b,L6b,L6b,L6b,L6b
+          DW L7b,L7b,L7b,L7b,L7b,L7b,L7b,L7b
 
-PROC    lzsa1_decompress_speed  NEAR
+PROC    lzsa1_decompress_speed_jumptable  NEAR
 
 lzsa1_start:
         push    di              ;remember decompression offset
         cld                     ;ensure string ops move forward
-        mov     bx,offset SHR4table
         xor     cx,cx
 
 @@decode_token:
@@ -68,10 +81,13 @@ lzsa1_start:
         mov     dx,ax           ;copy our token to dl for later MMMM handling
 
         and     al,070H         ;isolate literals length in token (LLL)
-        jz      @@check_offset_size ;if LLL=0, we have no literals; goto match
-        cmp     al,070H         ;LITERALS_RUN_LEN?
-        jne     @@got_literals  ;no, we have full count from token; go copy
+        jz      check_offset_size ;if LLL=0, we have no literals; goto match
 
+; Jump to short copy routine for LLL=1 though 6, need_length_byte for LLL=7
+        mov     bx,ax           ;prep for table lookup (must copy, don't XCHG!)
+        jmp     [cs:copytable+bx]
+
+need_length_byte:
         lodsb                   ;grab extra length byte
         add     al,07H          ;add LITERALS_RUN_LEN
         jnc     @@got_literals_exact ;if no overflow, we have full count
@@ -85,7 +101,7 @@ lzsa1_start:
         rep     movsw           ;We don't need to account for overlap because
         adc     cx,0            ;source for literals isn't the output buffer.
         rep     movsb
-        jmp     @@check_offset_size
+        jmp     check_offset_size
 
 @@big_literals:
         lodsw                   ;grab 16-bit extra length
@@ -94,15 +110,24 @@ lzsa1_start:
         rep     movsw
         adc     cx,0
         rep     movsb
-        jmp     @@check_offset_size
+        jmp     check_offset_size
 
-@@got_literals:
-        segcs   xlat            ;shift literals length into place
+; Used for counts 7-248. In test data, average value around 1Ah.  YMMV.
 @@got_literals_exact:
         xchg    cx,ax
         rep     movsb           ;copy cx literals from ds:si to es:di
+        jmp     check_offset_size
 
-@@check_offset_size:
+;Literal copy sequence for lengths 1-6:
+copy6b: movsb
+copy5b: movsb
+copy4b: movsb
+copy3b: movsb
+copy2b: movsb
+copy1b: movsb
+
+;Literals done; fall through to match offset determination
+check_offset_size:
         test    dl,dl           ;check match offset size in token (O bit)
         js      @@get_long_offset ;load absolute 16-bit match offset
 
@@ -125,10 +150,6 @@ lzsa1_start:
         jcxz    @@done_decompressing ;wait, is it the EOD marker? Exit if so
         jmp     @@copy_len_preset ;otherwise, do the copy
 
-@@get_long_offset:
-        lodsw                   ;Get 2-byte match offset
-        jmp     @@get_match_length
-
 @@got_matchlen_short:
         add     al,3            ;add MIN_MATCH_SIZE
         xchg    cx,ax           ;copy match length into cx
@@ -148,6 +169,11 @@ lzsa1_start:
         xchg    di,ax           ;compute decompressed size
         sub     ax,di
         ret                     ;done decompressing, exit to caller
+
+;These are called less often; moved here to optimize the fall-through case
+@@get_long_offset:
+        lodsw                   ;Get 2-byte match offset
+        jmp     @@get_match_length
 
 ;With a confirmed longer match length, we have an opportunity to optimize for
 ;the case where a single byte is repeated long enough that we can benefit
@@ -205,7 +231,7 @@ lzsa1_start:
         pop     ds
         jmp     @@decode_token  ;go decode another token
 
-ENDP    lzsa1_decompress_speed
+ENDP    lzsa1_decompress_speed_jumptable
 
 ENDS    CODE
 
@@ -245,6 +271,4 @@ END
 ; cpy fallthrough check_ofs shuttle  98939 alice 58917 robotron 371019 +**
 ; single jumptable jump     shuttle  97528 alice 57264 robotron 362194 ++*
 ; conditional check for L=7 shuttle  98610 alice 58521 robotron 368153 --- rb
-; rip out the jumptable :-/ shuttle  97616 alice 57128 robotron 360697 +++
-; defer add MIN_MATCH_SIZE  shuttle  97250 alice 57004 robotron 361191 ++?
-; cache constants in regs   shuttle 104681 alice 59939 robotron 380125 --- rb
+; defer add MIN_MATCH_SIZE  shuttle  97207 alice 57200 robotron 362884 ++*
