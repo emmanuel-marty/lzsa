@@ -89,8 +89,8 @@ lzsa2_decompress:
    jmp short .get_match_length
 
 .rep_match_or_large_offset:
-   cmp dl,0c0H             ; check if this is a 13-bit offset or a 16-bit offset/rep match (Y bit)
-   jnb .rep_match_or_16_bit
+   ;;cmp dl,0c0H             ; check if this is a 13-bit offset or a 16-bit offset/rep match (Y bit)
+   jpe .rep_match_or_16_bit
 
                            ; 13 bit offset
 

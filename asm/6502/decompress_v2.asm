@@ -41,34 +41,32 @@ DECODE_TOKEN
 
    AND #$18                             ; isolate literals count (LL)
    BEQ NO_LITERALS                      ; skip if no literals to copy
-   CMP #$18                             ; LITERALS_RUN_LEN_V2 << 3?
-   BNE EMBEDDED_LITERALS                ; if less, count is directly embedded in token
+   LSR A                                ; shift literals count into place
+   LSR A
+   LSR A
+   CMP #$03                             ; LITERALS_RUN_LEN_V2?
+   BCC PREPARE_COPY_LITERALS            ; if less, count is directly embedded in token
 
    JSR GETNIBBLE                        ; get extra literals length nibble
                                         ; add nibble to len from token
    ADC #$02                             ; (LITERALS_RUN_LEN_V2) minus carry
    CMP #$12                             ; LITERALS_RUN_LEN_V2 + 15 ?
-   BNE PREPARE_COPY_LITERALS            ; if less, literals count is complete
+   BCC PREPARE_COPY_LITERALS            ; if less, literals count is complete
 
    JSR GETSRC                           ; get extra byte of variable literals count
                                         ; the carry is always set by the CMP above
                                         ; GETSRC doesn't change it
    SBC #$EE                             ; overflow?
-   BCC PREPARE_COPY_LITERALS            ; if not, literals count is complete
+
+PREPARE_COPY_LITERALS
+   TAX
+   BCC PREPARE_COPY_LITERALS_HIGH       ; if not, literals count is complete
 
                                         ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   BCS PREPARE_COPY_LITERALS_HIGH       ; (*like JMP PREPARE_COPY_LITERALS_HIGH but shorter)
 
-EMBEDDED_LITERALS
-   LSR A                                ; shift literals count into place
-   LSR A
-   LSR A
-
-PREPARE_COPY_LITERALS
-   TAX
 PREPARE_COPY_LITERALS_HIGH
    INY
 
@@ -144,35 +142,36 @@ OFFSHI = *+1
    AND #$07                             ; isolate match len (MMM)
    ADC #$01                             ; add MIN_MATCH_SIZE_V2 and carry
    CMP #$09                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
-   BNE PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
+   BCC PREPARE_COPY_MATCH               ; if less, length is directly embedded in token
 
    JSR GETNIBBLE                        ; get extra match length nibble
                                         ; add nibble to len from token
    ADC #$08                             ; (MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2) minus carry
    CMP #$18                             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
-   BNE PREPARE_COPY_MATCH               ; if less, match length is complete
+   BCC PREPARE_COPY_MATCH               ; if less, match length is complete
 
    JSR GETSRC                           ; get extra byte of variable match length
                                         ; the carry is always set by the CMP above
                                         ; GETSRC doesn't change it
    SBC #$E8                             ; overflow?
-   BCC PREPARE_COPY_MATCH               ; if not, the match length is complete
+
+PREPARE_COPY_MATCH
+   TAX
+   BCC PREPARE_COPY_MATCH_Y             ; if not, the match length is complete
    BEQ DECOMPRESSION_DONE               ; if EOD code, bail
 
                                         ; Handle 16 bits match length
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   BYTE $A9                             ; mask TAX, faster than TXA/TAX
 
-PREPARE_COPY_MATCH
-   TAX
 PREPARE_COPY_MATCH_Y
    INY
 
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    INC COPY_MATCH_LOOP+1
-   BEQ GETMATCH_INC_HI
+   BNE GETMATCH_DONE
+   INC COPY_MATCH_LOOP+2
 GETMATCH_DONE
    JSR PUTDST                           ; copy to destination
    DEX
@@ -180,9 +179,6 @@ GETMATCH_DONE
    DEY
    BNE COPY_MATCH_LOOP
    JMP DECODE_TOKEN
-GETMATCH_INC_HI
-   INC COPY_MATCH_LOOP+2
-   BNE GETMATCH_DONE                    ; (*like JMP GETMATCH_DONE but shorter)
 
 GETCOMBINEDBITS
    EOR #$80
@@ -193,6 +189,7 @@ GETCOMBINEDBITS
    PLP                                  ; merge Z bit as the carry bit (for offset bit 0)
 COMBINEDBITZ
    ROL                                  ; nibble -> bits 1-4; carry(!Z bit) -> bit 0 ; carry cleared
+DECOMPRESSION_DONE
    RTS
 
 GETNIBBLE
@@ -221,12 +218,9 @@ LZSA_DST_LO = *+1
 LZSA_DST_HI = *+2
    STA $AAAA
    INC PUTDST+1
-   BEQ PUTDST_INC_HI
-PUTDST_DONE
-DECOMPRESSION_DONE
-   RTS
-PUTDST_INC_HI
+   BNE PUTDST_DONE
    INC PUTDST+2
+PUTDST_DONE
    RTS
 
 GETLARGESRC
@@ -239,9 +233,7 @@ LZSA_SRC_LO = *+1
 LZSA_SRC_HI = *+2
    LDA $AAAA
    INC GETSRC+1
-   BEQ GETSRC_INC_HI
-GETSRC_DONE
-   RTS
-GETSRC_INC_HI
+   BNE GETSRC_DONE
    INC GETSRC+2
+GETSRC_DONE
    RTS
