@@ -42,7 +42,7 @@ DECODE_TOKEN
    LSR A
    LSR A
    CMP #$07                             ; LITERALS_RUN_LEN?
-   BNE PREPARE_COPY_LITERALS            ; if not, count is directly embedded in token
+   BCC PREPARE_COPY_LITERALS            ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable literals count
                                         ; the carry is always set by the CMP above
@@ -62,7 +62,6 @@ LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
    BYTE $A9                             ; mask TAX (faster than BCS)
 PREPARE_COPY_LITERALS
    TAX
-PREPARE_COPY_LITERALS_HIGH
    INY
 
 COPY_LITERALS
@@ -95,7 +94,8 @@ PREPARE_COPY_MATCH_Y
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    INC COPY_MATCH_LOOP+1
-   BEQ GETMATCH_INC_HI
+   BNE GETMATCH_DONE
+   INC COPY_MATCH_LOOP+2
 GETMATCH_DONE
    JSR PUTDST                           ; copy to destination
    DEX
@@ -103,10 +103,6 @@ GETMATCH_DONE
    DEY
    BNE COPY_MATCH_LOOP
    BEQ DECODE_TOKEN                     ; (*like JMP DECODE_TOKEN but shorter)
-
-GETMATCH_INC_HI
-   INC COPY_MATCH_LOOP+2
-   BNE GETMATCH_DONE                    ; (*like JMP GETMATCH_DONE but shorter)
 
 GET_LONG_OFFSET                         ; handle 16 bit offset:
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
@@ -128,7 +124,7 @@ OFFSHI = *+1
    AND #$0F                             ; isolate match len (MMMM)
    ADC #$02                             ; plus carry which is always set by the high ADC
    CMP #$12                             ; MATCH_RUN_LEN?
-   BNE PREPARE_COPY_MATCH               ; if not, count is directly embedded in token
+   BCC PREPARE_COPY_MATCH               ; if not, count is directly embedded in token
 
    JSR GETSRC                           ; get extra byte of variable match length
                                         ; the carry is always set by the CMP above
@@ -142,7 +138,7 @@ OFFSHI = *+1
    TAY                                  ; put high 8 bits in Y
                                         ; large match length with zero high byte?
    BNE PREPARE_COPY_MATCH_Y             ; if not, continue
-                                        ; (*like JMP PREPARE_COPY_MATCH_Y but shorter)
+
 DECOMPRESSION_DONE
    RTS
 
@@ -153,11 +149,9 @@ LZSA_DST_LO = *+1
 LZSA_DST_HI = *+2
    STA $AAAA
    INC PUTDST+1
-   BEQ PUTDST_INC_HI
-PUTDST_DONE
-   RTS
-PUTDST_INC_HI
+   BNE PUTDST_DONE
    INC PUTDST+2
+PUTDST_DONE
    RTS
 
 GETLARGESRC
@@ -170,9 +164,7 @@ LZSA_SRC_LO = *+1
 LZSA_SRC_HI = *+2
    LDA $AAAA
    INC GETSRC+1
-   BEQ GETSRC_INC_HI
-GETSRC_DONE
-   RTS
-GETSRC_INC_HI
+   BNE GETSRC_DONE
    INC GETSRC+2
+GETSRC_DONE
    RTS
