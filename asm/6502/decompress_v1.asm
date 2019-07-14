@@ -62,6 +62,7 @@ LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
    BYTE $A9                             ; mask TAX (faster than BCS)
 PREPARE_COPY_LITERALS
    TAX
+   BEQ COPY_LITERALS
    INY
 
 COPY_LITERALS
@@ -89,6 +90,8 @@ SHORT_VARLEN_MATCHLEN
 PREPARE_COPY_MATCH
    TAX
 PREPARE_COPY_MATCH_Y
+   TXA
+   BEQ COPY_MATCH_LOOP
    INY
 
 COPY_MATCH_LOOP

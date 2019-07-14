@@ -68,6 +68,8 @@ PREPARE_COPY_LITERALS
    TAY                                  ; put high 8 bits in Y
 
 PREPARE_COPY_LITERALS_HIGH
+   TXA
+   BEQ COPY_LITERALS
    INY
 
 COPY_LITERALS
@@ -165,6 +167,8 @@ PREPARE_COPY_MATCH
    TAY                                  ; put high 8 bits in Y
 
 PREPARE_COPY_MATCH_Y
+   TXA
+   BEQ COPY_MATCH_LOOP
    INY
 
 COPY_MATCH_LOOP
