@@ -1,4 +1,4 @@
-;  lzsa2fta.asm - LZSA v2 time-efficient decompressor implementation for 8088
+;  decompress_speed_v2.S - LZSA v2 time-efficient decompressor implementation for 8088
 ;  NASM syntax.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
