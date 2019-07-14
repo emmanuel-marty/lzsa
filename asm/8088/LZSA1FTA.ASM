@@ -1,4 +1,4 @@
-;  lzsa1fta.asm - time-efficient LZSA1 decompressor implementation for 8088
+;  lzsa1fta.asm time-efficient decompressor implementation for 8088
 ;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
