@@ -1,5 +1,5 @@
-;  lzsa1fta.asm time-efficient decompressor implementation for 8088
-;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
+;  decompress_speed_v1.S - time-efficient decompressor implementation for 8088
+;  NASM syntax.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
 ;  - Assumes it was invoked via NEAR call (change RET to RETF for FAR calls)
