@@ -46,9 +46,9 @@
 #define OPT_RAW         2
 #define OPT_FAVOR_RATIO 4
 
-#define TOOL_VERSION "1.0.3"
+#define TOOL_VERSION "1.0.4"
 
- /*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 #ifdef _WIN32
 LARGE_INTEGER hpc_frequency;
