@@ -3,6 +3,8 @@ LZSA is a collection of byte-aligned compression formats that are specifically e
 ![Pareto frontier](pareto_graph.png)
 <sup>*ZX Spectrum</sup>
 
+Check out [The Hollow](https://www.pouet.net/prod.php?which=81909) by Darklite and Offense, winner of the Solskogen 2019 wild compo, that uses LZSA on Z80.
+
 The LZSA compression tool uses an aggressive optimal packing strategy to try to find the sequence of commands that gives the smallest packed file that decompresses to the original while maintaining the maximum possible decompression speed.
 
 The compression formats give the user choices that range from decompressing faster than LZ4 on 8-bit systems with better compression, to compressing as well as ZX7 with much better decompression speed. LZSA1 is designed to replace LZ4 and LZSA2 to replace ZX7, in 8-bit scenarios.
