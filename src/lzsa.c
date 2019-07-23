@@ -1005,8 +1005,8 @@ int main(int argc, char **argv) {
       fprintf(stderr, "usage: %s [-c] [-d] [-v] [-r] <infile> <outfile>\n", argv[0]);
       fprintf(stderr, "       -c: check resulting stream after compressing\n");
       fprintf(stderr, "       -d: decompress (default: compress)\n");
-      fprintf(stderr, "  -cbench: benchmary in-memory compression\n");
-      fprintf(stderr, "  -dbench: benchmary in-memory decompression\n");
+      fprintf(stderr, "  -cbench: benchmark in-memory compression\n");
+      fprintf(stderr, "  -dbench: benchmark in-memory decompression\n");
       fprintf(stderr, "    -test: run automated self-tests\n");
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -f <value>: LZSA compression format (1-2)\n");

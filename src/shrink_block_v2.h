@@ -41,13 +41,13 @@ typedef struct _lzsa_compressor lzsa_compressor;
  *
  * @param pCompressor compression context
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
- * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
- * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nPreviousBlockSize number of previously compressed bytes (or 0 for none)
+ * @param nInDataSize number of input bytes to compress
  * @param pOutData pointer to output buffer
  * @param nMaxOutDataSize maximum size of output buffer, in bytes
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize);
+int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
 #endif /* _SHRINK_BLOCK_V2_H */

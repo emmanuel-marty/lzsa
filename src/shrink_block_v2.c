@@ -1035,8 +1035,8 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
  *
  * @param pCompressor compression context
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
- * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
- * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nPreviousBlockSize number of previously compressed bytes (or 0 for none)
+ * @param nInDataSize number of input bytes to compress
  * @param pOutData pointer to output buffer
  * @param nMaxOutDataSize maximum size of output buffer, in bytes
  *

@@ -177,6 +177,8 @@ int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, int nBlockS
                if (nMatchLen == (MATCH_RUN_LEN_V1 + MIN_MATCH_SIZE_V1)) {
                   if (lzsa_build_match_len_v1(&pInBlock, pInBlockEnd, &nMatchLen))
                      return -1;
+                  if (nMatchLen == 0)
+                     break;
                }
 
                if ((pCurOutData + nMatchLen) <= pOutDataEnd) {

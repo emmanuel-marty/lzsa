@@ -107,8 +107,7 @@ size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOut
    const int nHeaderSize = lzsa_get_header_size();
 
    if (nFlags & LZSA_FLAG_RAW_BLOCK) {
-      int nEODBytes = (*pFormatVersion == 2) ? 2 : 4;
-      return (size_t)lzsa_decompressor_expand_block(pFileData, (int)nFileSize - nEODBytes /* EOD marker */, pOutBuffer, 0, (int)nMaxOutBufferSize, *pFormatVersion);
+      return (size_t)lzsa_decompressor_expand_block(pFileData, (int)nFileSize, pOutBuffer, 0, (int)nMaxOutBufferSize, *pFormatVersion);
    }
 
    /* Check header */

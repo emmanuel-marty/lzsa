@@ -80,6 +80,9 @@ static inline FORCE_INLINE int lzsa_build_len_v2(const unsigned char **ppInBlock
                   return -1;
                }
             }
+            else if ((*nLength) == 256) {
+               (*nLength) = 0;
+            }
          }
          else {
             return -1;
@@ -202,6 +205,8 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
                if (nMatchLen == (MATCH_RUN_LEN_V2 + MIN_MATCH_SIZE_V2)) {
                   if (lzsa_build_len_v2(&pInBlock, pInBlockEnd, &nCurNibbles, &nibbles, &nMatchLen))
                      return -1;
+                  if (nMatchLen == 0)
+                     break;
                }
 
                if ((pCurOutData + nMatchLen) <= pOutDataEnd) {
