@@ -71,6 +71,7 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->max_forward_depth = 0;
    pCompressor->format_version = nFormatVersion;
    pCompressor->flags = nFlags;
+   pCompressor->safe_dist = 0;
    pCompressor->num_commands = 0;
 
    if (!nResult) {

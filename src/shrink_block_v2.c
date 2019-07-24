@@ -915,6 +915,12 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
 
          i += nMatchLen;
 
+         if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
+            int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+            if (nCurSafeDist >= 0 && pCompressor->safe_dist < nCurSafeDist)
+               pCompressor->safe_dist = nCurSafeDist;
+         }
+
          pCompressor->num_commands++;
       }
       else {
@@ -943,6 +949,12 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          memcpy(pOutData + nOutOffset, pInWindow + nInFirstLiteralOffset, nNumLiterals);
          nOutOffset += nNumLiterals;
          nNumLiterals = 0;
+      }
+
+      if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
+         int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+         if (nCurSafeDist >= 0 && pCompressor->safe_dist < nCurSafeDist)
+            pCompressor->safe_dist = nCurSafeDist;
       }
 
       pCompressor->num_commands++;

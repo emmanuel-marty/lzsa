@@ -62,7 +62,7 @@ typedef enum _lzsa_status_t lzsa_status_t;
  */
 lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount);
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist);
 
 /*-------------- Streaming API -------------- */
 
@@ -85,7 +85,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
  */
 lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount);
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist);
 
 #ifdef __cplusplus
 }

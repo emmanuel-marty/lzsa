@@ -74,7 +74,7 @@ static void lzsa_delete_file(const char *pszInFilename) {
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
 lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-      void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount) {
+      void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist) {
    lzsa_stream_t inStream, outStream;
    void *pDictionaryData = NULL;
    int nDictionaryDataSize = 0;
@@ -98,7 +98,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
       return nStatus;
    }
 
-   nStatus = lzsa_compress_stream(&inStream, &outStream, pDictionaryData, nDictionaryDataSize, nFlags, nMinMatchSize, nFormatVersion, progress, pOriginalSize, pCompressedSize, pCommandCount);
+   nStatus = lzsa_compress_stream(&inStream, &outStream, pDictionaryData, nDictionaryDataSize, nFlags, nMinMatchSize, nFormatVersion, progress, pOriginalSize, pCompressedSize, pCommandCount, pSafeDist);
 
    lzsa_dictionary_free(&pDictionaryData);
    outStream.close(&outStream);
@@ -132,7 +132,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
  */
 lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
                                    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-                                   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount) {
+                                   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist) {
    unsigned char *pInData, *pOutData;
    lzsa_compressor compressor;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
@@ -301,6 +301,7 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
       progress(nOriginalSize, nCompressedSize);
 
    int nCommandCount = lzsa_compressor_get_command_count(&compressor);
+   int nSafeDist = compressor.safe_dist;
    lzsa_compressor_destroy(&compressor);
 
    free(pOutData);
@@ -319,6 +320,8 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
          *pCompressedSize = nCompressedSize;
       if (pCommandCount)
          *pCommandCount = nCommandCount;
+      if (pSafeDist)
+         *pSafeDist = nSafeDist;
       return LZSA_OK;
    }
 }

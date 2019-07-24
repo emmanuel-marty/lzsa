@@ -87,6 +87,7 @@ typedef struct _lzsa_compressor {
    int max_forward_depth;
    int format_version;
    int flags;
+   int safe_dist;
    int num_commands;
    lzsa_hashmap_t cost_map;
 } lzsa_compressor;

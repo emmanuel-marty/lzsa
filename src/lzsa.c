@@ -100,7 +100,7 @@ static void compression_progress(long long nOriginalSize, long long nCompressedS
 static int do_compress(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, const int nMinMatchSize, const int nFormatVersion) {
    long long nStartTime = 0LL, nEndTime = 0LL;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
-   int nCommandCount = 0;
+   int nCommandCount = 0, nSafeDist = 0;
    int nFlags;
    lzsa_status_t nStatus;
 
@@ -114,7 +114,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       nStartTime = do_get_time();
    }
 
-   nStatus = lzsa_compress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nMinMatchSize, nFormatVersion, compression_progress, &nOriginalSize, &nCompressedSize, &nCommandCount);
+   nStatus = lzsa_compress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nMinMatchSize, nFormatVersion, compression_progress, &nOriginalSize, &nCompressedSize, &nCommandCount, &nSafeDist);
 
    if ((nOptions & OPT_VERBOSE)) {
       nEndTime = do_get_time();
@@ -141,6 +141,9 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       fprintf(stdout, "\rCompressed '%s' in %g seconds, %.02g Mb/s, %d tokens (%g bytes/token), %lld into %lld bytes ==> %g %%\n",
          pszInFilename, fDelta, fSpeed, nCommandCount, (double)nOriginalSize / (double)nCommandCount,
          nOriginalSize, nCompressedSize, (double)(nCompressedSize * 100.0 / nOriginalSize));
+      if (nOptions & OPT_RAW) {
+         fprintf(stdout, "Safe distance: %d (0x%X)\n", nSafeDist, nSafeDist);
+      }
    }
 
    return 0;
