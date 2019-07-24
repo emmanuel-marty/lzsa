@@ -42,11 +42,12 @@
 #endif
 #include "lib.h"
 
-#define OPT_VERBOSE     1
-#define OPT_RAW         2
-#define OPT_FAVOR_RATIO 4
+#define OPT_VERBOSE        1
+#define OPT_RAW            2
+#define OPT_FAVOR_RATIO    4
+#define OPT_RAW_BACKWARD   8
 
-#define TOOL_VERSION "1.0.4"
+#define TOOL_VERSION "1.0.5"
 
 /*---------------------------------------------------------------------------*/
 
@@ -109,6 +110,8 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       nFlags |= LZSA_FLAG_FAVOR_RATIO;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
@@ -160,6 +163,8 @@ static int do_decompress(const char *pszInFilename, const char *pszOutFilename, 
    nFlags = 0;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
@@ -308,6 +313,8 @@ static int do_compare(const char *pszInFilename, const char *pszOutFilename, con
    nFlags = 0;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    if (nOptions & OPT_VERBOSE) {
       nStartTime = do_get_time();
@@ -419,6 +426,8 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
       nFlags |= LZSA_FLAG_FAVOR_RATIO;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    pGeneratedData = (unsigned char*)malloc(4 * BLOCK_SIZE);
    if (!pGeneratedData) {
@@ -590,6 +599,8 @@ static int do_compr_benchmark(const char *pszInFilename, const char *pszOutFilen
       nFlags |= LZSA_FLAG_FAVOR_RATIO;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    if (pszDictionaryFilename) {
       fprintf(stderr, "in-memory benchmarking does not support dictionaries\n");
@@ -720,6 +731,8 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
    nFlags = 0;
    if (nOptions & OPT_RAW)
       nFlags |= LZSA_FLAG_RAW_BLOCK;
+   if (nOptions & OPT_RAW_BACKWARD)
+      nFlags |= LZSA_FLAG_RAW_BACKWARD;
 
    if (pszDictionaryFilename) {
       fprintf(stderr, "in-memory benchmarking does not support dictionaries\n");
@@ -987,6 +1000,13 @@ int main(int argc, char **argv) {
          else
             bArgsError = true;
       }
+      else if (!strcmp(argv[i], "-b")) {
+         if ((nOptions & OPT_RAW_BACKWARD) == 0) {
+            nOptions |= OPT_RAW_BACKWARD;
+         }
+         else
+            bArgsError = true;
+      }
       else {
          if (!pszInFilename)
             pszInFilename = argv[i];
@@ -997,6 +1017,11 @@ int main(int argc, char **argv) {
                bArgsError = true;
          }
       }
+   }
+
+   if (!bArgsError && (nOptions & OPT_RAW_BACKWARD) && !(nOptions & OPT_RAW)) {
+      fprintf(stderr, "error: -b (compress backwards) requires -r (raw block format)\n");
+      return 100;
    }
 
    if (!bArgsError && cCommand == 't') {
@@ -1014,6 +1039,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -f <value>: LZSA compression format (1-2)\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
+      fprintf(stderr, "       -b: compress backward (requires -r and a backward decompressor)\n");
       fprintf(stderr, "       -D <filename>: use dictionary file\n");
       fprintf(stderr, "       -m <value>: minimum match size (3-5) (default: 3)\n");
       fprintf(stderr, "       --prefer-ratio: favor compression ratio (default)\n");

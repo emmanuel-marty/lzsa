@@ -196,7 +196,7 @@ lzsa_status_t lzsa_decompress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pO
                nDecompressedSize = nBlockSize;
             }
             else {
-               nDecompressedSize = lzsa_decompressor_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE, nFormatVersion);
+               nDecompressedSize = lzsa_decompressor_expand_block(pInBlock, nBlockSize, pOutData, BLOCK_SIZE, BLOCK_SIZE, nFormatVersion, nFlags);
                if (nDecompressedSize < 0) {
                   nDecompressionError = LZSA_ERROR_DECOMPRESSION;
                   break;

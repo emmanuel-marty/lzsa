@@ -48,10 +48,11 @@ extern "C" {
  * @param nOutDataOffset starting index of where to store decompressed bytes in output buffer (and size of previously decompressed bytes)
  * @param nBlockMaxSize total size of output decompression buffer, in bytes
  * @param nFormatVersion version of format to use (1-2)
+ * @param nFlags compression flags (LZSA_FLAG_xxx)
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_decompressor_expand_block(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize, const int nFormatVersion);
+int lzsa_decompressor_expand_block(unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize, const int nFormatVersion, const int nFlags);
 
 #ifdef __cplusplus
 }
