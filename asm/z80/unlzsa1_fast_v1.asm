@@ -4,15 +4,27 @@
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
 ;
-;  lzsa.exe -r <sourcefile> <outfile>
+;  lzsa.exe -f1 -r <sourcefile> <outfile>
 ;
 ;  where option -r asks for the generation of raw (frame-less) data.
 ;
 ;  The decompression is done in the standard way:
 ;
-;  ld hl,CompressedData
-;  ld de,WhereToDecompress
+;  ld hl,FirstByteOfCompressedData
+;  ld de,FirstByteOfMemoryForDecompressedData
 ;  call DecompressLZSA
+;
+;  Backward compression is also supported; you can compress files backward using:
+;
+;  lzsa.exe -f1 -r -b <sourcefile> <outfile>
+;
+;  and decompress the resulting files using:
+;
+;  ld hl,LastByteOfCompressedData
+;  ld de,LastByteOfMemoryForDecompressedData
+;  call DecompressLZSA
+;
+;  (do not forget to uncomment the BACKWARD_DECOMPRESS option in the decompressor).
 ;
 ;  Of course, LZSA compression algorithm is (c) 2019 Emmanuel Marty,
 ;  see https://github.com/emmanuel-marty/lzsa for more information
@@ -35,11 +47,43 @@
 ;     misrepresented as being the original software.
 ;  3. This notice may not be removed or altered from any source distribution.
 
+;	DEFINE	BACKWARD_DECOMPRESS
+
+	IFDEF	BACKWARD_DECOMPRESS
+
+		MACRO NEXT_HL
+		dec hl
+		ENDM
+
+		MACRO ADD_OFFSET
+		or a : sbc hl,de
+		ENDM
+
+		MACRO BLOCKCOPY
+		lddr
+		ENDM
+
+	ELSE
+
+		MACRO NEXT_HL
+		inc hl
+		ENDM
+
+		MACRO ADD_OFFSET
+		add hl,de
+		ENDM
+
+		MACRO BLOCKCOPY
+		ldir
+		ENDM
+
+	ENDIF
+
 @DecompressLZSA:
 		ld b,0 : jr ReadToken
 
-NoLiterals:	xor (hl) : inc hl
-		push de : ld e,(hl) : inc hl : jp m,LongOffset
+NoLiterals:	xor (hl) : NEXT_HL
+		push de : ld e,(hl) : NEXT_HL : jp m,LongOffset
 
  		; short matches have length 0+3..14+3
 ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
@@ -47,8 +91,8 @@ ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
 .UseC		ex (sp),hl : push hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		add hl,de : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
-		ldir : pop hl							; BC = 0, DE = dest, HL = src
+		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
+		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		; where LLL is the number of literals and MMMM is
@@ -58,26 +102,26 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		cp #70 : jr z,MoreLiterals					; LLL=7 means 7+ literals...
 		rrca : rrca : rrca : rrca					; LLL<7 means 0..6 literals...
 
-		ld c,a : ld a,(hl) : inc hl
-		ldir
+		ld c,a : ld a,(hl) : NEXT_HL
+		BLOCKCOPY
 
 		; next we read the first byte of the offset
-		push de : ld e,(hl) : inc hl
+		push de : ld e,(hl) : NEXT_HL
 		; the top bit of token is set if the offset contains two bytes
 		and #8F : jp p,ShortOffset
 
 LongOffset:	; read second byte of the offset
-		ld d,(hl) : inc hl
+		ld d,(hl) : NEXT_HL
 		add -128+3 : cp 15+3 : jp c,CopyMatch
 
 		; MMMM=15 indicates a multi-byte number of literals
-LongerMatch:	add (hl) : inc hl : jr nc,CopyMatch
+LongerMatch:	add (hl) : NEXT_HL : jr nc,CopyMatch
 
 		; the codes are designed to overflow;
 		; the overflow value 1 means read 1 extra byte
 		; and overflow value 0 means read 2 extra bytes
-.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyMatch.UseC
-.code0		ld b,(hl) : inc hl
+.code1		ld b,a : ld c,(hl) : NEXT_HL : jr nz,CopyMatch.UseC
+.code0		ld b,(hl) : NEXT_HL
 
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
@@ -85,17 +129,17 @@ LongerMatch:	add (hl) : inc hl : jr nc,CopyMatch
 		pop de : ret
 
 MoreLiterals:	; there are three possible situations here
-		xor (hl) : inc hl : exa
-		ld a,7 : add (hl) : inc hl : jr c,ManyLiterals
+		xor (hl) : NEXT_HL : exa
+		ld a,7 : add (hl) : NEXT_HL : jr c,ManyLiterals
 
 CopyLiterals:	ld c,a
-.UseC		ldir
+.UseC		BLOCKCOPY
 
-		push de : ld e,(hl) : inc hl
+		push de : ld e,(hl) : NEXT_HL
 		exa : jp p,ShortOffset : jr LongOffset
 
 ManyLiterals:
-.code1		ld b,a : ld c,(hl) : inc hl : jr nz,CopyLiterals.UseC
-.code0		ld b,(hl) : inc hl : jr CopyLiterals.UseC
+.code1		ld b,a : ld c,(hl) : NEXT_HL : jr nz,CopyLiterals.UseC
+.code0		ld b,(hl) : NEXT_HL : jr CopyLiterals.UseC
 
 
