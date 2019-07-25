@@ -57,6 +57,7 @@ typedef enum _lzsa_status_t lzsa_status_t;
  * @param pOriginalSize pointer to returned input(source) size, updated when this function is successful
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
+ * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
@@ -80,6 +81,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
  * @param pOriginalSize pointer to returned input(source) size, updated when this function is successful
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
+ * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
