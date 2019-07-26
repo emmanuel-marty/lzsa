@@ -53,9 +53,9 @@ DECODE_TOKEN
 
    AND #$18                             ; isolate literals count (LL)
    BEQ NO_LITERALS                      ; skip if no literals to copy
-   LSR A                                ; shift literals count into place
-   LSR A
-   LSR A
+   LSR                                  ; shift literals count into place
+   LSR
+   LSR
    CMP #$03                             ; LITERALS_RUN_LEN_V2?
    BCC PREPARE_COPY_LITERALS            ; if less, count is directly embedded in token
 
@@ -102,7 +102,7 @@ NO_LITERALS
     
                                         ; 00Z: 5 bit offset
 
-   LDX #$0FF                            ; set offset bits 15-8 to 1
+   LDX #$FF                             ; set offset bits 15-8 to 1
 
    JSR GETCOMBINEDBITS                  ; rotate Z bit into bit 0, read nibble for bits 4-1
    ORA #$E0                             ; set bits 7-5 to 1
@@ -142,7 +142,7 @@ GOT_OFFSET_LO
    STX OFFSHI                           ; store high byte of match offset
 
 REP_MATCH
-ifdef BACKWARD_DECOMPRESS
+!ifdef BACKWARD_DECOMPRESS {
 
    ; Backward decompression - substract match offset
 
@@ -157,7 +157,7 @@ OFFSHI = *+1
    STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
    SEC
 
-else
+} else {
 
    ; Forward decompression - add match offset
 
@@ -171,7 +171,7 @@ OFFSHI = *+1
    ADC PUTDST+2
    STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
    
-endif
+}
    
    PLA                                  ; retrieve token from stack again
    AND #$07                             ; isolate match len (MMM)
@@ -208,7 +208,7 @@ COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
    JSR PUTDST                           ; copy to destination
 
-ifdef BACKWARD_DECOMPRESS
+!ifdef BACKWARD_DECOMPRESS {
 
    ; Backward decompression -- put backreference bytes backward
 
@@ -218,7 +218,7 @@ ifdef BACKWARD_DECOMPRESS
 GETMATCH_DONE
    DEC COPY_MATCH_LOOP+1
 
-else
+} else {
 
    ; Forward decompression -- put backreference bytes forward
 
@@ -227,7 +227,7 @@ else
    INC COPY_MATCH_LOOP+2
 GETMATCH_DONE
 
-endif
+}
 
    DEX
    BNE COPY_MATCH_LOOP
@@ -266,7 +266,7 @@ HAS_NIBBLES
    AND #$0F                             ; isolate low 4 bits of nibble
    RTS
 
-ifdef BACKWARD_DECOMPRESS
+!ifdef BACKWARD_DECOMPRESS {
 
    ; Backward decompression -- get and put bytes backward
 
@@ -301,7 +301,7 @@ GETSRC_DONE
    PLA
    RTS
 
-else
+} else {
 
    ; Forward decompression -- get and put bytes forward
 
@@ -332,4 +332,5 @@ LZSA_SRC_HI = *+2
 GETSRC_DONE
    RTS
 
-endif
+}
+
