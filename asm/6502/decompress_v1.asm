@@ -71,7 +71,8 @@ LARGE_VARLEN_LITERALS                   ; handle 16 bits literals count
                                         ; literals count = directly these 16 bits
    JSR GETLARGESRC                      ; grab low 8 bits in X, high 8 bits in A
    TAY                                  ; put high 8 bits in Y
-   !byte $A9                            ; mask TAX (faster than BCS)
+   TXA
+
 PREPARE_COPY_LITERALS
    TAX
    BEQ COPY_LITERALS
