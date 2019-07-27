@@ -110,7 +110,7 @@ LongMatch:	;ld a,24 :
 ManyLiterals:	ld a,18 : 
 		add (hl) : NEXT_HL : jr nc,CopyLiterals
 		ld c,(hl) : NEXT_HL
-		ld a,b : ld b,(hl) : inc hl
+		ld a,b : ld b,(hl) : NEXT_HL
 		jr CopyLiterals.useBC
 
 
