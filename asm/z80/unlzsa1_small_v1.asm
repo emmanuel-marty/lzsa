@@ -1,5 +1,5 @@
 ;
-;  Size-optimized LZSA decompressor by spke (v.1 23/04/2019, 69 bytes)
+;  Size-optimized LZSA decompressor by spke (v.1 23/04/2019 +patch1-30/07/2019, 68 bytes)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -56,7 +56,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		or a : sbc hl,de
+		push hl : or a : sbc hl,de : pop de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -70,7 +70,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -106,8 +106,8 @@ ShortOffset:	and #0F : add 3							; MMMM<15 means match lengths 0+3..14+3
 		cp 15+3 : call z,ReadLongBA					; MMMM=15 means lengths 14+3+
 		ld c,a
 
-		ex (sp),hl : push hl						; BC = len, DE = -offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest+(-offset), SP->[src]
+		ex (sp),hl							; BC = len, DE = -offset, HL = dest, SP ->[src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest+(-offset), SP->[src]
 		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
 		jr ReadToken
 

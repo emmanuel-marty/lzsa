@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA2 decompressor by spke (v.1 02-07/06/2019, 218 bytes)
+;  Speed-optimized LZSA2 decompressor by spke (v.1 02-07/06/2019 +patch1-30/07/2019, 213/211(hd64180) bytes)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -56,7 +56,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		or a : sbc hl,de
+		push hl : or a : sbc hl,de : pop de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -70,7 +70,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -79,16 +79,32 @@
 
 	ENDIF
 
+	IFDEF	HD64180
+		MACRO LD_IX_DE
+		push de : pop ix
+		ENDM
+		MACRO LD_DE_IX
+		push ix : pop de
+		ENDM
+	ELSE
+		MACRO LD_IX_DE
+		ld ixl,e : ld ixh,d
+		ENDM
+		MACRO LD_DE_IX
+		ld e,ixl : ld d,ixh
+		ENDM
+	ENDIF
+
 @DecompressLZSA2:
 		; A' stores next nibble as %1111.... or assumed to contain trash
 		; B is assumed to be 0
-		xor a : ld b,a : exa : jr ReadToken
+		xor a : ld b,a : scf : exa : jr ReadToken
 
 
 
 
 
-LongerMatch:	exa : jp m,.noUpdate
+LongerMatch:	scf : exa : jr nc,.noUpdate
 
 			ld a,(hl) : or #F0 : exa
 			ld a,(hl) : NEXT_HL : or #0F
@@ -110,14 +126,14 @@ LongMatch:	;ld a,24 :
 ManyLiterals:	ld a,18 : 
 		add (hl) : NEXT_HL : jr nc,CopyLiterals
 		ld c,(hl) : NEXT_HL
-		ld a,b : ld b,(hl) : NEXT_HL
-		jr CopyLiterals.useBC
+		ld a,b : ld b,(hl)
+		jr ReadToken.useBC
 
 
 
 
 MoreLiterals:	ld b,(hl) : NEXT_HL
-		exa : jp m,.noUpdate
+		scf : exa : jr nc,.noUpdate
 
 			ld a,(hl) : or #F0 : exa
 			ld a,(hl) : NEXT_HL : or #0F
@@ -148,13 +164,13 @@ CASE01x:	cp %01100000 : rl d
 
 ReadOffsetE:	ld e,(hl) : NEXT_HL
 
-SaveOffset:	ld ixl,e : ld ixh,d
+SaveOffset:	LD_IX_DE
 
 MatchLen:	inc a : and %00000111 : jr z,LongerMatch : inc a
 
 CopyMatch:	ld c,a
-.useC		ex (sp),hl : push hl					; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de					; BC = len, DE = dest, HL = dest-offset, SP->[src]
+.useC		ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[src]
+		ADD_OFFSET						; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		BLOCKCOPY : pop hl
 
 		; compressed data stream contains records
@@ -164,7 +180,8 @@ ReadToken:	ld a,(hl) : and %00011000 : jr z,NoLiterals
 		jp pe,MoreLiterals					; 00 has already been processed; this identifies the case of 11
 		rrca : rrca : rrca
 
-		ld c,a : ld a,(hl) : NEXT_HL				; token is re-read for further processing
+		ld c,a : ld a,(hl)					; token is re-read for further processing
+.useBC		NEXT_HL
 		BLOCKCOPY
 
 		; the token and literals are followed by the offset
@@ -173,8 +190,8 @@ ReadToken:	ld a,(hl) : and %00011000 : jr z,NoLiterals
 CASE1xx		cp %11000000 : jr nc,CASE11x
 
 		; "10x": the case of the 5-bit offset
-CASE10x:	ld c,a : xor a
-		exa : jp m,.noUpdate
+CASE10x:	ld c,a
+		exa : jr nc,.noUpdate
 
 			ld a,(hl) : or #F0 : exa
 			ld a,(hl) : NEXT_HL : or #0F
@@ -185,8 +202,8 @@ CASE10x:	ld c,a : xor a
 		dec d : dec d : jr ReadOffsetE
 
 		; "00x": the case of the 5-bit offset
-CASE00x:	ld c,a : xor a
-		exa : jp m,.noUpdate
+CASE00x:	ld c,a
+		exa : jr nc,.noUpdate
 
 			ld a,(hl) : or #F0 : exa
 			ld a,(hl) : NEXT_HL : or #0F
@@ -199,7 +216,7 @@ CASE00x:	ld c,a : xor a
 CASE11x		cp %11100000 : jr c,CASE110
 
 		; "111": repeated offset
-CASE111:	ld e,ixl : ld d,ixh : jr MatchLen
+CASE111:	LD_DE_IX : jr MatchLen
 
 		; "110": 16-bit offset
 CASE110:	ld d,(hl) : NEXT_HL : jr ReadOffsetE

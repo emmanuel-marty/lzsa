@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA decompressor by spke (v.1 03-25/04/2019, 110 bytes)
+;  Speed-optimized LZSA decompressor by spke (v.1 03-25/04/2019 +patch1-30/07/2019, 109 bytes)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -56,7 +56,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		or a : sbc hl,de
+		push hl : or a : sbc hl,de : pop de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -70,7 +70,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -90,8 +90,8 @@ ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
-.UseC		ex (sp),hl : push hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
+.UseC		ex (sp),hl							; BC = len, DE = offset, HL = dest, SP ->[src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
