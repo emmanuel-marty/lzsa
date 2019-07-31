@@ -61,7 +61,7 @@ size_t lzsa_get_max_decompressed_size_inmem(const unsigned char *pFileData, size
  *
  * @return actual decompressed size, or -1 for error
  */
-size_t lzsa_decompress_inmem(const unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, const unsigned int nFlags, int *pFormatVersion);
+size_t lzsa_decompress_inmem(unsigned char *pFileData, unsigned char *pOutBuffer, size_t nFileSize, size_t nMaxOutBufferSize, const unsigned int nFlags, int *pFormatVersion);
 
 #ifdef __cplusplus
 }

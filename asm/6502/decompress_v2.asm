@@ -8,6 +8,18 @@
 ;
 ; out:
 ; * LZSA_DST_LO and LZSA_DST_HI contain the last decompressed byte address, +1
+;
+; -----------------------------------------------------------------------------
+; Backward decompression is also supported, use lzsa -r -b -f2 <original_file> <compressed_file>
+; To use it, also define BACKWARD_DECOMPRESS=1 before including this code!
+;
+; in:
+; * LZSA_SRC_LO/LZSA_SRC_HI must contain the address of the last byte of compressed data
+; * LZSA_DST_LO/LZSA_DST_HI must contain the address of the last byte of the destination buffer
+;
+; out:
+; * LZSA_DST_LO/LZSA_DST_HI contain the last decompressed byte address, -1
+;
 ; -----------------------------------------------------------------------------
 ;
 ;  Copyright (C) 2019 Emmanuel Marty
@@ -41,9 +53,9 @@ DECODE_TOKEN
 
    AND #$18                             ; isolate literals count (LL)
    BEQ NO_LITERALS                      ; skip if no literals to copy
-   LSR A                                ; shift literals count into place
-   LSR A
-   LSR A
+   LSR                                  ; shift literals count into place
+   LSR
+   LSR
    CMP #$03                             ; LITERALS_RUN_LEN_V2?
    BCC PREPARE_COPY_LITERALS            ; if less, count is directly embedded in token
 
@@ -90,7 +102,7 @@ NO_LITERALS
     
                                         ; 00Z: 5 bit offset
 
-   LDX #$0FF                            ; set offset bits 15-8 to 1
+   LDX #$FF                             ; set offset bits 15-8 to 1
 
    JSR GETCOMBINEDBITS                  ; rotate Z bit into bit 0, read nibble for bits 4-1
    ORA #$E0                             ; set bits 7-5 to 1
@@ -130,6 +142,25 @@ GOT_OFFSET_LO
    STX OFFSHI                           ; store high byte of match offset
 
 REP_MATCH
+!ifdef BACKWARD_DECOMPRESS {
+
+   ; Backward decompression - substract match offset
+
+   SEC                                  ; add dest + match offset
+   LDA PUTDST+1                         ; low 8 bits
+OFFSLO = *+1
+   SBC #$AA
+   STA COPY_MATCH_LOOP+1                ; store back reference address
+   LDA PUTDST+2
+OFFSHI = *+1
+   SBC #$AA                             ; high 8 bits
+   STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
+   SEC
+
+} else {
+
+   ; Forward decompression - add match offset
+
    CLC                                  ; add dest + match offset
    LDA PUTDST+1                         ; low 8 bits
 OFFSLO = *+1
@@ -139,6 +170,8 @@ OFFSHI = *+1
    LDA #$AA                             ; high 8 bits
    ADC PUTDST+2
    STA COPY_MATCH_LOOP+2                ; store high 8 bits of address
+   
+}
    
    PLA                                  ; retrieve token from stack again
    AND #$07                             ; isolate match len (MMM)
@@ -173,11 +206,29 @@ PREPARE_COPY_MATCH_Y
 
 COPY_MATCH_LOOP
    LDA $AAAA                            ; get one byte of backreference
+   JSR PUTDST                           ; copy to destination
+
+!ifdef BACKWARD_DECOMPRESS {
+
+   ; Backward decompression -- put backreference bytes backward
+
+   LDA COPY_MATCH_LOOP+1
+   BNE GETMATCH_DONE
+   DEC COPY_MATCH_LOOP+2
+GETMATCH_DONE
+   DEC COPY_MATCH_LOOP+1
+
+} else {
+
+   ; Forward decompression -- put backreference bytes forward
+
    INC COPY_MATCH_LOOP+1
    BNE GETMATCH_DONE
    INC COPY_MATCH_LOOP+2
 GETMATCH_DONE
-   JSR PUTDST                           ; copy to destination
+
+}
+
    DEX
    BNE COPY_MATCH_LOOP
    DEY
@@ -215,6 +266,45 @@ HAS_NIBBLES
    AND #$0F                             ; isolate low 4 bits of nibble
    RTS
 
+!ifdef BACKWARD_DECOMPRESS {
+
+   ; Backward decompression -- get and put bytes backward
+
+GETPUT
+   JSR GETSRC
+PUTDST
+LZSA_DST_LO = *+1
+LZSA_DST_HI = *+2
+   STA $AAAA
+   LDA PUTDST+1
+   BNE PUTDST_DONE
+   DEC PUTDST+2
+PUTDST_DONE
+   DEC PUTDST+1
+   RTS
+
+GETLARGESRC
+   JSR GETSRC                           ; grab low 8 bits
+   TAX                                  ; move to X
+                                        ; fall through grab high 8 bits
+
+GETSRC
+LZSA_SRC_LO = *+1
+LZSA_SRC_HI = *+2
+   LDA $AAAA
+   PHA
+   LDA GETSRC+1
+   BNE GETSRC_DONE
+   DEC GETSRC+2
+GETSRC_DONE
+   DEC GETSRC+1
+   PLA
+   RTS
+
+} else {
+
+   ; Forward decompression -- get and put bytes forward
+
 GETPUT
    JSR GETSRC
 PUTDST
@@ -241,3 +331,6 @@ LZSA_SRC_HI = *+2
    INC GETSRC+2
 GETSRC_DONE
    RTS
+
+}
+

@@ -61,7 +61,7 @@ size_t lzsa_get_max_compressed_size_inmem(size_t nInputSize);
  *
  * @return actual compressed size, or -1 for error
  */
-size_t lzsa_compress_inmem(const unsigned char *pInputData, unsigned char *pOutBuffer, size_t nInputSize, size_t nMaxOutBufferSize,
+size_t lzsa_compress_inmem(unsigned char *pInputData, unsigned char *pOutBuffer, size_t nInputSize, size_t nMaxOutBufferSize,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion);
 
 #ifdef __cplusplus

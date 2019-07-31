@@ -69,6 +69,24 @@ typedef enum _lzsa_status_t {
 /* Compression flags */
 #define LZSA_FLAG_FAVOR_RATIO    (1<<0)      /**< 1 to compress with the best ratio, 0 to trade some compression ratio for extra decompression speed */
 #define LZSA_FLAG_RAW_BLOCK      (1<<1)      /**< 1 to emit raw block */
+#define LZSA_FLAG_RAW_BACKWARD   (1<<2)      /**< 1 to compress or decompress raw block backward */
+
+/**
+ * Reverse bytes in the specified buffer
+ *
+ * @param pBuffer pointer to buffer whose contents are to be reversed
+ * @param nBufferSize size of buffer in bytes
+ */
+static inline void lzsa_reverse_buffer(unsigned char *pBuffer, const int nBufferSize) {
+   int nMidPoint = nBufferSize / 2;
+   int i, j;
+
+   for (i = 0, j = nBufferSize - 1; i < nMidPoint; i++, j--) {
+      unsigned char c = pBuffer[i];
+      pBuffer[i] = pBuffer[j];
+      pBuffer[j] = c;
+   }
+}
 
 #ifdef __cplusplus
 }

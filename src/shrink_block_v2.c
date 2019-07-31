@@ -188,7 +188,6 @@ static void lzsa_optimize_matches_v2(lzsa_compressor *pCompressor, const int nSt
    int *cost = (int*)pCompressor->pos_data;  /* Reuse */
    int *prev_match = (int*)pCompressor->intervals; /* Reuse */
    lzsa_repmatch_opt *repmatch_opt = pCompressor->repmatch_opt;
-   lzsa_match *pBestMatch = pCompressor->best_match;
    int nLastLiteralsOffset;
    int nMinMatchSize = pCompressor->min_match_size;
    const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
@@ -805,7 +804,6 @@ static int lzsa_get_compressed_size_v2(lzsa_compressor *pCompressor, lzsa_match 
    }
 
    {
-      int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V2) ? LITERALS_RUN_LEN_V2 : nNumLiterals;
       int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + (nNumLiterals << 3);
 
       nCompressedSize += nCommandSize;

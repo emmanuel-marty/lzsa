@@ -1,5 +1,5 @@
 ;
-;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019, 145 bytes)
+;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019 +patch1-30/07/2019, 144 bytes)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -57,7 +57,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		or a : sbc hl,de
+		push hl : or a : sbc hl,de : pop de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -71,7 +71,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
@@ -79,6 +79,37 @@
 		ENDM
 
 	ENDIF
+
+	IFDEF	HD64180
+		MACRO LD_IY_DE
+		push de : pop iy
+		ENDM
+		MACRO LD_DE_IY
+		push iy : pop de
+		ENDM
+		MACRO LD_IXL_A
+		exx : ld l,a : exx
+		ENDM
+		MACRO LD_A_IXL
+		exx : ld a,l : exx
+		ENDM
+	ELSE
+		MACRO LD_IY_DE
+		;push de : pop iy
+		ld iyl,e : ld iyh,d
+		ENDM
+		MACRO LD_DE_IY
+		;push iy : pop de
+		ld e,iyl : ld d,iyh
+		ENDM
+		MACRO LD_IXL_A
+		ld ixl,a
+		ENDM
+		MACRO LD_A_IXL
+		ld a,ixl
+		ENDM
+	ENDIF
+
 
 @DecompressLZSA2:
 		xor a : ld b,a : exa : jr ReadToken
@@ -88,17 +119,17 @@ CASE0xx		ld d,#FF : cp %01000000 : jr c,CASE00x
 CASE01x:	cp %01100000 : rl d
 
 OffsetReadE:	ld e,(hl) : NEXT_HL
-		
-SaveOffset:	ld iyl,e : ld iyh,d
+
+SaveOffset:	LD_IY_DE
 
 MatchLen:	and %00000111 : add 2 : cp 9 : call z,ExtendedCode
 
 CopyMatch:	ld c,a
-		ex (sp),hl : push hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
+		ex (sp),hl							; BC = len, DE = offset, HL = dest, SP ->[src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		BLOCKCOPY : pop hl
 
-ReadToken:	ld a,(hl) : ld ixl,a : NEXT_HL
+ReadToken:	ld a,(hl) : LD_IXL_A : NEXT_HL
 		and %00011000 : jr z,NoLiterals
 
 		rrca : rrca : rrca
@@ -107,7 +138,7 @@ ReadToken:	ld a,(hl) : ld ixl,a : NEXT_HL
 		ld c,a
 		BLOCKCOPY
 
-NoLiterals:	push de : ld a,ixl
+NoLiterals:	push de : LD_A_IXL
 		or a : jp p,CASE0xx
 
 CASE1xx		cp %11000000 : jr nc,CASE11x
@@ -123,7 +154,7 @@ CASE00x:	call ReadNibble
 
 CASE11x		cp %11100000 : jr c,CASE110
 
-CASE111:	ld e,iyl : ld d,iyh : jr MatchLen
+CASE111:	LD_DE_IY : jr MatchLen
 
 CASE110:	ld d,(hl) : NEXT_HL : jr OffsetReadE
 

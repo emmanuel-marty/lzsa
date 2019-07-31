@@ -37,6 +37,7 @@
 #include "shrink_block_v2.h"
 #include "format.h"
 #include "matchfinder.h"
+#include "lib.h"
 
 /**
  * Initialize compression context
@@ -188,23 +189,43 @@ void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
-   if (lzsa_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize))
-      return -1;
-   if (nPreviousBlockSize) {
-      lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
-   }
-   lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
+   int nCompressedSize;
 
-   if (pCompressor->format_version == 1) {
-      return lzsa_optimize_and_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);
+   if (pCompressor->flags & LZSA_FLAG_RAW_BACKWARD) {
+      lzsa_reverse_buffer(pInWindow + nPreviousBlockSize, nInDataSize);
    }
-   else if (pCompressor->format_version == 2) {
-      return lzsa_optimize_and_write_block_v2(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);
-   }
+
+   if (lzsa_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize))
+      nCompressedSize = -1;
    else {
-      return -1;
+      if (nPreviousBlockSize) {
+         lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
+      }
+      lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+
+      if (pCompressor->format_version == 1) {
+         nCompressedSize = lzsa_optimize_and_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);
+         if (nCompressedSize != -1 && (pCompressor->flags & LZSA_FLAG_RAW_BACKWARD)) {
+            lzsa_reverse_buffer(pOutData, nCompressedSize);
+         }
+      }
+      else if (pCompressor->format_version == 2) {
+         nCompressedSize = lzsa_optimize_and_write_block_v2(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);
+         if (nCompressedSize != -1 && (pCompressor->flags & LZSA_FLAG_RAW_BACKWARD)) {
+            lzsa_reverse_buffer(pOutData, nCompressedSize);
+         }
+      }
+      else {
+         nCompressedSize = -1;
+      }
    }
+
+   if (pCompressor->flags & LZSA_FLAG_RAW_BACKWARD) {
+      lzsa_reverse_buffer(pInWindow + nPreviousBlockSize, nInDataSize);
+   }
+
+   return nCompressedSize;
 }
 
 /**

@@ -123,7 +123,7 @@ void lzsa_compressor_destroy(lzsa_compressor *pCompressor);
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
+int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
 
 /**
  * Get the number of compression commands issued in compressed data blocks
