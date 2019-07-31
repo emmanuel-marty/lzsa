@@ -1,5 +1,6 @@
 ;
-;  Size-optimized LZSA decompressor by spke (v.1 23/04/2019, 69 bytes)
+;  Size-optimized LZSA1 decompressor by spke (v.1 23/04/2019, 68 bytes);
+;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -12,7 +13,7 @@
 ;
 ;  ld hl,FirstByteOfCompressedData
 ;  ld de,FirstByteOfMemoryForDecompressedData
-;  call DecompressLZSA
+;  call DecompressLZSA1
 ;
 ;  Backward compression is also supported; you can compress files backward using:
 ;
@@ -22,11 +23,11 @@
 ;
 ;  ld hl,LastByteOfCompressedData
 ;  ld de,LastByteOfMemoryForDecompressedData
-;  call DecompressLZSA
+;  call DecompressLZSA1
 ;
 ;  (do not forget to uncomment the BACKWARD_DECOMPRESS option in the decompressor).
 ;
-;  Of course, LZSA compression algorithm is (c) 2019 Emmanuel Marty,
+;  Of course, LZSA compression algorithms are (c) 2019 Emmanuel Marty,
 ;  see https://github.com/emmanuel-marty/lzsa for more information
 ;
 ;  Drop me an email if you have any comments/ideas/suggestions: zxintrospec@gmail.com
@@ -49,37 +50,37 @@
 
 ;	DEFINE	BACKWARD_DECOMPRESS
 
-	IFDEF	BACKWARD_DECOMPRESS
-
-		MACRO NEXT_HL
-		dec hl
-		ENDM
-
-		MACRO ADD_OFFSET
-		or a : sbc hl,de
-		ENDM
-
-		MACRO BLOCKCOPY
-		lddr
-		ENDM
-
-	ELSE
+	IFNDEF	BACKWARD_DECOMPRESS
 
 		MACRO NEXT_HL
 		inc hl
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
 		ldir
 		ENDM
 
+	ELSE
+
+		MACRO NEXT_HL
+		dec hl
+		ENDM
+
+		MACRO ADD_OFFSET
+		push hl : or a : sbc hl,de : pop de				; 11+4+15+10 = 40t / 5 bytes
+		ENDM
+
+		MACRO BLOCKCOPY
+		lddr
+		ENDM
+
 	ENDIF
 
-@DecompressLZSA:
+@DecompressLZSA1:
 		ld b,0
 
 		; first a byte token "O|LLL|MMMM" is read from the stream,
@@ -106,10 +107,10 @@ ShortOffset:	and #0F : add 3							; MMMM<15 means match lengths 0+3..14+3
 		cp 15+3 : call z,ReadLongBA					; MMMM=15 means lengths 14+3+
 		ld c,a
 
-		ex (sp),hl : push hl						; BC = len, DE = -offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest+(-offset), SP->[src]
-		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
-		jr ReadToken
+		ex (sp),hl							; BC = len, DE = -offset, HL = dest, SP -> [src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest+(-offset), SP -> [src]
+		BLOCKCOPY							; BC = 0, DE = dest
+		pop hl : jr ReadToken						; HL = src
 
 		; a standard routine to read extended codes
 		; into registers B (higher byte) and A (lower byte).

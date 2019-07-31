@@ -1,5 +1,6 @@
 ;
-;  Speed-optimized LZSA decompressor by spke (v.1 03-25/04/2019, 110 bytes)
+;  Speed-optimized LZSA1 decompressor by spke (v.1 03-25/04/2019, 109 bytes);
+;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -12,7 +13,7 @@
 ;
 ;  ld hl,FirstByteOfCompressedData
 ;  ld de,FirstByteOfMemoryForDecompressedData
-;  call DecompressLZSA
+;  call DecompressLZSA1
 ;
 ;  Backward compression is also supported; you can compress files backward using:
 ;
@@ -22,11 +23,11 @@
 ;
 ;  ld hl,LastByteOfCompressedData
 ;  ld de,LastByteOfMemoryForDecompressedData
-;  call DecompressLZSA
+;  call DecompressLZSA1
 ;
 ;  (do not forget to uncomment the BACKWARD_DECOMPRESS option in the decompressor).
 ;
-;  Of course, LZSA compression algorithm is (c) 2019 Emmanuel Marty,
+;  Of course, LZSA compression algorithms are (c) 2019 Emmanuel Marty,
 ;  see https://github.com/emmanuel-marty/lzsa for more information
 ;
 ;  Drop me an email if you have any comments/ideas/suggestions: zxintrospec@gmail.com
@@ -49,37 +50,38 @@
 
 ;	DEFINE	BACKWARD_DECOMPRESS
 
-	IFDEF	BACKWARD_DECOMPRESS
-
-		MACRO NEXT_HL
-		dec hl
-		ENDM
-
-		MACRO ADD_OFFSET
-		or a : sbc hl,de
-		ENDM
-
-		MACRO BLOCKCOPY
-		lddr
-		ENDM
-
-	ELSE
+	IFNDEF	BACKWARD_DECOMPRESS
 
 		MACRO NEXT_HL
 		inc hl
 		ENDM
 
 		MACRO ADD_OFFSET
-		add hl,de
+		ex de,hl : add hl,de
 		ENDM
 
 		MACRO BLOCKCOPY
 		ldir
 		ENDM
 
+	ELSE
+
+		MACRO NEXT_HL
+		dec hl
+		ENDM
+
+		MACRO ADD_OFFSET
+		ex de,hl : ld a,e : sub l : ld l,a
+		ld a,d : sbc h : ld h,a						; 4*4+3*4 = 28t / 7 bytes
+		ENDM
+
+		MACRO BLOCKCOPY
+		lddr
+		ENDM
+
 	ENDIF
 
-@DecompressLZSA:
+@DecompressLZSA1:
 		ld b,0 : jr ReadToken
 
 NoLiterals:	xor (hl) : NEXT_HL
@@ -90,8 +92,8 @@ ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
-.UseC		ex (sp),hl : push hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET : pop de						; BC = len, DE = dest, HL = dest-offset, SP->[src]
+.UseC		ex (sp),hl							; BC = len, DE = offset, HL = dest, SP ->[dest,src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
