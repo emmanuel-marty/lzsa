@@ -1,5 +1,6 @@
 ;
-;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019 +patch1-30/07/2019, 144 bytes)
+;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019, 140 bytes);
+;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed and support for Hitachi HD64180).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -26,7 +27,7 @@
 ;
 ;  (do not forget to uncomment the BACKWARD_DECOMPRESS option in the decompressor).
 ;
-;  Of course, LZSA2 compression algorithm is (c) 2019 Emmanuel Marty,
+;  Of course, LZSA2 compression algorithms are (c) 2019 Emmanuel Marty,
 ;  see https://github.com/emmanuel-marty/lzsa for more information
 ;
 ;  Drop me an email if you have any comments/ideas/suggestions: zxintrospec@gmail.com
@@ -48,23 +49,10 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 ;
 
-;	DEFINE	BACKWARD_DECOMPRESS
+;	DEFINE	BACKWARD_DECOMPRESS						; uncomment for data compressed with option -b
+;	DEFINE	HD64180								; uncomment for systems using Hitachi HD64180
 
-	IFDEF	BACKWARD_DECOMPRESS
-
-		MACRO NEXT_HL
-		dec hl
-		ENDM
-
-		MACRO ADD_OFFSET
-		push hl : or a : sbc hl,de : pop de
-		ENDM
-
-		MACRO BLOCKCOPY
-		lddr
-		ENDM
-
-	ELSE
+	IFNDEF	BACKWARD_DECOMPRESS
 
 		MACRO NEXT_HL
 		inc hl
@@ -78,58 +66,68 @@
 		ldir
 		ENDM
 
+	ELSE
+
+		MACRO NEXT_HL
+		dec hl
+		ENDM
+
+		MACRO ADD_OFFSET
+		push hl : or a : sbc hl,de : pop de				; 11+4+15+10 = 40t / 5 bytes
+		ENDM
+
+		MACRO BLOCKCOPY
+		lddr
+		ENDM
+
 	ENDIF
 
-	IFDEF	HD64180
+	IFNDEF	HD64180
+
+		MACRO LD_IY_DE
+		ld iyl,e : ld iyh,d
+		ENDM
+
+		MACRO LD_DE_IY
+		ld e,iyl : ld d,iyh
+		ENDM
+
+	ELSE
+
 		MACRO LD_IY_DE
 		push de : pop iy
 		ENDM
+
 		MACRO LD_DE_IY
 		push iy : pop de
 		ENDM
-		MACRO LD_IXL_A
-		exx : ld l,a : exx
-		ENDM
-		MACRO LD_A_IXL
-		exx : ld a,l : exx
-		ENDM
-	ELSE
-		MACRO LD_IY_DE
-		;push de : pop iy
-		ld iyl,e : ld iyh,d
-		ENDM
-		MACRO LD_DE_IY
-		;push iy : pop de
-		ld e,iyl : ld d,iyh
-		ENDM
-		MACRO LD_IXL_A
-		ld ixl,a
-		ENDM
-		MACRO LD_A_IXL
-		ld a,ixl
-		ENDM
-	ENDIF
 
+	ENDIF
 
 @DecompressLZSA2:
 		xor a : ld b,a : exa : jr ReadToken
+
+CASE00x:	call ReadNibble
+		ld e,a : ld a,c
+		cp %00100000 : rl e : jr SaveOffset
 
 CASE0xx		ld d,#FF : cp %01000000 : jr c,CASE00x
 
 CASE01x:	cp %01100000 : rl d
 
 OffsetReadE:	ld e,(hl) : NEXT_HL
-
+		
 SaveOffset:	LD_IY_DE
 
 MatchLen:	and %00000111 : add 2 : cp 9 : call z,ExtendedCode
 
 CopyMatch:	ld c,a
-		ex (sp),hl							; BC = len, DE = offset, HL = dest, SP ->[src]
-		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
-		BLOCKCOPY : pop hl
+		ex (sp),hl							; BC = len, DE = -offset, HL = dest, SP -> [src]
+		ADD_OFFSET							; BC = len, DE = dest, HL = dest+(-offset), SP -> [src]
+		BLOCKCOPY							; BC = 0, DE = dest
+		pop hl								; HL = src
 
-ReadToken:	ld a,(hl) : LD_IXL_A : NEXT_HL
+ReadToken:	ld a,(hl) : NEXT_HL : push af
 		and %00011000 : jr z,NoLiterals
 
 		rrca : rrca : rrca
@@ -138,7 +136,7 @@ ReadToken:	ld a,(hl) : LD_IXL_A : NEXT_HL
 		ld c,a
 		BLOCKCOPY
 
-NoLiterals:	push de : LD_A_IXL
+NoLiterals:	pop af : push de
 		or a : jp p,CASE0xx
 
 CASE1xx		cp %11000000 : jr nc,CASE11x
@@ -146,24 +144,20 @@ CASE1xx		cp %11000000 : jr nc,CASE11x
 CASE10x:	call ReadNibble
 		ld d,a : ld a,c
 		cp %10100000 : rl d
-		dec d : dec d : jr OffsetReadE
+		dec d : dec d : DB #CA ; jr OffsetReadE				; #CA is JP Z,.. to skip all commands in CASE110 before jr OffsetReadE
 
-CASE00x:	call ReadNibble
-		ld e,a : ld a,c
-		cp %00100000 : rl e : jr SaveOffset
+CASE110:	ld d,(hl) : NEXT_HL : jr OffsetReadE
 
 CASE11x		cp %11100000 : jr c,CASE110
 
 CASE111:	LD_DE_IY : jr MatchLen
-
-CASE110:	ld d,(hl) : NEXT_HL : jr OffsetReadE
 
 ExtendedCode:	call ReadNibble : inc a : jr z,ExtraByte
 		sub #F0+1 : add c : ret
 ExtraByte	ld a,15 : add c : add (hl) : NEXT_HL : ret nc
 		ld a,(hl) : NEXT_HL
 		ld b,(hl) : NEXT_HL : ret nz
-		pop de : pop de : ret
+		pop de : pop de							; RET is not needed, because RET from ReadNibble is sufficient
 
 ReadNibble:	ld c,a : xor a : exa : ret m
 UpdateNibble	ld a,(hl) : or #F0 : exa
