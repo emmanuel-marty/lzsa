@@ -1,5 +1,5 @@
 /*
- * expand_v1.c - LZSA1 block decompressor implementation
+ * expand_block_v1.c - LZSA1 block decompressor implementation
  *
  * Copyright (C) 2019 Emmanuel Marty
  *

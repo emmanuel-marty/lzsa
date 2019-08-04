@@ -1,5 +1,5 @@
 /*
- * shrink_v1.c - LZSA1 block compressor implementation
+ * shrink_block_v1.c - LZSA1 block compressor implementation
  *
  * Copyright (C) 2019 Emmanuel Marty
  *

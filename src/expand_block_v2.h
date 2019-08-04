@@ -1,5 +1,5 @@
 /*
- * expand_v2.h - LZSA2 block decompressor definitions
+ * expand_block_v2.h - LZSA2 block decompressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
@@ -30,8 +30,8 @@
  *
  */
 
-#ifndef _EXPAND_V2_H
-#define _EXPAND_V2_H
+#ifndef _EXPAND_BLOCK_V2_H
+#define _EXPAND_BLOCK_V2_H
 
 /**
  * Decompress one LZSA2 data block
@@ -46,4 +46,4 @@
  */
 int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
 
-#endif /* _EXPAND_V2_H */
+#endif /* _EXPAND_BLOCK_V2_H */

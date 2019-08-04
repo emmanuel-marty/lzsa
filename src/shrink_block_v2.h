@@ -1,5 +1,5 @@
 /*
- * shrink_v2.h - LZSA2 block compressor definitions
+ * shrink_block_v2.h - LZSA2 block compressor definitions
  *
  * Copyright (C) 2019 Emmanuel Marty
  *
