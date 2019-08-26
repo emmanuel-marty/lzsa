@@ -202,21 +202,6 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
          }
          nDictionaryDataSize = 0;
 
-         if (nNumBlocks == 0 && (compressor.flags & LZSA_FLAG_FAVOR_RATIO)) {
-            if (nInDataSize < 16384)
-               compressor.max_forward_depth = 25;
-            else {
-               if (nInDataSize < 32768)
-                  compressor.max_forward_depth = 15;
-               else {
-                  if (nInDataSize < BLOCK_SIZE)
-                     compressor.max_forward_depth = 10;
-                  else
-                     compressor.max_forward_depth = 0;
-               }
-            }
-         }
-
          int nOutDataSize;
 
          nOutDataSize = lzsa_compressor_shrink_block(&compressor, pInData + BLOCK_SIZE - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutData, ((nInDataSize + nRawPadding) >= BLOCK_SIZE) ? BLOCK_SIZE : (nInDataSize + nRawPadding));

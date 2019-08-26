@@ -71,6 +71,19 @@ typedef struct _lzsa_repmatch_opt {
    short expected_repmatch;
 } lzsa_repmatch_opt;
 
+/** Forward arrival slot */
+typedef struct {
+   int cost;
+   int from_pos;
+   short from_slot;
+
+   unsigned short rep_offset;
+   int num_literals;
+
+   unsigned short match_offset;
+   unsigned short match_len;
+} lzsa_arrival;
+
 /** Compression context */
 typedef struct _lzsa_compressor {
    divsufsort_ctx_t divsufsort_context;
@@ -80,11 +93,10 @@ typedef struct _lzsa_compressor {
    lzsa_match *match;
    lzsa_match *selected_match;
    lzsa_match *best_match;
-   lzsa_match *improved_match;
    int *slot_cost;
    lzsa_repmatch_opt *repmatch_opt;
+   lzsa_arrival *arrival;
    int min_match_size;
-   int max_forward_depth;
    int format_version;
    int flags;
    int safe_dist;
