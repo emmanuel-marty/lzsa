@@ -1,6 +1,5 @@
 ;
-;  Speed-optimized LZSA1 decompressor by spke (v.1 03-25/04/2019, 109 bytes);
-;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed).
+;  Speed-optimized LZSA1 decompressor by spke (v.1 03.1-22/08/2019, 107 bytes);
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -85,14 +84,14 @@
 		ld b,0 : jr ReadToken
 
 NoLiterals:	xor (hl) : NEXT_HL
-		push de : ld e,(hl) : NEXT_HL : jp m,LongOffset
+		push de : ld e,(hl) : jp m,LongOffset
 
  		; short matches have length 0+3..14+3
 ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
-.UseC		ex (sp),hl							; BC = len, DE = offset, HL = dest, SP ->[dest,src]
+.UseC		NEXT_HL : ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
 		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		BLOCKCOPY : pop hl						; BC = 0, DE = dest, HL = src
 	
@@ -108,22 +107,22 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		BLOCKCOPY
 
 		; next we read the first byte of the offset
-		push de : ld e,(hl) : NEXT_HL
+		push de : ld e,(hl)
 		; the top bit of token is set if the offset contains two bytes
 		and #8F : jp p,ShortOffset
 
 LongOffset:	; read second byte of the offset
-		ld d,(hl) : NEXT_HL
+		NEXT_HL : ld d,(hl)
 		add -128+3 : cp 15+3 : jp c,CopyMatch
 
 		; MMMM=15 indicates a multi-byte number of literals
-LongerMatch:	add (hl) : NEXT_HL : jr nc,CopyMatch
+LongerMatch:	NEXT_HL : add (hl) : jr nc,CopyMatch
 
 		; the codes are designed to overflow;
 		; the overflow value 1 means read 1 extra byte
 		; and overflow value 0 means read 2 extra bytes
-.code1		ld b,a : ld c,(hl) : NEXT_HL : jr nz,CopyMatch.UseC
-.code0		ld b,(hl) : NEXT_HL
+.code1		NEXT_HL : ld b,a : ld c,(hl) : jr nz,CopyMatch.UseC
+.code0		NEXT_HL : ld b,(hl)
 
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
@@ -137,7 +136,7 @@ MoreLiterals:	; there are three possible situations here
 CopyLiterals:	ld c,a
 .UseC		BLOCKCOPY
 
-		push de : ld e,(hl) : NEXT_HL
+		push de : ld e,(hl)
 		exa : jp p,ShortOffset : jr LongOffset
 
 ManyLiterals:
