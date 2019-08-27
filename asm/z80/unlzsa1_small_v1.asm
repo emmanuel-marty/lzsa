@@ -1,5 +1,5 @@
 ;
-;  Size-optimized LZSA1 decompressor by spke (v.1 23/04/2019, 67 bytes);
+;  Size-optimized LZSA1 decompressor by spke (v.1 23/04/2019, 68 bytes);
 ;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
@@ -86,7 +86,7 @@
 		; first a byte token "O|LLL|MMMM" is read from the stream,
 		; where LLL is the number of literals and MMMM is
 		; a length of the match that follows after the literals
-ReadToken:	ld a,(hl) : NEXT_HL : push af
+ReadToken:	ld a,(hl) : exa : ld a,(hl) : NEXT_HL
 		and #70 : jr z,NoLiterals
 
 		rrca : rrca : rrca : rrca					; LLL<7 means 0..6 literals...
@@ -95,10 +95,10 @@ ReadToken:	ld a,(hl) : NEXT_HL : push af
 		ld c,a : BLOCKCOPY
 
 		; next we read the low byte of the -offset
-NoLiterals:	pop af : push de : ld e,(hl) : NEXT_HL : ld d,#FF
+NoLiterals:	push de : ld e,(hl) : NEXT_HL : ld d,#FF
 		; the top bit of token is set if
 		; the offset contains the high byte as well
-		or a : jp p,ShortOffset
+		exa : or a : jp p,ShortOffset
 
 LongOffset:	ld d,(hl) : NEXT_HL
 
