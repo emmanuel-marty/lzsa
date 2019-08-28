@@ -1054,7 +1054,9 @@ int main(int argc, char **argv) {
    if (cCommand == 'z') {
       int nResult = do_compress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nMinMatchSize, nFormatVersion);
       if (nResult == 0 && bVerifyCompression) {
-         nResult = do_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions, nFormatVersion);
+         return do_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions, nFormatVersion);
+      } else {
+         return nResult;
       }
    }
    else if (cCommand == 'd') {
