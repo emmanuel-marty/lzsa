@@ -277,8 +277,10 @@ int comparestream_open(lzsa_stream_t *stream, const char *pszCompareFilename, co
       stream->close = comparestream_close;
       return 0;
    }
-   else
+   else {
+      free(pCompareStream);
       return -1;
+   }
 }
 
 static int do_compare(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
