@@ -277,8 +277,10 @@ int comparestream_open(lzsa_stream_t *stream, const char *pszCompareFilename, co
       stream->close = comparestream_close;
       return 0;
    }
-   else
+   else {
+      free(pCompareStream);
       return -1;
+   }
 }
 
 static int do_compare(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nOptions, int nFormatVersion) {
@@ -1052,7 +1054,9 @@ int main(int argc, char **argv) {
    if (cCommand == 'z') {
       int nResult = do_compress(pszInFilename, pszOutFilename, pszDictionaryFilename, nOptions, nMinMatchSize, nFormatVersion);
       if (nResult == 0 && bVerifyCompression) {
-         nResult = do_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions, nFormatVersion);
+         return do_compare(pszOutFilename, pszInFilename, pszDictionaryFilename, nOptions, nFormatVersion);
+      } else {
+         return nResult;
       }
    }
    else if (cCommand == 'd') {
