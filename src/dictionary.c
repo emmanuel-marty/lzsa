@@ -96,6 +96,6 @@ int lzsa_dictionary_load(const char *pszDictionaryFilename, void **ppDictionaryD
 void lzsa_dictionary_free(void **ppDictionaryData) {
    if (*ppDictionaryData) {
       free(*ppDictionaryData);
-      ppDictionaryData = NULL;
+      *ppDictionaryData = NULL;
    }
 }
