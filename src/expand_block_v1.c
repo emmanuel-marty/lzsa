@@ -166,7 +166,7 @@ int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, int nBlockS
          const unsigned char *pSrc = pCurOutData - nMatchOffset;
          if (pSrc >= pOutData) {
             unsigned int nMatchLen = (unsigned int)(token & 0x0f);
-            if (nMatchLen != MATCH_RUN_LEN_V1 && nMatchOffset >= 8 && pCurOutData < pOutDataFastEnd) {
+            if (nMatchLen != MATCH_RUN_LEN_V1 && nMatchOffset >= 8 && pCurOutData < pOutDataFastEnd && (pSrc + 18) <= pOutDataEnd) {
                memcpy(pCurOutData, pSrc, 8);
                memcpy(pCurOutData + 8, pSrc + 8, 8);
                memcpy(pCurOutData + 16, pSrc + 16, 2);
@@ -181,27 +181,32 @@ int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, int nBlockS
                      break;
                }
 
-               if ((pCurOutData + nMatchLen) <= pOutDataEnd) {
-                  /* Do a deterministic, left to right byte copy instead of memcpy() so as to handle overlaps */
+               if ((pSrc + nMatchLen) <= pOutDataEnd) {
+                  if ((pCurOutData + nMatchLen) <= pOutDataEnd) {
+                     /* Do a deterministic, left to right byte copy instead of memcpy() so as to handle overlaps */
 
-                  if (nMatchOffset >= 16 && (pCurOutData + nMatchLen) < (pOutDataFastEnd - 15)) {
-                     const unsigned char *pCopySrc = pSrc;
-                     unsigned char *pCopyDst = pCurOutData;
-                     const unsigned char *pCopyEndDst = pCurOutData + nMatchLen;
+                     if (nMatchOffset >= 16 && (pCurOutData + nMatchLen) < (pOutDataFastEnd - 15)) {
+                        const unsigned char *pCopySrc = pSrc;
+                        unsigned char *pCopyDst = pCurOutData;
+                        const unsigned char *pCopyEndDst = pCurOutData + nMatchLen;
 
-                     do {
-                        memcpy(pCopyDst, pCopySrc, 16);
-                        pCopySrc += 16;
-                        pCopyDst += 16;
-                     } while (pCopyDst < pCopyEndDst);
+                        do {
+                           memcpy(pCopyDst, pCopySrc, 16);
+                           pCopySrc += 16;
+                           pCopyDst += 16;
+                        } while (pCopyDst < pCopyEndDst);
 
-                     pCurOutData += nMatchLen;
+                        pCurOutData += nMatchLen;
+                     }
+                     else {
+                        while (nMatchLen) {
+                           *pCurOutData++ = *pSrc++;
+                           nMatchLen--;
+                        }
+                     }
                   }
                   else {
-                     while (nMatchLen) {
-                        *pCurOutData++ = *pSrc++;
-                        nMatchLen--;
-                     }
+                     return -1;
                   }
                }
                else {
