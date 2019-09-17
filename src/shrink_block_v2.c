@@ -600,121 +600,74 @@ static void lzsa_optimize_backward_v2(lzsa_compressor *pCompressor, const int nS
 static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
-   int nDidReduce = 0;
-   int nPreviousMatchOffset = -1;
    int nRepMatchOffset = 0;
-   lzsa_repmatch_opt *repmatch_opt = pCompressor->repmatch_opt;
+   int nDidReduce = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
       lzsa_match *pMatch = pBestMatch + i;
 
       if (pMatch->length >= MIN_MATCH_SIZE_V2) {
-         int nMatchLen = pMatch->length;
-         int nReduce = 0;
-         int nCurrentMatchOffset = i;
+         if (pMatch->length < 9 && /* Don't waste time considering large matches, they will always win over literals */
+            (i + pMatch->length) < nEndOffset /* Don't consider the last match in the block, we can only reduce a match inbetween other tokens */) {
+            int nNextIndex = i + pMatch->length;
+            int nNextLiterals = 0;
 
-         if (nMatchLen <= 9 && (i + nMatchLen) < nEndOffset) /* max reducable command size: <token> <EE> <ll> <ll> <offset> <offset> <EE> <mm> <mm> */ {
-            int nMatchOffset = pMatch->offset;
-            int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V2;
-            int nRepMatchSize = (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
-            int nUndoRepMatchCost = (nPreviousMatchOffset < 0 || !repmatch_opt[nPreviousMatchOffset].expected_repmatch) ? 0 : nRepMatchSize;
+            while (nNextIndex < nEndOffset && pBestMatch[nNextIndex].length < MIN_MATCH_SIZE_V2) {
+               nNextLiterals++;
+               nNextIndex++;
+            }
 
-            if (pBestMatch[i + nMatchLen].length >= MIN_MATCH_SIZE_V2) {
-               int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(nEncodedMatchLen) - nUndoRepMatchCost;
+            if (nNextIndex < nEndOffset && pBestMatch[nNextIndex].length >= MIN_MATCH_SIZE_V2) {
+               /* This command is a match, is followed by 'nNextLiterals' literals and then by another match. Calculate this command's current cost (excluding 'nNumLiterals' bytes) */
 
-               if (pBestMatch[i + nMatchLen].offset != nMatchOffset) {
-                  nCommandSize += (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
-               }
+               int nCurCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
+               if (pMatch->offset != nRepMatchOffset)
+                  nCurCommandSize += (pMatch->offset <= 32) ? 4 : ((pMatch->offset <= 512) ? 8 : ((pMatch->offset <= (8192 + 512)) ? 12 : 16));
 
-               if (nCommandSize >= ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nMatchLen))) {
-                  /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
-                   * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
-                   * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
-                   * match command by literals, the output size will not increase and it will remove one command. */
-                  nReduce = 1;
-               }
-               else {
-                  if (nMatchOffset != nRepMatchOffset &&
-                      pBestMatch[i + nMatchLen].offset == nRepMatchOffset) {
+               /* Calculate the next command's current cost */
+               int nNextCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+               if (pBestMatch[nNextIndex].offset != pMatch->offset)
+                  nNextCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
-                     if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nMatchLen) - nRepMatchSize)) {
-                        /* Same case, replacing this command by literals alone isn't enough on its own to have savings, however this match command is inbetween two matches with
-                         * identical offsets, while this command has a different match offset. Replacing it with literals allows to use a rep-match for the two commands around it, and
-                         * that is enough for some savings. Replace. */
-                        nReduce = 1;
-                     }
+               int nOriginalCombinedCommandSize = nCurCommandSize + nNextCommandSize;
+
+               /* Calculate the cost of replacing this match command by literals + the next command with the cost of encoding these literals (excluding 'nNumLiterals' bytes) */
+               int nReducedCommandSize = (pMatch->length << 3) + 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals + pMatch->length + nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+               if (pBestMatch[nNextIndex].offset != nRepMatchOffset)
+                  nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
+
+               if (nOriginalCombinedCommandSize >= nReducedCommandSize) {
+                  /* Reduce */
+                  int nMatchLen = pMatch->length;
+                  int j;
+
+                  for (j = 0; j < nMatchLen; j++) {
+                     pBestMatch[i + j].length = 0;
                   }
-               }
-            }
-            else {
-               int nCurIndex = i + nMatchLen;
-               int nNextNumLiterals = 0;
-               int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(nEncodedMatchLen) - nUndoRepMatchCost;;
 
-               do {
-                  nCurIndex++;
-                  nNextNumLiterals++;
-               } while (nCurIndex < nEndOffset && pBestMatch[nCurIndex].length < MIN_MATCH_SIZE_V2);
-
-               if (nCurIndex >= nEndOffset || pBestMatch[nCurIndex].length < MIN_MATCH_SIZE_V2 ||
-                  pBestMatch[nCurIndex].offset != nMatchOffset) {
-                  nCommandSize += (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16)) /* match offset */;
-               }
-
-               if (nCommandSize >= ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size_v2(nNextNumLiterals))) {
-                  /* This command is a match, and is followed by literals, and then another match or the end of the input data. If encoding this match as literals doesn't take
-                   * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
-                  nReduce = 1;
-               }
-               else {
-                  if (nCurIndex < nEndOffset && pBestMatch[nCurIndex].length >= MIN_MATCH_SIZE_V2 &&
-                     pBestMatch[nCurIndex].offset != nMatchOffset &&
-                     pBestMatch[nCurIndex].offset == nRepMatchOffset) {
-                     if (nCommandSize > ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v2(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size_v2(nNextNumLiterals) - nRepMatchSize)) {
-                        /* Same case, but now replacing this command allows to use a rep-match and get savings, so do it */
-                        nReduce = 1;
-                     }
-                  }
+                  nDidReduce = 1;
+                  continue;
                }
             }
          }
 
-         if (nReduce) {
-            int j;
+         if ((i + pMatch->length) < nEndOffset && pMatch->length >= LCP_MAX &&
+            pMatch->offset && pMatch->offset <= 32 && pBestMatch[i + pMatch->length].offset == pMatch->offset && (pMatch->length % pMatch->offset) == 0 &&
+            (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN) {
+            int nMatchLen = pMatch->length;
 
-            for (j = 0; j < nMatchLen; j++) {
-               pBestMatch[i + j].length = 0;
-            }
-            nNumLiterals += nMatchLen;
-            i += nMatchLen;
+            /* Join */
 
-            nDidReduce = 1;
-
-            if (nPreviousMatchOffset >= 0) {
-               repmatch_opt[nPreviousMatchOffset].expected_repmatch = 0;
-               nPreviousMatchOffset = -1;
-            }
-         }
-         else {
-            if (pMatch->length)
-               nRepMatchOffset = pMatch->offset;
-
-            if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
-               pMatch->offset && pMatch->offset <= 32 && pBestMatch[i + nMatchLen].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
-               (nMatchLen + pBestMatch[i + nMatchLen].length) <= MAX_VARLEN) {
-               /* Join */
-
-               pMatch->length += pBestMatch[i + nMatchLen].length;
-               pBestMatch[i + nMatchLen].offset = 0;
-               pBestMatch[i + nMatchLen].length = -1;
-               continue;
-            }
-
-            nNumLiterals = 0;
-            i += nMatchLen;
+            pMatch->length += pBestMatch[i + nMatchLen].length;
+            pBestMatch[i + nMatchLen].offset = 0;
+            pBestMatch[i + nMatchLen].length = -1;
+            continue;
          }
 
-         nPreviousMatchOffset = nCurrentMatchOffset;
+         nRepMatchOffset = pMatch->offset;
+
+         i += pMatch->length;
+         nNumLiterals = 0;
       }
       else {
          nNumLiterals++;

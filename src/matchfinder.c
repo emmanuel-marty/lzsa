@@ -36,6 +36,17 @@
 #include "lib.h"
 
 /**
+ * Hash index into TAG_BITS
+ *
+ * @param nIndex index value
+ *
+ * @return hash
+ */
+static inline int lzsa_get_index_tag(unsigned int nIndex) {
+   return (int)(((unsigned long long)nIndex * 11400714819323198485ULL) >> (64ULL - TAG_BITS));
+}
+
+/**
  * Parse input data, build suffix array and overlaid data structures to speed up match finding
  *
  * @param pCompressor compression context
@@ -78,15 +89,31 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
     * and the interval builder below doesn't need it either. */
    intervals[0] &= POS_MASK;
    int nMinMatchSize = pCompressor->min_match_size;
-   for (i = 1; i < nInWindowSize - 1; i++) {
-      int nIndex = (int)(intervals[i] & POS_MASK);
-      int nLen = PLCP[nIndex];
-      if (nLen < nMinMatchSize)
-         nLen = 0;
-      if (nLen > LCP_MAX)
-         nLen = LCP_MAX;
-      intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nLen) << LCP_SHIFT);
+
+   if ((pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) && pCompressor->format_version >= 2) {
+      for (i = 1; i < nInWindowSize - 1; i++) {
+         int nIndex = (int)(intervals[i] & POS_MASK);
+         int nLen = PLCP[nIndex];
+         if (nLen < nMinMatchSize)
+            nLen = 0;
+         if (nLen > LCP_MAX)
+            nLen = LCP_MAX;
+         int nTaggedLen = (nLen << TAG_BITS) | (lzsa_get_index_tag((unsigned int)nIndex) & ((1 << TAG_BITS) - 1));
+         intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nTaggedLen) << LCP_SHIFT);
+      }
    }
+   else {
+      for (i = 1; i < nInWindowSize - 1; i++) {
+         int nIndex = (int)(intervals[i] & POS_MASK);
+         int nLen = PLCP[nIndex];
+         if (nLen < nMinMatchSize)
+            nLen = 0;
+         if (nLen > LCP_AND_TAG_MAX)
+            nLen = LCP_AND_TAG_MAX;
+         intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nLen) << LCP_SHIFT);
+      }
+   }
+
    if (i < nInWindowSize)
       intervals[i] &= POS_MASK;
 
@@ -219,7 +246,12 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
          int nMatchOffset = (int)(nOffset - match_pos);
 
          if (nMatchOffset <= MAX_OFFSET) {
-            matchptr->length = (unsigned short)(ref >> LCP_SHIFT);
+            if ((pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) && pCompressor->format_version >= 2) {
+               matchptr->length = (unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
+            }
+            else {
+               matchptr->length = (unsigned short)(ref >> LCP_SHIFT);
+            }
             matchptr->offset = (unsigned short)nMatchOffset;
             matchptr++;
          }
