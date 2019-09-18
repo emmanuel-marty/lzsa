@@ -202,7 +202,8 @@ int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, unsigned char *pI
       if (nPreviousBlockSize) {
          lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
       }
-      lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+      if ((pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) == 0 || pCompressor->format_version < 2)
+         lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
 
       if (pCompressor->format_version == 1) {
          nCompressedSize = lzsa_optimize_and_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);
