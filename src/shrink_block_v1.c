@@ -214,35 +214,33 @@ static void lzsa_optimize_arrivals_v1(lzsa_compressor *pCompressor, const int nS
             for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
                int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
+               int exists = 0;
 
-               for (n = 0; n < 3 /* we only need the literals + short match cost + long match cost cases */; n++) {
+               for (n = 0;
+                  n < 3 && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].cost <= nCodingChoiceCost;
+                  n++) {
+                  if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].rep_offset) == lzsa_get_offset_cost_v1(pMatch[m].offset)) {
+                     exists = 1;
+                     break;
+                  }
+               }
+
+               for (n = 0; !exists && n < 3 /* we only need the literals + short match cost + long match cost cases */; n++) {
                   lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n];
 
                   if (pDestArrival->from_slot == 0 ||
                      nCodingChoiceCost <= pDestArrival->cost) {
-                     int exists = 0;
+                     memmove(&arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
+                        &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n],
+                        sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
 
-                     for (int l = n; l < NMATCHES_PER_OFFSET && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + l].from_slot &&
-                        arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + l].cost == nCodingChoiceCost; l++) {
-                        if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + l].rep_offset) == lzsa_get_offset_cost_v1(pMatch[m].offset)) {
-                           exists = 1;
-                           break;
-                        }
-                     }
-
-                     if (!exists) {
-                        memmove(&arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                           &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n],
-                           sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
-
-                        pDestArrival->cost = nCodingChoiceCost;
-                        pDestArrival->from_pos = i;
-                        pDestArrival->from_slot = j + 1;
-                        pDestArrival->match_offset = pMatch[m].offset;
-                        pDestArrival->match_len = k;
-                        pDestArrival->num_literals = 0;
-                        pDestArrival->rep_offset = pMatch[m].offset;
-                     }
+                     pDestArrival->cost = nCodingChoiceCost;
+                     pDestArrival->from_pos = i;
+                     pDestArrival->from_slot = j + 1;
+                     pDestArrival->match_offset = pMatch[m].offset;
+                     pDestArrival->match_len = k;
+                     pDestArrival->num_literals = 0;
+                     pDestArrival->rep_offset = pMatch[m].offset;
                      break;
                   }
                }
@@ -254,13 +252,6 @@ static void lzsa_optimize_arrivals_v1(lzsa_compressor *pCompressor, const int nS
    lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_OFFSET_SHIFT) + 0];
    pCompressor->match[i << MATCHES_PER_OFFSET_SHIFT].length = 0;
    pCompressor->match[i << MATCHES_PER_OFFSET_SHIFT].offset = 0;
-
-   int nEndCost = end_arrival->cost;
-
-   int *backward_cost = (int*)pCompressor->pos_data;  /* Reuse */
-   for (i = nStartOffset; i != nEndOffset; i++) {
-      backward_cost[i] = nEndCost - arrival[(i << MATCHES_PER_OFFSET_SHIFT) + 0].cost;
-   }
 
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0) {
       pCompressor->match[end_arrival->from_pos << MATCHES_PER_OFFSET_SHIFT].length = end_arrival->match_len;
