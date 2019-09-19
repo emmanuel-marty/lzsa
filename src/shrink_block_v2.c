@@ -302,22 +302,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const int nSt
    pCompressor->best_match[i].length = 0;
    pCompressor->best_match[i].offset = 0;
 
-   unsigned int nRepMatchOffset = 0;
-   int nEndCost = end_arrival->cost;
-
-   int *backward_cost = (int*)pCompressor->pos_data;  /* Reuse */
-   for (i = nStartOffset; i != nEndOffset; i++) {
-      backward_cost[i] = nEndCost - arrival[(i << MATCHES_PER_OFFSET_SHIFT) + 0].cost;
-   }
-
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0) {
       pCompressor->best_match[end_arrival->from_pos].length = end_arrival->match_len;
       pCompressor->best_match[end_arrival->from_pos].offset = end_arrival->match_offset;
-      pCompressor->repmatch_opt[end_arrival->from_pos].expected_repmatch = (end_arrival->match_len >= MIN_MATCH_SIZE_V2 && nRepMatchOffset == end_arrival->match_offset) ? 1 : 0;
-
-      if (end_arrival->match_len >= MIN_MATCH_SIZE_V2)
-         nRepMatchOffset = end_arrival->match_offset;
-
       end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_OFFSET_SHIFT) + (end_arrival->from_slot - 1)];
    }
 }
