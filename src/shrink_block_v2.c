@@ -245,7 +245,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const int nSt
 
       for (m = 0; m < nMatches; m++) {
          int nMatchLen = match[m].length;
-         int nNoRe_matchOffsetCost = (match[m].offset <= 32) ? 4 : ((match[m].offset <= 512) ? 8 : ((match[m].offset <= (8192 + 512)) ? 12 : 16));
+         int nMatchOffset = match[m].offset;
+         int nNoRepmatchOffsetCost = (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16));
          int nStartingMatchLen, k;
 
          if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
@@ -257,39 +258,40 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const int nSt
             nStartingMatchLen = nMinMatchSize;
          for (k = nStartingMatchLen; k <= nMatchLen; k++) {
             int nMatchLenCost = lzsa_get_match_varlen_size_v2(k - MIN_MATCH_SIZE_V2);
+            lzsa_arrival *pDestSlots = &arrival[(i + k) << MATCHES_PER_OFFSET_SHIFT];
 
             for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-               int nMatchOffsetCost = (match[m].offset == arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset) ? 0 : nNoRe_matchOffsetCost;
+               int nMatchOffsetCost = (nMatchOffset == arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset) ? 0 : nNoRepmatchOffsetCost;
                int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
                int exists = 0;
 
                for (n = 0; 
-                  n < NMATCHES_PER_OFFSET && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].cost <= nCodingChoiceCost;
+                  n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nCodingChoiceCost;
                   n++) {
-                  if (arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].rep_offset == match[m].offset) {
+                  if (pDestSlots[n].rep_offset == nMatchOffset) {
                      exists = 1;
                      break;
                   }
                }
 
                for (n = 0; !exists && n < NMATCHES_PER_OFFSET; n++) {
-                  lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n];
+                  lzsa_arrival *pDestArrival = &pDestSlots[n];
 
                   if (pDestArrival->from_slot == 0 ||
                      nCodingChoiceCost <= pDestArrival->cost) {
 
-                     memmove(&arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                        &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n],
+                     memmove(&pDestSlots[n + 1],
+                        &pDestSlots[n],
                         sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
 
                      pDestArrival->cost = nCodingChoiceCost;
                      pDestArrival->from_pos = i;
                      pDestArrival->from_slot = j + 1;
-                     pDestArrival->match_offset = match[m].offset;
+                     pDestArrival->match_offset = nMatchOffset;
                      pDestArrival->match_len = k;
                      pDestArrival->num_literals = 0;
-                     pDestArrival->rep_offset = match[m].offset;
+                     pDestArrival->rep_offset = nMatchOffset;
                      break;
                   }
                }
