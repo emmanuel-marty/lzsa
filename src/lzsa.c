@@ -47,7 +47,7 @@
 #define OPT_FAVOR_RATIO    4
 #define OPT_RAW_BACKWARD   8
 
-#define TOOL_VERSION "1.0.8"
+#define TOOL_VERSION "1.0.9"
 
 /*---------------------------------------------------------------------------*/
 
