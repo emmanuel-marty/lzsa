@@ -667,39 +667,44 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                   /* Check if we can change the current match's offset to be the same as the previous match's offset, and get an extra repmatch. This will occur when
                    * matching large regions of identical bytes for instance, where there are too many offsets to be considered by the parser, and when not compressing to favor the
                    * ratio (the forward arrivals parser already has this covered). */
-                  if (i >= nRepMatchOffset && !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length))
+                  if (i >= nRepMatchOffset && 
+                      (i - nRepMatchOffset + pMatch->length) <= (nEndOffset - LAST_LITERALS) &&
+                      !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length))
                      pMatch->offset = nRepMatchOffset;
                }
 
-               /* Calculate this command's current cost (excluding 'nNumLiterals' bytes) */
+               if (pMatch->length < 9 /* Don't waste time considering large matches, they will always win over literals */) {
 
-               int nCurCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
-               if (pMatch->offset != nRepMatchOffset)
-                  nCurCommandSize += (pMatch->offset <= 32) ? 4 : ((pMatch->offset <= 512) ? 8 : ((pMatch->offset <= (8192 + 512)) ? 12 : 16));
+                  /* Calculate this command's current cost (excluding 'nNumLiterals' bytes) */
 
-               /* Calculate the next command's current cost */
-               int nNextCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
-               if (pBestMatch[nNextIndex].offset != pMatch->offset)
-                  nNextCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
+                  int nCurCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
+                  if (pMatch->offset != nRepMatchOffset)
+                     nCurCommandSize += (pMatch->offset <= 32) ? 4 : ((pMatch->offset <= 512) ? 8 : ((pMatch->offset <= (8192 + 512)) ? 12 : 16));
 
-               int nOriginalCombinedCommandSize = nCurCommandSize + nNextCommandSize;
+                  /* Calculate the next command's current cost */
+                  int nNextCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+                  if (pBestMatch[nNextIndex].offset != pMatch->offset)
+                     nNextCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
-               /* Calculate the cost of replacing this match command by literals + the next command with the cost of encoding these literals (excluding 'nNumLiterals' bytes) */
-               int nReducedCommandSize = (pMatch->length << 3) + 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals + pMatch->length + nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
-               if (pBestMatch[nNextIndex].offset != nRepMatchOffset)
-                  nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
+                  int nOriginalCombinedCommandSize = nCurCommandSize + nNextCommandSize;
 
-               if (nOriginalCombinedCommandSize >= nReducedCommandSize) {
-                  /* Reduce */
-                  int nMatchLen = pMatch->length;
-                  int j;
+                  /* Calculate the cost of replacing this match command by literals + the next command with the cost of encoding these literals (excluding 'nNumLiterals' bytes) */
+                  int nReducedCommandSize = (pMatch->length << 3) + 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals + pMatch->length + nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+                  if (pBestMatch[nNextIndex].offset != nRepMatchOffset)
+                     nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
-                  for (j = 0; j < nMatchLen; j++) {
-                     pBestMatch[i + j].length = 0;
+                  if (nOriginalCombinedCommandSize >= nReducedCommandSize) {
+                     /* Reduce */
+                     int nMatchLen = pMatch->length;
+                     int j;
+
+                     for (j = 0; j < nMatchLen; j++) {
+                        pBestMatch[i + j].length = 0;
+                     }
+
+                     nDidReduce = 1;
+                     continue;
                   }
-
-                  nDidReduce = 1;
-                  continue;
                }
             }
          }
