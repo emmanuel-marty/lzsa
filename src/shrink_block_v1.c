@@ -388,66 +388,48 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const in
       lzsa_match *pMatch = pCompressor->match + (i << MATCHES_PER_OFFSET_SHIFT);
 
       if (pMatch->length >= MIN_MATCH_SIZE_V1) {
-         int nMatchLen = pMatch->length;
-         int nReduce = 0;
+         if (pMatch->length <= 9 /* Don't waste time considering large matches, they will always win over literals */ &&
+            (i + pMatch->length) < nEndOffset /* Don't consider the last token in the block, we can only reduce a match inbetween other tokens */) {
+            int nNextIndex = i + pMatch->length;
+            int nNextLiterals = 0;
 
-         if (nMatchLen <= 9 && (i + nMatchLen) < nEndOffset) /* max reducable command size: <token> <EE> <ll> <ll> <offset> <offset> <EE> <mm> <mm> */ {
-            int nMatchOffset = pMatch->offset;
-            int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V1;
-            int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + ((nMatchOffset <= 256) ? 8 : 16) /* match offset */ + lzsa_get_match_varlen_size_v1(nEncodedMatchLen);
+            while (nNextIndex < nEndOffset && pCompressor->match[nNextIndex << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE_V1) {
+               nNextLiterals++;
+               nNextIndex++;
+            }
 
-            if (pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length >= MIN_MATCH_SIZE_V1) {
-               if (nCommandSize >= ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v1(nNumLiterals + nMatchLen))) {
-                  /* This command is a match; the next command is also a match. The next command currently has no literals; replacing this command by literals will
-                   * make the next command eat the cost of encoding the current number of literals, + nMatchLen extra literals. The size of the current match command is
-                   * at least as much as the number of literal bytes + the extra cost of encoding them in the next match command, so we can safely replace the current
-                   * match command by literals, the output size will not increase and it will remove one command. */
-                  nReduce = 1;
+            /* This command is a match, is followed by 'nNextLiterals' literals and then by another match, or the end of the input. Calculate this command's current cost (excluding 'nNumLiterals' bytes) */
+            if ((8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + ((pMatch->offset <= 256) ? 8 : 16) /* match offset */ + lzsa_get_match_varlen_size_v1(pMatch->length - MIN_MATCH_SIZE_V1) +
+               8 /* token */ + lzsa_get_literals_varlen_size_v1(nNextLiterals)) >=
+               (8 /* token */ + (pMatch->length << 3) + lzsa_get_literals_varlen_size_v1(nNumLiterals + pMatch->length + nNextLiterals))) {
+               /* Reduce */
+               int nMatchLen = pMatch->length;
+               int j;
+
+               for (j = 0; j < nMatchLen; j++) {
+                  pCompressor->match[(i + j) << MATCHES_PER_OFFSET_SHIFT].length = 0;
                }
-            }
-            else {
-               int nCurIndex = i + nMatchLen;
-               int nNextNumLiterals = 0;
 
-               do {
-                  nCurIndex++;
-                  nNextNumLiterals++;
-               } while (nCurIndex < nEndOffset && pCompressor->match[nCurIndex << MATCHES_PER_OFFSET_SHIFT].length < MIN_MATCH_SIZE_V1);
-
-               if (nCommandSize >= ((nMatchLen << 3) + lzsa_get_literals_varlen_size_v1(nNumLiterals + nNextNumLiterals + nMatchLen) - lzsa_get_literals_varlen_size_v1(nNextNumLiterals))) {
-                  /* This command is a match, and is followed by literals, and then another match or the end of the input data. If encoding this match as literals doesn't take
-                   * more room than the match, and doesn't grow the next match command's literals encoding, go ahead and remove the command. */
-                  nReduce = 1;
-               }
-            }
-         }
-
-         if (nReduce) {
-            int j;
-
-            for (j = 0; j < nMatchLen; j++) {
-               pCompressor->match[(i + j) << MATCHES_PER_OFFSET_SHIFT].length = 0;
-            }
-            nNumLiterals += nMatchLen;
-            i += nMatchLen;
-
-            nDidReduce = 1;
-         }
-         else {
-            if ((i + nMatchLen) < nEndOffset && nMatchLen >= LCP_MAX &&
-               pMatch->offset && pMatch->offset <= 32 && pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset == pMatch->offset && (nMatchLen % pMatch->offset) == 0 &&
-               (nMatchLen + pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length) <= MAX_VARLEN) {
-               /* Join */
-
-               pMatch->length += pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length;
-               pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset = 0;
-               pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length = -1;
+               nDidReduce = 1;
                continue;
             }
-
-            nNumLiterals = 0;
-            i += nMatchLen;
          }
+
+         if ((i + pMatch->length) < nEndOffset && pMatch->length >= LCP_MAX &&
+            pMatch->offset && pMatch->offset <= 32 && pCompressor->match[(i + pMatch->length) << MATCHES_PER_OFFSET_SHIFT].offset == pMatch->offset && (pMatch->length % pMatch->offset) == 0 &&
+            (pMatch->length + pCompressor->match[(i + pMatch->length) << MATCHES_PER_OFFSET_SHIFT].length) <= MAX_VARLEN) {
+            int nMatchLen = pMatch->length;
+
+            /* Join */
+
+            pMatch->length += pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length;
+            pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].offset = 0;
+            pCompressor->match[(i + nMatchLen) << MATCHES_PER_OFFSET_SHIFT].length = -1;
+            continue;
+         }
+
+         i += pMatch->length;
+         nNumLiterals = 0;
       }
       else {
          nNumLiterals++;
