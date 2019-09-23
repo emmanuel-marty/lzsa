@@ -225,9 +225,11 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             if (pDestArrival->from_slot == 0 ||
                nCodingChoiceCost <= pDestArrival->cost) {
 
-               memmove(&arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                  &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n],
-                  sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+               if (pDestArrival->from_slot) {
+                  memmove(&arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
+                     &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n],
+                     sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+               }
 
                pDestArrival->cost = nCodingChoiceCost;
                pDestArrival->from_pos = i;
@@ -248,10 +250,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          int nMatchOffset = match[m].offset;
          int nNoRepmatchOffsetCost = (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16));
          int nStartingMatchLen, k;
-         int nRepMatchLenForArrival[NMATCHES_PER_OFFSET];
-
-         for (j = 0; j < NMATCHES_PER_OFFSET; j++)
-            nRepMatchLenForArrival[j] = 0;
 
          if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
             nMatchLen = nEndOffset - LAST_LITERALS - i;
@@ -260,14 +258,24 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             nStartingMatchLen = nMatchLen;
          else
             nStartingMatchLen = nMinMatchSize;
-         for (k = nStartingMatchLen; k <= nMatchLen; k++) {
-            int nMatchLenCost = lzsa_get_match_varlen_size_v2(k - MIN_MATCH_SIZE_V2);
-            lzsa_arrival *pDestSlots = &arrival[(i + k) << MATCHES_PER_OFFSET_SHIFT];
+         for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
+            const int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+            int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+            int nMaxRepLen = 0;
 
-            for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-               int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+            if (nMatchOffset != nRepOffset &&
+               nRepOffset &&
+               i >= nRepOffset &&
+               (i - nRepOffset + nMatchLen) <= (nEndOffset - LAST_LITERALS)) {
+               while (nMaxRepLen < nMatchLen && pInWindow[i - nRepOffset + nMaxRepLen] == pInWindow[i - nMatchOffset + nMaxRepLen])
+                  nMaxRepLen++;
+            }
+
+            for (k = nStartingMatchLen; k <= nMatchLen; k++) {
+               int nMatchLenCost = lzsa_get_match_varlen_size_v2(k - MIN_MATCH_SIZE_V2);
+               lzsa_arrival *pDestSlots = &arrival[(i + k) << MATCHES_PER_OFFSET_SHIFT];
+
                int nMatchOffsetCost = (nMatchOffset == nRepOffset) ? 0 : nNoRepmatchOffsetCost;
-               int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
                int exists = 0;
 
@@ -286,9 +294,11 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                   if (pDestArrival->from_slot == 0 ||
                      nCodingChoiceCost <= pDestArrival->cost) {
 
-                     memmove(&pDestSlots[n + 1],
-                        &pDestSlots[n],
-                        sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                     if (pDestArrival->from_slot) {
+                        memmove(&pDestSlots[n + 1],
+                           &pDestSlots[n],
+                           sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                     }
 
                      pDestArrival->cost = nCodingChoiceCost;
                      pDestArrival->from_pos = i;
@@ -301,21 +311,13 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                   }
                }
 
-               /* This coding choice doesn't rep-match; see if we still get a match by using the current repmatch offset for this arrival. This can occur (and not have the
+               /* If this coding choice doesn't rep-match, see if we still get a match by using the current repmatch offset for this arrival. This can occur (and not have the
                 * matchfinder offer the offset in the first place, or have too many choices with the same cost to retain the repmatchable offset) when compressing regions
                 * of identical bytes, for instance. Checking for this provides a big compression win on some files. */
                
-               if (nMatchOffset != nRepOffset &&
-                  nRepOffset &&
-                  i >= nRepOffset &&
-                  k > nRepMatchLenForArrival[j] &&
-                  !memcmp(pInWindow + i - nRepOffset + nRepMatchLenForArrival[j], pInWindow + i - nMatchOffset + nRepMatchLenForArrival[j], k - nRepMatchLenForArrival[j])) {
-
-                  nRepMatchLenForArrival[j] = k;
-
+               if (i >= nRepOffset && nMaxRepLen >= k) {
                   /* A match is possible at the rep offset; insert the extra coding choice. */
 
-                  nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
                   nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + /* rep match - no offset cost */ nMatchLenCost;
                   exists = 0;
 
@@ -334,9 +336,11 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      if (pDestArrival->from_slot == 0 ||
                         nCodingChoiceCost <= pDestArrival->cost) {
 
-                        memmove(&pDestSlots[n + 1],
-                           &pDestSlots[n],
-                           sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                        if (pDestArrival->from_slot) {
+                           memmove(&pDestSlots[n + 1],
+                              &pDestSlots[n],
+                              sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                        }
 
                         pDestArrival->cost = nCodingChoiceCost;
                         pDestArrival->from_pos = i;
@@ -674,7 +678,6 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                }
 
                if (pMatch->length < 9 /* Don't waste time considering large matches, they will always win over literals */) {
-
                   /* Calculate this command's current cost (excluding 'nNumLiterals' bytes) */
 
                   int nCurCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
