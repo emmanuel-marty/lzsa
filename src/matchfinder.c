@@ -90,7 +90,7 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
    intervals[0] &= POS_MASK;
    int nMinMatchSize = pCompressor->min_match_size;
 
-   if ((pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) && pCompressor->format_version >= 2) {
+   if (pCompressor->format_version >= 2) {
       for (i = 1; i < nInWindowSize - 1; i++) {
          int nIndex = (int)(intervals[i] & POS_MASK);
          int nLen = PLCP[nIndex];
@@ -246,7 +246,7 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
          int nMatchOffset = (int)(nOffset - match_pos);
 
          if (nMatchOffset <= MAX_OFFSET) {
-            if ((pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) && pCompressor->format_version >= 2) {
+            if (pCompressor->format_version >= 2) {
                matchptr->length = (unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
             }
             else {

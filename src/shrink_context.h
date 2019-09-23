@@ -66,13 +66,6 @@ typedef struct _lzsa_match {
    unsigned short offset;
 } lzsa_match;
 
-/** One rep-match slot (for LZSA2) */
-typedef struct _lzsa_repmatch_opt {
-   int incoming_offset;
-   short best_slot_for_incoming;
-   short expected_repmatch;
-} lzsa_repmatch_opt;
-
 /** Forward arrival slot */
 typedef struct {
    int cost;
@@ -93,10 +86,7 @@ typedef struct _lzsa_compressor {
    unsigned int *pos_data;
    unsigned int *open_intervals;
    lzsa_match *match;
-   lzsa_match *selected_match;
    lzsa_match *best_match;
-   int *slot_cost;
-   lzsa_repmatch_opt *repmatch_opt;
    lzsa_arrival *arrival;
    int min_match_size;
    int format_version;
