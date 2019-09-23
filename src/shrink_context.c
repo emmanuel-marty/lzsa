@@ -58,7 +58,6 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->intervals = NULL;
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
-   pCompressor->match = NULL;
    pCompressor->best_match = NULL;
    pCompressor->arrival = NULL;
    pCompressor->min_match_size = nMinMatchSize;
@@ -81,22 +80,16 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
             pCompressor->open_intervals = (unsigned int *)malloc((LCP_AND_TAG_MAX + 1) * sizeof(unsigned int));
 
             if (pCompressor->open_intervals) {
-               pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_match));
+               pCompressor->arrival = (lzsa_arrival *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_arrival));
 
-               if (pCompressor->match) {
-                  pCompressor->arrival = (lzsa_arrival *)malloc(nMaxWindowSize * NMATCHES_PER_OFFSET * sizeof(lzsa_arrival));
+               if (pCompressor->arrival) {
+                  pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
-                  if (pCompressor->arrival) {
-                     if (pCompressor->format_version == 2) {
-                        pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
-
-                        if (pCompressor->best_match) {
-                           return 0;
-                        }
-                     }
-                     else {
-                        return 0;
-                     }
+                  if (pCompressor->best_match) {
+                     return 0;
+                  }
+                  else {
+                     return 0;
                   }
                }
             }
@@ -124,11 +117,6 @@ void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
    if (pCompressor->best_match) {
       free(pCompressor->best_match);
       pCompressor->best_match = NULL;
-   }
-
-   if (pCompressor->match) {
-      free(pCompressor->match);
-      pCompressor->match = NULL;
    }
 
    if (pCompressor->open_intervals) {
@@ -172,8 +160,6 @@ int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, unsigned char *pI
       if (nPreviousBlockSize) {
          lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
       }
-      if (pCompressor->format_version < 2)
-         lzsa_find_all_matches(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
 
       if (pCompressor->format_version == 1) {
          nCompressedSize = lzsa_optimize_and_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);

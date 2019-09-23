@@ -283,37 +283,3 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
       lzsa_find_matches_at(pCompressor, i, &match, 0);
    }
 }
-
-/**
- * Find all matches for the data to be compressed. Up to NMATCHES_PER_OFFSET matches are stored for each offset, for
- * the optimizer to look at.
- *
- * @param pCompressor compression context
- * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
- * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
- */
-void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset) {
-   lzsa_match *pMatch = pCompressor->match + (nStartOffset << MATCHES_PER_OFFSET_SHIFT);
-   int i;
-
-   for (i = nStartOffset; i < nEndOffset; i++) {
-      int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, NMATCHES_PER_OFFSET);
-      int m;
-
-      for (m = 0; m < NMATCHES_PER_OFFSET; m++) {
-         if (nMatches <= m || i > (nEndOffset - LAST_MATCH_OFFSET)) {
-            pMatch->length = 0;
-            pMatch->offset = 0;
-         }
-         else {
-            int nMaxLen = (nEndOffset - LAST_LITERALS) - i;
-            if (nMaxLen < 0)
-               nMaxLen = 0;
-            if (pMatch->length > nMaxLen)
-               pMatch->length = (unsigned short)nMaxLen;
-         }
-
-         pMatch++;
-      }
-   }
-}

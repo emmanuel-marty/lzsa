@@ -85,7 +85,6 @@ typedef struct _lzsa_compressor {
    unsigned int *intervals;
    unsigned int *pos_data;
    unsigned int *open_intervals;
-   lzsa_match *match;
    lzsa_match *best_match;
    lzsa_arrival *arrival;
    int min_match_size;

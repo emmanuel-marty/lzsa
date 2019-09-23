@@ -73,16 +73,6 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
  */
 void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset);
 
-/**
- * Find all matches for the data to be compressed. Up to NMATCHES_PER_OFFSET matches are stored for each offset, for
- * the optimizer to look at.
- *
- * @param pCompressor compression context
- * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
- * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
- */
-void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset);
-
 #ifdef __cplusplus
 }
 #endif
