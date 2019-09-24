@@ -213,7 +213,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          }
 
          if (!nFavorRatio && nNumLiterals == 1)
-            nCodingChoiceCost += MODESWITCH_PENALTY * 3;
+            nCodingChoiceCost += MODESWITCH_PENALTY;
 
          int exists = 0;
          for (n = 0;
@@ -284,7 +284,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                int exists = 0;
 
                if (!nFavorRatio && !arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals)
-                  nCodingChoiceCost += MODESWITCH_PENALTY*3;
+                  nCodingChoiceCost += MODESWITCH_PENALTY;
 
                for (n = 0; 
                   n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nCodingChoiceCost;

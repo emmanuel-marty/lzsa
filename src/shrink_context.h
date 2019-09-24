@@ -58,7 +58,7 @@ extern "C" {
 #define LAST_MATCH_OFFSET 4
 #define LAST_LITERALS 1
 
-#define MODESWITCH_PENALTY 1
+#define MODESWITCH_PENALTY 3
 
 /** One match */
 typedef struct _lzsa_match {
