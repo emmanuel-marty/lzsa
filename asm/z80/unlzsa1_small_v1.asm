@@ -1,5 +1,5 @@
 ;
-;  Size-optimized LZSA1 decompressor by spke (v.1 23/04/2019, 67 bytes);
+;  Size-optimized LZSA1 decompressor by spke (v.1 23/04/2019-30/07/2019, 67 bytes);
 ;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
