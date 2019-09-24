@@ -69,7 +69,7 @@ License:
 
 External links:
 
-* i8080 decompressors(https://gitlab.com/ivagor) by Ivan Gorodetsky
+* [i8080 decompressors](https://gitlab.com/ivagor) by Ivan Gorodetsky
 * LZSA's page on [Pouet](https://www.pouet.net/prod.php?which=81573)
 
 # Compressed format
