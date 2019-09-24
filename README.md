@@ -12,10 +12,11 @@ The compression formats give the user choices that range from decompressing fast
 Compression ratio comparison between LZSA and other optimal packers, for a workload composed of ZX Spectrum and C64 files:
 
                          Bytes            Ratio            Decompression speed vs. LZ4
-    LZSA2                685610           53,18% <------   75%                
+    LZSA2                676681           52,49% <------   75%   
+    MegaLZ 4.89          679041           52,68%           Not measured
     ZX7                  687133           53,30%           47,73%
     LZ5 1.4.1            727107           56,40%           75%
-    LZSA1                736169           57,11% <------   90%
+    LZSA1                735785           57,08% <------   90%
     Lizard -29           776122           60,21%           Not measured
     LZ4_HC -19 -B4 -BD   781049           60,59%           100%
     Uncompressed         1289127          100%             N/A
@@ -23,11 +24,11 @@ Compression ratio comparison between LZSA and other optimal packers, for a workl
 Performance over well-known compression corpus files:
 
                          Uncompressed     LZ4_HC -19 -B4 -BD    LZSA1                LZSA2
-    Canterbury           2810784          935827 (33,29%)       855044 (30,42%)      789075 (28,07%)
-    Silesia              211938580        77299725 (36,47%)     73707039 (34,78%)    69983184 (33,02%)
-    Calgary              3251493          1248780 (38,40%)      1196448 (36,80%)     1125462 (34,61%)
-    Large                11159482         3771025 (33,79%)      3648420 (32,69%)     3528725 (31,62%)
-    enwik9               1000000000       371841591 (37,18%)    355360717 (35,54%)   337063553 (33,71%)
+    Canterbury           2810784          935827 (33,29%)       850792 (30,27%)      770877 (27,43%)
+    Silesia              211938580        77299725 (36,47%)     73706340 (34,78%)    68928564 (32,52%)
+    Calgary              3251493          1248780 (38,40%)      1192123 (36,67%)     1110290 (34,15%)
+    Large                11159482         3771025 (33,79%)      3648393 (32,69%)     3519480 (31,54%)
+    enwik9               1000000000       371841591 (37,18%)    355360043 (35,54%)   334900611 (33,49%)
 
 As an example of LZSA1's simplicity, a size-optimized decompressor on Z80 has been implemented in 67 bytes.
 
@@ -41,6 +42,7 @@ The main differences between LZSA1 and the LZ4 compression format are:
 
 As for LZSA2:
 * 5-bit, 9-bit, 13-bit and 16-bit match offsets, using nibble encoding
+* Rep-matches
 * Shorter encoding of lengths, also using nibbles
 * A minmatch of 2 bytes
 * No (slow) bit-packing. LZSA2 uses byte alignment in the hot path, and nibbles.
@@ -51,6 +53,8 @@ Inspirations:
 * [LZ5/Lizard](https://github.com/inikep/lizard) by Przemyslaw Skibinski and Yann Collet.
 * The suffix array intervals in [Wimlib](https://wimlib.net/git/?p=wimlib;a=tree) by Eric Biggers.
 * ZX7 by Einar Saukas
+* [apc](https://github.com/svendahl/cap) by Sven-Åke Dahl
+* [Charles Bloom](http://cbloomrants.blogspot.com/)'s compression blog
 
 License:
 
@@ -62,6 +66,11 @@ License:
 * Z80 decompressors (size- and speed-optimized) written by [introspec](https://github.com/specke)
 * 6502 and 8088 size-optimized improvements by [Peter Ferrie](https://github.com/peterferrie)
 * 8088 speed-optimized decompressor by [Jim Leonard](https://github.com/mobygamer)
+
+External links:
+
+* i8080 decompressors(https://gitlab.com/ivagor) by Ivan Gorodetsky
+* LZSA's page on [Pouet](https://www.pouet.net/prod.php?which=81573)
 
 # Compressed format
 
