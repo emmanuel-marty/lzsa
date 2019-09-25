@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA2 decompressor by spke (v.1 02-07/06/2019, 214 bytes);
+;  Speed-optimized LZSA2 decompressor by spke (v.2 02-27/08/2019, 216 bytes);
 ;  with improvements by uniabis (30/07/2019, -5 bytes, +3% speed and support for Hitachi HD64180).
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
@@ -65,6 +65,10 @@
 		ldir
 		ENDM
 
+		MACRO COPY_MATCH
+		ldi : ldir
+		ENDM
+
 	ELSE
 
 		MACRO NEXT_HL
@@ -78,6 +82,10 @@
 
 		MACRO BLOCKCOPY
 		lddr
+		ENDM
+
+		MACRO COPY_MATCH
+		ldd : lddr
 		ENDM
 
 	ENDIF
@@ -166,11 +174,11 @@ MatchLen:	inc a : and %00000111 : jr z,LongerMatch : inc a
 CopyMatch:	ld c,a
 .useC		ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
 		ADD_OFFSET						; BC = len, DE = dest, HL = dest-offset, SP->[src]
-		BLOCKCOPY : pop hl
+		COPY_MATCH : pop hl
 
 		; compressed data stream contains records
 		; each record begins with the byte token "XYZ|LL|MMM"
-ReadToken:	ld a,(hl) : and %00011000 : jp pe,Literals0011	; process the cases 00 and 11 separately
+ReadToken:	ld a,(hl) : and %00011000 : jp pe,Literals0011		; process the cases 00 and 11 separately
 
 		rrca : rrca : rrca
 
