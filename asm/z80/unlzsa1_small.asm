@@ -3,9 +3,9 @@
 ;
 ;  ver.00 by spke for LZSA 0.5.4 (23/04/2019, 69 bytes);
 ;  ver.01 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
-;  ver.02 by uniabis (30/07/2019, -1 byte, +3.2% speed);
+;  ver.02 by uniabis (30/07/2019, 68(-1) bytes, +3.2% speed);
 ;  ver.03 by spke for LZSA 1.0.7 (31/07/2019, small re-organization of macros);
-;  ver.04 by spke (06/08/2019, -1 byte, -1.2% speed);
+;  ver.04 by spke (06/08/2019, 67(-1) bytes, -1.2% speed);
 ;  ver.05 by spke for LZSA 1.1.0 (25/09/2019, added full revision history)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
