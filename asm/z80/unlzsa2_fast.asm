@@ -1,6 +1,13 @@
 ;
-;  Speed-optimized LZSA2 decompressor by spke (v.2 02-27/08/2019, 216 bytes);
-;  with improvements by uniabis (30/07/2019, -5 bytes, +3% speed and support for Hitachi HD64180).
+;  Speed-optimized LZSA2 decompressor by spke & uniabis (216 bytes)
+;
+;  ver.00 by spke for LZSA 1.0.0 (02-07/06/2019, 218 bytes);
+;  ver.01 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
+;  ver.02 by spke for LZSA 1.0.6 (27/07/2019, fixed a bug in the backward decompressor);
+;  ver.03 by uniabis (30/07/2019, 213(-5) bytes, +3.8% speed and support for Hitachi HD64180);
+;  ver.04 by spke for LZSA 1.0.7 (01/08/2019, 214(+1) bytes, +0.2% speed and small re-organization of macros);
+;  ver.05 by spke (27/08/2019, 216(+2) bytes, +1.1% speed);
+;  ver.06 by spke for LZSA 1.1.0 (26/09/2019, added full revision history)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:

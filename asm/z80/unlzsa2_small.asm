@@ -1,6 +1,11 @@
 ;
-;  Size-optimized LZSA2 decompressor by spke (v.1 02-09/06/2019, 140 bytes);
-;  with improvements by uniabis (30/07/2019, -1 byte, +3% speed and support for Hitachi HD64180).
+;  Size-optimized LZSA2 decompressor by spke & uniabis (140 bytes)
+;
+;  ver.00 by spke for LZSA 1.0.0 (02-09/06/2019, 145 bytes);
+;  ver.01 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
+;  ver.02 by uniabis (30/07/2019, 144(-1) bytes, +3.3% speed and support for Hitachi HD64180);
+;  ver.03 by spke for LZSA 1.0.7 (01/08/2019, 140(-4) bytes, -1.4% speed and small re-organization of macros);
+;  ver.04 by spke for LZSA 1.1.0 (26/09/2019, removed usage of IY, added full revision history)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -84,22 +89,22 @@
 
 	IFNDEF	HD64180
 
-		MACRO LD_IY_DE
-		ld iyl,e : ld iyh,d
+		MACRO LD_IX_DE
+		ld ixl,e : ld ixh,d
 		ENDM
 
-		MACRO LD_DE_IY
-		ld e,iyl : ld d,iyh
+		MACRO LD_DE_IX
+		ld e,ixl : ld d,ixh
 		ENDM
 
 	ELSE
 
-		MACRO LD_IY_DE
-		push de : pop iy
+		MACRO LD_IX_DE
+		push de : pop ix
 		ENDM
 
-		MACRO LD_DE_IY
-		push iy : pop de
+		MACRO LD_DE_IX
+		push ix : pop de
 		ENDM
 
 	ENDIF
@@ -117,7 +122,7 @@ CASE01x:	cp %01100000 : rl d
 
 OffsetReadE:	ld e,(hl) : NEXT_HL
 		
-SaveOffset:	LD_IY_DE
+SaveOffset:	LD_IX_DE
 
 MatchLen:	and %00000111 : add 2 : cp 9 : call z,ExtendedCode
 
@@ -150,7 +155,7 @@ CASE110:	ld d,(hl) : NEXT_HL : jr OffsetReadE
 
 CASE11x		cp %11100000 : jr c,CASE110
 
-CASE111:	LD_DE_IY : jr MatchLen
+CASE111:	LD_DE_IX : jr MatchLen
 
 ExtendedCode:	call ReadNibble : inc a : jr z,ExtraByte
 		sub #F0+1 : add c : ret

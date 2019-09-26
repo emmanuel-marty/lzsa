@@ -2,12 +2,12 @@
 ;  Speed-optimized LZSA1 decompressor by spke & uniabis (111 bytes)
 ;
 ;  ver.00 by spke for LZSA 0.5.4 (03-24/04/2019, 134 bytes);
-;  ver.01 by spke for LZSA 0.5.6 (25/04/2019, -24 bytes, +0.2% speed);
+;  ver.01 by spke for LZSA 0.5.6 (25/04/2019, 110(-24) bytes, +0.2% speed);
 ;  ver.02 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
-;  ver.03 by uniabis (30/07/2019, -1 byte, +3.5% speed);
+;  ver.03 by uniabis (30/07/2019, 109(-1) bytes, +3.5% speed);
 ;  ver.04 by spke (31/07/2019, small re-organization of macros);
-;  ver.05 by uniabis (22/08/2019, -2 bytes, same speed);
-;  ver.06 by spke for LZSA 1.0.7 (27/08/2019, +4 bytes, +2.1% speed);
+;  ver.05 by uniabis (22/08/2019, 107(-2) bytes, same speed);
+;  ver.06 by spke for LZSA 1.0.7 (27/08/2019, 111(+4) bytes, +2.1% speed);
 ;  ver.07 by spke for LZSA 1.1.0 (25/09/2019, added full revision history)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
