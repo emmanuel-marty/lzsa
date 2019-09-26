@@ -88,9 +88,6 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
                   if (pCompressor->best_match) {
                      return 0;
                   }
-                  else {
-                     return 0;
-                  }
                }
             }
          }
