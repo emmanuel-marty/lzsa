@@ -416,10 +416,12 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                   /* Check if we can change the current match's offset to be the same as the previous match's offset, and get an extra repmatch. This will occur when
                    * matching large regions of identical bytes for instance, where there are too many offsets to be considered by the parser, and when not compressing to favor the
                    * ratio (the forward arrivals parser already has this covered). */
-                  if (i >= nRepMatchOffset && 
-                      (i - nRepMatchOffset + pMatch->length) <= (nEndOffset - LAST_LITERALS) &&
-                      !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length))
+                  if (i >= nRepMatchOffset &&
+                     (i - nRepMatchOffset + pMatch->length) <= (nEndOffset - LAST_LITERALS) &&
+                     !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length)) {
                      pMatch->offset = nRepMatchOffset;
+                     nDidReduce = 1;
+                  }
                }
 
                if (pBestMatch[nNextIndex].offset && pMatch->offset != pBestMatch[nNextIndex].offset && nRepMatchOffset != pBestMatch[nNextIndex].offset) {
@@ -431,6 +433,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                      if (nMaxLen >= pMatch->length) {
                         /* Replace */
                         pMatch->offset = pBestMatch[nNextIndex].offset;
+                        nDidReduce = 1;
                      }
                      else if (nMaxLen >= 2 && pMatch->offset != nRepMatchOffset) {
                         int nPartialSizeBefore, nPartialSizeAfter;
@@ -452,6 +455,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                               pBestMatch[i + j].length = 0;
                            }
                            pMatch->length = nMaxLen;
+                           nDidReduce = 1;
                         }
                      }
                   }
@@ -502,6 +506,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
             pMatch->length += pBestMatch[i + nMatchLen].length;
             pBestMatch[i + nMatchLen].offset = 0;
             pBestMatch[i + nMatchLen].length = -1;
+            nDidReduce = 1;
             continue;
          }
 
