@@ -98,7 +98,9 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
             nLen = 0;
          if (nLen > LCP_MAX)
             nLen = LCP_MAX;
-         int nTaggedLen = (nLen << TAG_BITS) | (lzsa_get_index_tag((unsigned int)nIndex) & ((1 << TAG_BITS) - 1));
+         int nTaggedLen = 0;
+         if (nLen)
+            nTaggedLen = (nLen << TAG_BITS) | (lzsa_get_index_tag((unsigned int)nIndex) & ((1 << TAG_BITS) - 1));
          intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nTaggedLen) << LCP_SHIFT);
       }
    }
