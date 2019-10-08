@@ -295,13 +295,14 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                int nMatchOffsetCost = (nMatchOffset == nRepOffset) ? 0 : nNoRepmatchOffsetCost;
                int nRepCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                int nCodingChoiceCost = nRepCodingChoiceCost + nMatchOffsetCost;
-               int exists = 0;
 
                if (!nFavorRatio && !arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals)
                   nCodingChoiceCost += MODESWITCH_PENALTY;
 
                if (pDestSlots[NMATCHES_PER_OFFSET - 1].from_slot == 0 || nRepCodingChoiceCost <= pDestSlots[NMATCHES_PER_OFFSET - 1].cost) {
                   if (pDestSlots[NMATCHES_PER_OFFSET - 1].from_slot == 0 || nCodingChoiceCost <= pDestSlots[NMATCHES_PER_OFFSET - 1].cost) {
+                     int exists = 0;
+
                      for (n = 0;
                         n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nCodingChoiceCost;
                         n++) {
@@ -311,26 +312,28 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
                      }
 
-                     for (n = 0; !exists && n < NMATCHES_PER_OFFSET; n++) {
-                        lzsa_arrival *pDestArrival = &pDestSlots[n];
+                     if (!exists) {
+                        for (n = 0; n < NMATCHES_PER_OFFSET; n++) {
+                           lzsa_arrival *pDestArrival = &pDestSlots[n];
 
-                        if (pDestArrival->from_slot == 0 ||
-                           nCodingChoiceCost <= pDestArrival->cost) {
+                           if (pDestArrival->from_slot == 0 ||
+                              nCodingChoiceCost <= pDestArrival->cost) {
 
-                           if (pDestArrival->from_slot) {
-                              memmove(&pDestSlots[n + 1],
-                                 &pDestSlots[n],
-                                 sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                              if (pDestArrival->from_slot) {
+                                 memmove(&pDestSlots[n + 1],
+                                    &pDestSlots[n],
+                                    sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                              }
+
+                              pDestArrival->cost = nCodingChoiceCost;
+                              pDestArrival->from_pos = i;
+                              pDestArrival->from_slot = j + 1;
+                              pDestArrival->match_offset = nMatchOffset;
+                              pDestArrival->match_len = k;
+                              pDestArrival->num_literals = 0;
+                              pDestArrival->rep_offset = nMatchOffset;
+                              break;
                            }
-
-                           pDestArrival->cost = nCodingChoiceCost;
-                           pDestArrival->from_pos = i;
-                           pDestArrival->from_slot = j + 1;
-                           pDestArrival->match_offset = nMatchOffset;
-                           pDestArrival->match_len = k;
-                           pDestArrival->num_literals = 0;
-                           pDestArrival->rep_offset = nMatchOffset;
-                           break;
                         }
                      }
                   }
@@ -340,9 +343,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                    * of identical bytes, for instance. Checking for this provides a big compression win on some files. */
 
                   if (nMaxRepLen[j] >= k) {
-                     /* A match is possible at the rep offset; insert the extra coding choice. */
+                     int exists = 0;
 
-                     exists = 0;
+                     /* A match is possible at the rep offset; insert the extra coding choice. */
 
                      for (n = 0;
                         n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nRepCodingChoiceCost;
@@ -353,26 +356,28 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
                      }
 
-                     for (n = 0; !exists && n < NMATCHES_PER_OFFSET; n++) {
-                        lzsa_arrival *pDestArrival = &pDestSlots[n];
+                     if (!exists) {
+                        for (n = 0; n < NMATCHES_PER_OFFSET; n++) {
+                           lzsa_arrival *pDestArrival = &pDestSlots[n];
 
-                        if (pDestArrival->from_slot == 0 ||
-                           nRepCodingChoiceCost <= pDestArrival->cost) {
+                           if (pDestArrival->from_slot == 0 ||
+                              nRepCodingChoiceCost <= pDestArrival->cost) {
 
-                           if (pDestArrival->from_slot) {
-                              memmove(&pDestSlots[n + 1],
-                                 &pDestSlots[n],
-                                 sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                              if (pDestArrival->from_slot) {
+                                 memmove(&pDestSlots[n + 1],
+                                    &pDestSlots[n],
+                                    sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                              }
+
+                              pDestArrival->cost = nRepCodingChoiceCost;
+                              pDestArrival->from_pos = i;
+                              pDestArrival->from_slot = j + 1;
+                              pDestArrival->match_offset = nRepOffset;
+                              pDestArrival->match_len = k;
+                              pDestArrival->num_literals = 0;
+                              pDestArrival->rep_offset = nRepOffset;
+                              break;
                            }
-
-                           pDestArrival->cost = nRepCodingChoiceCost;
-                           pDestArrival->from_pos = i;
-                           pDestArrival->from_slot = j + 1;
-                           pDestArrival->match_offset = nRepOffset;
-                           pDestArrival->match_len = k;
-                           pDestArrival->num_literals = 0;
-                           pDestArrival->rep_offset = nRepOffset;
-                           break;
                         }
                      }
                   }
