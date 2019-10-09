@@ -192,13 +192,17 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
    memset(arrival + (nStartOffset << MATCHES_PER_OFFSET_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset) << MATCHES_PER_OFFSET_SHIFT));
 
+   for (i = (nStartOffset << MATCHES_PER_OFFSET_SHIFT); i != (nEndOffset << MATCHES_PER_OFFSET_SHIFT) - 1; i++) {
+      arrival[i].cost = 0x40000000;
+   }
+
    arrival[nStartOffset << MATCHES_PER_OFFSET_SHIFT].from_slot = -1;
 
    for (i = nStartOffset; i != (nEndOffset - 1); i++) {
       int m, nMatches;
 
       for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-         int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+         const int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost & 0x3fffffff;
          int nCodingChoiceCost = nPrevCost + 8 /* literal */;
          int nNumLiterals = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals + 1;
 
@@ -215,25 +219,25 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          if (!nFavorRatio && nNumLiterals == 1)
             nCodingChoiceCost += MODESWITCH_PENALTY;
 
-         if (arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + NMATCHES_PER_OFFSET - 1].from_slot == 0 || nCodingChoiceCost <= arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + NMATCHES_PER_OFFSET - 1].cost) {
+         lzsa_arrival *pDestSlots = &arrival[(i + 1) << MATCHES_PER_OFFSET_SHIFT];
+         if (pDestSlots[NMATCHES_PER_OFFSET - 1].from_slot == 0 || nCodingChoiceCost <= pDestSlots[NMATCHES_PER_OFFSET - 1].cost) {
             int exists = 0;
             for (n = 0;
-               n < NMATCHES_PER_OFFSET && arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n].from_slot && arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n].cost <= nCodingChoiceCost;
+               n < NMATCHES_PER_OFFSET && pDestSlots[n].cost <= nCodingChoiceCost;
                n++) {
-               if (arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n].rep_offset == arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset) {
+               if (pDestSlots[n].rep_offset == arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset) {
                   exists = 1;
                   break;
                }
             }
 
             for (n = 0; !exists && n < NMATCHES_PER_OFFSET; n++) {
-               lzsa_arrival *pDestArrival = &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n];
-               if (pDestArrival->from_slot == 0 ||
-                  nCodingChoiceCost <= pDestArrival->cost) {
+               lzsa_arrival *pDestArrival = &pDestSlots[n];
+               if (nCodingChoiceCost <= pDestArrival->cost) {
 
                   if (pDestArrival->from_slot) {
-                     memmove(&arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                        &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n],
+                     memmove(&pDestSlots[n + 1],
+                        &pDestSlots[n],
                         sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
                   }
 
@@ -289,7 +293,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             lzsa_arrival *pDestSlots = &arrival[(i + k) << MATCHES_PER_OFFSET_SHIFT];
 
             for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-               const int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+               const int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost & 0x3fffffff;
                int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
 
                int nMatchOffsetCost = (nMatchOffset == nRepOffset) ? 0 : nNoRepmatchOffsetCost;
@@ -304,7 +308,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      int exists = 0;
 
                      for (n = 0;
-                        n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nCodingChoiceCost;
+                        n < NMATCHES_PER_OFFSET && pDestSlots[n].cost <= nCodingChoiceCost;
                         n++) {
                         if (pDestSlots[n].rep_offset == nMatchOffset) {
                            exists = 1;
@@ -316,9 +320,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         for (n = 0; n < NMATCHES_PER_OFFSET; n++) {
                            lzsa_arrival *pDestArrival = &pDestSlots[n];
 
-                           if (pDestArrival->from_slot == 0 ||
-                              nCodingChoiceCost <= pDestArrival->cost) {
-
+                           if (nCodingChoiceCost <= pDestArrival->cost) {
                               if (pDestArrival->from_slot) {
                                  memmove(&pDestSlots[n + 1],
                                     &pDestSlots[n],
@@ -348,7 +350,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      /* A match is possible at the rep offset; insert the extra coding choice. */
 
                      for (n = 0;
-                        n < NMATCHES_PER_OFFSET && pDestSlots[n].from_slot && pDestSlots[n].cost <= nRepCodingChoiceCost;
+                        n < NMATCHES_PER_OFFSET && pDestSlots[n].cost <= nRepCodingChoiceCost;
                         n++) {
                         if (pDestSlots[n].rep_offset == nRepOffset) {
                            exists = 1;
@@ -360,9 +362,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         for (n = 0; n < NMATCHES_PER_OFFSET; n++) {
                            lzsa_arrival *pDestArrival = &pDestSlots[n];
 
-                           if (pDestArrival->from_slot == 0 ||
-                              nRepCodingChoiceCost <= pDestArrival->cost) {
-
+                           if (nRepCodingChoiceCost <= pDestArrival->cost) {
                               if (pDestArrival->from_slot) {
                                  memmove(&pDestSlots[n + 1],
                                     &pDestSlots[n],
