@@ -413,7 +413,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
+   int nPrevRepMatchOffset = 0;
    int nRepMatchOffset = 0;
+   int nRepMatchLen = 0;
+   int nRepIndex = 0;
    int nDidReduce = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
@@ -502,6 +505,15 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                   if (pBestMatch[nNextIndex].offset != nRepMatchOffset)
                      nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
+                  int nReplaceRepOffset = 0;
+                  if (nRepMatchOffset && nRepMatchOffset != nPrevRepMatchOffset && nRepMatchLen >= MIN_MATCH_SIZE_V2 && nRepMatchOffset != pBestMatch[nNextIndex].offset && nRepIndex >= pBestMatch[nNextIndex].offset &&
+                     (nRepIndex - pBestMatch[nNextIndex].offset + nRepMatchLen) <= (nEndOffset - LAST_LITERALS) &&
+                     !memcmp(pInWindow + nRepIndex - nRepMatchOffset, pInWindow + nRepIndex - pBestMatch[nNextIndex].offset, nRepMatchLen)) {
+                     /* Replacing this match command by literals would let us create a repmatch */
+                     nReplaceRepOffset = 1;
+                     nReducedCommandSize -= (nRepMatchOffset <= 32) ? 4 : ((nRepMatchOffset <= 512) ? 8 : ((nRepMatchOffset <= (8192 + 512)) ? 12 : 16));
+                  }
+
                   if (nOriginalCombinedCommandSize >= nReducedCommandSize) {
                      /* Reduce */
                      int nMatchLen = pMatch->length;
@@ -512,6 +524,11 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                      }
 
                      nDidReduce = 1;
+
+                     if (nReplaceRepOffset) {
+                        pBestMatch[nRepIndex].offset = pBestMatch[nNextIndex].offset;
+                        nRepMatchOffset = pBestMatch[nNextIndex].offset;
+                     }
                      continue;
                   }
                }
@@ -532,7 +549,10 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
             continue;
          }
 
+         nPrevRepMatchOffset = nRepMatchOffset;
          nRepMatchOffset = pMatch->offset;
+         nRepMatchLen = pMatch->length;
+         nRepIndex = i;
 
          i += pMatch->length;
          nNumLiterals = 0;
