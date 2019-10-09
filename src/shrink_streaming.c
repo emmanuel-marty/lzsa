@@ -71,11 +71,12 @@ static void lzsa_delete_file(const char *pszInFilename) {
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
  * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
+ * @param pStats pointer to compression stats that are filled if this function is successful, or NULL
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
 lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename, const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-      void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist) {
+      void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist, lzsa_stats *pStats) {
    lzsa_stream_t inStream, outStream;
    void *pDictionaryData = NULL;
    int nDictionaryDataSize = 0;
@@ -99,7 +100,7 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
       return nStatus;
    }
 
-   nStatus = lzsa_compress_stream(&inStream, &outStream, pDictionaryData, nDictionaryDataSize, nFlags, nMinMatchSize, nFormatVersion, progress, pOriginalSize, pCompressedSize, pCommandCount, pSafeDist);
+   nStatus = lzsa_compress_stream(&inStream, &outStream, pDictionaryData, nDictionaryDataSize, nFlags, nMinMatchSize, nFormatVersion, progress, pOriginalSize, pCompressedSize, pCommandCount, pSafeDist, pStats);
 
    lzsa_dictionary_free(&pDictionaryData);
    outStream.close(&outStream);
@@ -129,12 +130,13 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
  * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
+ * @param pStats pointer to compression stats that are filled if this function is successful, or NULL
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
 lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
                                    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-                                   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist) {
+                                   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist, lzsa_stats *pStats) {
    unsigned char *pInData, *pOutData;
    lzsa_compressor compressor;
    long long nOriginalSize = 0LL, nCompressedSize = 0LL;
@@ -289,6 +291,10 @@ lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOut
 
    int nCommandCount = lzsa_compressor_get_command_count(&compressor);
    int nSafeDist = compressor.safe_dist;
+
+   if (pStats)
+      *pStats = compressor.stats;
+
    lzsa_compressor_destroy(&compressor);
 
    free(pOutData);

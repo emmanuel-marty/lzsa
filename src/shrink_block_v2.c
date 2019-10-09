@@ -633,6 +633,13 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
          if (nOutOffset < 0) return -1;
 
+         if (nNumLiterals < pCompressor->stats.min_literals || pCompressor->stats.min_literals == -1)
+            pCompressor->stats.min_literals = nNumLiterals;
+         if (nNumLiterals > pCompressor->stats.max_literals)
+            pCompressor->stats.max_literals = nNumLiterals;
+         pCompressor->stats.total_literals += nNumLiterals;
+         pCompressor->stats.literals_divisor++;
+
          if (nNumLiterals != 0) {
             memcpy(pOutData + nOutOffset, pInWindow + nInFirstLiteralOffset, nNumLiterals);
             nOutOffset += nNumLiterals;
@@ -655,10 +662,44 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
             pOutData[nOutOffset++] = (-nMatchOffset) >> 8;
             pOutData[nOutOffset++] = (-nMatchOffset) & 0xff;
          }
+
+         if (nMatchOffset == nRepMatchOffset)
+            pCompressor->stats.num_rep_offsets++;
+
          nRepMatchOffset = nMatchOffset;
 
          nOutOffset = lzsa_write_match_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nEncodedMatchLen);
          if (nOutOffset < 0) return -1;
+
+         if (nMatchOffset < pCompressor->stats.min_offset || pCompressor->stats.min_offset == -1)
+            pCompressor->stats.min_offset = nMatchOffset;
+         if (nMatchOffset > pCompressor->stats.max_offset)
+            pCompressor->stats.max_offset = nMatchOffset;
+         pCompressor->stats.total_offsets += nMatchOffset;
+
+         if (nMatchLen < pCompressor->stats.min_match_len || pCompressor->stats.min_match_len == -1)
+            pCompressor->stats.min_match_len = nMatchLen;
+         if (nMatchLen > pCompressor->stats.max_match_len)
+            pCompressor->stats.max_match_len = nMatchLen;
+         pCompressor->stats.total_match_lens += nMatchLen;
+         pCompressor->stats.match_divisor++;
+
+         if (nMatchOffset == 1) {
+            if (nMatchLen < pCompressor->stats.min_rle1_len || pCompressor->stats.min_rle1_len == -1)
+               pCompressor->stats.min_rle1_len = nMatchLen;
+            if (nMatchLen > pCompressor->stats.max_rle1_len)
+               pCompressor->stats.max_rle1_len = nMatchLen;
+            pCompressor->stats.total_rle1_lens += nMatchLen;
+            pCompressor->stats.rle1_divisor++;
+         }
+         else if (nMatchOffset == 2) {
+            if (nMatchLen < pCompressor->stats.min_rle2_len || pCompressor->stats.min_rle2_len == -1)
+               pCompressor->stats.min_rle2_len = nMatchLen;
+            if (nMatchLen > pCompressor->stats.max_rle2_len)
+               pCompressor->stats.max_rle2_len = nMatchLen;
+            pCompressor->stats.total_rle2_lens += nMatchLen;
+            pCompressor->stats.rle2_divisor++;
+         }
 
          i += nMatchLen;
 
@@ -691,6 +732,13 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0x00;
       nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
       if (nOutOffset < 0) return -1;
+
+      if (nNumLiterals < pCompressor->stats.min_literals || pCompressor->stats.min_literals == -1)
+         pCompressor->stats.min_literals = nNumLiterals;
+      if (nNumLiterals > pCompressor->stats.max_literals)
+         pCompressor->stats.max_literals = nNumLiterals;
+      pCompressor->stats.total_literals += nNumLiterals;
+      pCompressor->stats.literals_divisor++;
 
       if (nNumLiterals != 0) {
          memcpy(pOutData + nOutOffset, pInWindow + nInFirstLiteralOffset, nNumLiterals);

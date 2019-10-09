@@ -79,6 +79,35 @@ typedef struct {
    unsigned short match_len;
 } lzsa_arrival;
 
+/** Compression statistics */
+typedef struct _lzsa_stats {
+   int min_literals;
+   int max_literals;
+   int total_literals;
+
+   int min_offset;
+   int max_offset;
+   int num_rep_offsets;
+   int total_offsets;
+
+   int min_match_len;
+   int max_match_len;
+   int total_match_lens;
+
+   int min_rle1_len;
+   int max_rle1_len;
+   int total_rle1_lens;
+
+   int min_rle2_len;
+   int max_rle2_len;
+   int total_rle2_lens;
+
+   int literals_divisor;
+   int match_divisor;
+   int rle1_divisor;
+   int rle2_divisor;
+} lzsa_stats;
+
 /** Compression context */
 typedef struct _lzsa_compressor {
    divsufsort_ctx_t divsufsort_context;
@@ -93,6 +122,7 @@ typedef struct _lzsa_compressor {
    int safe_dist;
    int num_commands;
    lzsa_hashmap_t cost_map;
+   lzsa_stats stats;
 } lzsa_compressor;
 
 /**
