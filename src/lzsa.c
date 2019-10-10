@@ -46,6 +46,7 @@
 #define OPT_RAW            2
 #define OPT_FAVOR_RATIO    4
 #define OPT_RAW_BACKWARD   8
+#define OPT_STATS          16
 
 #define TOOL_VERSION "1.1.0"
 
@@ -104,6 +105,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
    int nCommandCount = 0, nSafeDist = 0;
    int nFlags;
    lzsa_status_t nStatus;
+   lzsa_stats stats;
 
    nFlags = 0;
    if (nOptions & OPT_FAVOR_RATIO)
@@ -117,7 +119,7 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       nStartTime = do_get_time();
    }
 
-   nStatus = lzsa_compress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nMinMatchSize, nFormatVersion, compression_progress, &nOriginalSize, &nCompressedSize, &nCommandCount, &nSafeDist);
+   nStatus = lzsa_compress_file(pszInFilename, pszOutFilename, pszDictionaryFilename, nFlags, nMinMatchSize, nFormatVersion, compression_progress, &nOriginalSize, &nCompressedSize, &nCommandCount, &nSafeDist, &stats);
 
    if ((nOptions & OPT_VERBOSE)) {
       nEndTime = do_get_time();
@@ -149,6 +151,32 @@ static int do_compress(const char *pszInFilename, const char *pszOutFilename, co
       }
    }
 
+   if (nOptions & OPT_STATS) {
+      if (stats.literals_divisor > 0)
+         fprintf(stdout, "Literals: min: %d avg: %d max: %d count: %d\n", stats.min_literals, stats.total_literals / stats.literals_divisor, stats.max_literals, stats.literals_divisor);
+      else
+         fprintf(stdout, "Literals: none\n");
+      if (stats.match_divisor > 0) {
+         fprintf(stdout, "Offsets: min: %d avg: %d max: %d reps: %d count: %d\n", stats.min_offset, stats.total_offsets / stats.match_divisor, stats.max_offset, stats.num_rep_offsets, stats.match_divisor);
+         fprintf(stdout, "Match lens: min: %d avg: %d max: %d count: %d\n", stats.min_match_len, stats.total_match_lens / stats.match_divisor, stats.max_match_len, stats.match_divisor);
+      }
+      else {
+         fprintf(stdout, "Offsets: none\n");
+         fprintf(stdout, "Match lens: none\n");
+      }
+      if (stats.rle1_divisor > 0) {
+         fprintf(stdout, "RLE1 lens: min: %d avg: %d max: %d count: %d\n", stats.min_rle1_len, stats.total_rle1_lens / stats.rle1_divisor, stats.max_rle1_len, stats.rle1_divisor);
+      }
+      else {
+         fprintf(stdout, "RLE1 lens: none\n");
+      }
+      if (stats.rle2_divisor > 0) {
+         fprintf(stdout, "RLE2 lens: min: %d avg: %d max: %d count: %d\n", stats.min_rle2_len, stats.total_rle2_lens / stats.rle2_divisor, stats.max_rle2_len, stats.rle2_divisor);
+      }
+      else {
+         fprintf(stdout, "RLE2 lens: none\n");
+      }
+   }
    return 0;
 }
 
@@ -1008,6 +1036,13 @@ int main(int argc, char **argv) {
          }
          else
             bArgsError = true;
+      }
+      else if (!strcmp(argv[i], "-stats")) {
+      if ((nOptions & OPT_STATS) == 0) {
+         nOptions |= OPT_STATS;
+      }
+      else
+         bArgsError = true;
       }
       else {
          if (!pszInFilename)

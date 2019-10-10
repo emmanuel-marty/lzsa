@@ -41,6 +41,7 @@ extern "C" {
 
 /* Forward declaration */
 typedef enum _lzsa_status_t lzsa_status_t;
+typedef struct _lzsa_stats lzsa_stats;
 
 /*-------------- File API -------------- */
 
@@ -58,12 +59,13 @@ typedef enum _lzsa_status_t lzsa_status_t;
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
  * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
+ * @param pStats pointer to compression stats that are filled if this function is successful, or NULL
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
 lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFilename, const char *pszDictionaryFilename,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist);
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist, lzsa_stats *pStats);
 
 /*-------------- Streaming API -------------- */
 
@@ -82,12 +84,13 @@ lzsa_status_t lzsa_compress_file(const char *pszInFilename, const char *pszOutFi
  * @param pCompressedSize pointer to returned output(compressed) size, updated when this function is successful
  * @param pCommandCount pointer to returned token(compression commands) count, updated when this function is successful
  * @param pSafeDist pointer to return safe distance for raw blocks, updated when this function is successful
+ * @param pStats pointer to compression stats that are filled if this function is successful, or NULL
  *
  * @return LZSA_OK for success, or an error value from lzsa_status_t
  */
 lzsa_status_t lzsa_compress_stream(lzsa_stream_t *pInStream, lzsa_stream_t *pOutStream, const void *pDictionaryData, int nDictionaryDataSize,
    const unsigned int nFlags, const int nMinMatchSize, const int nFormatVersion,
-   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist);
+   void(*progress)(long long nOriginalSize, long long nCompressedSize), long long *pOriginalSize, long long *pCompressedSize, int *pCommandCount, int *pSafeDist, lzsa_stats *pStats);
 
 #ifdef __cplusplus
 }
