@@ -74,6 +74,8 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->stats.min_literals = -1;
    pCompressor->stats.min_match_len = -1;
    pCompressor->stats.min_offset = -1;
+   pCompressor->stats.min_rle1_len = -1;
+   pCompressor->stats.min_rle2_len = -1;
 
    if (!nResult) {
       pCompressor->intervals = (unsigned int *)malloc(nMaxWindowSize * sizeof(unsigned int));
