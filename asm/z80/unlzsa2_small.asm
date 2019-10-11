@@ -1,11 +1,12 @@
 ;
-;  Size-optimized LZSA2 decompressor by spke & uniabis (140 bytes)
+;  Size-optimized LZSA2 decompressor by spke & uniabis (139 bytes)
 ;
 ;  ver.00 by spke for LZSA 1.0.0 (02-09/06/2019, 145 bytes);
 ;  ver.01 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
 ;  ver.02 by uniabis (30/07/2019, 144(-1) bytes, +3.3% speed and support for Hitachi HD64180);
 ;  ver.03 by spke for LZSA 1.0.7 (01/08/2019, 140(-4) bytes, -1.4% speed and small re-organization of macros);
 ;  ver.04 by spke for LZSA 1.1.0 (26/09/2019, removed usage of IY, added full revision history)
+;  ver.05 by spke for LZSA 1.1.1 (11/10/2019, 139(-1) bytes, +0.1% speed)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -148,8 +149,8 @@ CASE1xx		cp %11000000 : jr nc,CASE11x
 
 CASE10x:	call ReadNibble
 		ld d,a : ld a,c
-		cp %10100000 : rl d
-		dec d : dec d : DB #CA ; jr OffsetReadE				; #CA is JP Z,.. to skip all commands in CASE110 before jr OffsetReadE
+		cp %10100000 ;: rl d
+		dec d : rl d : DB #CA ; jr OffsetReadE				; #CA is JP Z,.. to skip all commands in CASE110 before jr OffsetReadE
 
 CASE110:	ld d,(hl) : NEXT_HL : jr OffsetReadE
 
