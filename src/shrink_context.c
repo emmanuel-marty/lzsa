@@ -58,7 +58,9 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->intervals = NULL;
    pCompressor->pos_data = NULL;
    pCompressor->open_intervals = NULL;
+   pCompressor->match = NULL;
    pCompressor->best_match = NULL;
+   pCompressor->improved_match = NULL;
    pCompressor->arrival = NULL;
    pCompressor->min_match_size = nMinMatchSize;
    if (pCompressor->min_match_size < nMinMatchSizeForFormat)
@@ -93,7 +95,18 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
                   pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
                   if (pCompressor->best_match) {
-                     return 0;
+                     if (pCompressor->format_version == 2) {
+                        pCompressor->improved_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
+
+                        if (pCompressor->improved_match) {
+                           pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * 32 * sizeof(lzsa_match));
+                           if (pCompressor->match)
+                              return 0;
+                        }
+                     }
+                     else {
+                        return 0;
+                     }
                   }
                }
             }
@@ -112,6 +125,16 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
  */
 void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
    divsufsort_destroy(&pCompressor->divsufsort_context);
+
+   if (pCompressor->match) {
+      free(pCompressor->match);
+      pCompressor->match = NULL;
+   }
+
+   if (pCompressor->improved_match) {
+      free(pCompressor->improved_match);
+      pCompressor->improved_match = NULL;
+   }
 
    if (pCompressor->arrival) {
       free(pCompressor->arrival);

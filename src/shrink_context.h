@@ -74,6 +74,7 @@ typedef struct {
 
    unsigned short rep_offset;
    int num_literals;
+   int score;
 
    unsigned short match_offset;
    unsigned short match_len;
@@ -114,7 +115,9 @@ typedef struct _lzsa_compressor {
    unsigned int *intervals;
    unsigned int *pos_data;
    unsigned int *open_intervals;
+   lzsa_match *match;
    lzsa_match *best_match;
+   lzsa_match *improved_match;
    lzsa_arrival *arrival;
    int min_match_size;
    int format_version;
