@@ -35,7 +35,6 @@
 #include "lib.h"
 #include "shrink_block_v2.h"
 #include "format.h"
-#include "hashmap.h"
 #include "matchfinder.h"
 
 /**

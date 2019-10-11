@@ -34,7 +34,6 @@
 #define _SHRINK_CONTEXT_H
 
 #include "divsufsort.h"
-#include "hashmap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,7 +123,6 @@ typedef struct _lzsa_compressor {
    int flags;
    int safe_dist;
    int num_commands;
-   lzsa_hashmap_t cost_map;
    lzsa_stats stats;
 } lzsa_compressor;
 
