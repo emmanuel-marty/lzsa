@@ -95,17 +95,15 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
                   pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
                   if (pCompressor->best_match) {
-                     if (pCompressor->format_version == 2) {
-                        pCompressor->improved_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
+                     pCompressor->improved_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
 
-                        if (pCompressor->improved_match) {
+                     if (pCompressor->improved_match) {
+                        if (pCompressor->format_version == 2)
                            pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * 32 * sizeof(lzsa_match));
-                           if (pCompressor->match)
-                              return 0;
-                        }
-                     }
-                     else {
-                        return 0;
+                        else
+                           pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * 8 * sizeof(lzsa_match));
+                        if (pCompressor->match)
+                           return 0;
                      }
                   }
                }
@@ -187,6 +185,7 @@ int lzsa_compressor_shrink_block(lzsa_compressor *pCompressor, unsigned char *pI
       if (nPreviousBlockSize) {
          lzsa_skip_matches(pCompressor, 0, nPreviousBlockSize);
       }
+      lzsa_find_all_matches(pCompressor, (pCompressor->format_version == 2) ? 32 : 8, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
 
       if (pCompressor->format_version == 1) {
          nCompressedSize = lzsa_optimize_and_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize);

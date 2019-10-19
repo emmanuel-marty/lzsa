@@ -934,17 +934,7 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
-   int i, nResult, nBaseCompressedSize;
-
-   /* Find matches */
-   for (i = nPreviousBlockSize; i != (nPreviousBlockSize + nInDataSize - 1); i++) {
-      int nMatches = lzsa_find_matches_at(pCompressor, i, pCompressor->match + (i << 5), 32);
-      while (nMatches < 32) {
-         pCompressor->match[(i << 5) + nMatches].offset = 0;
-         pCompressor->match[(i << 5) + nMatches].length = 0;
-         nMatches++;
-      }
-   }
+   int nResult, nBaseCompressedSize;
 
    /* Compress optimally without breaking ties in favor of less tokens */
    
