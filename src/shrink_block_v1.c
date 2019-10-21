@@ -35,7 +35,6 @@
 #include "lib.h"
 #include "shrink_block_v1.h"
 #include "format.h"
-#include "matchfinder.h"
 
 /**
  * Get the number of extra bits required to represent a literals length

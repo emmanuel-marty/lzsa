@@ -35,7 +35,6 @@
 #include "lib.h"
 #include "shrink_block_v2.h"
 #include "format.h"
-#include "matchfinder.h"
 
 /**
  * Write 4-bit nibble to output (compressed) buffer
