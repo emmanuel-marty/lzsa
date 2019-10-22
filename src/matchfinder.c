@@ -285,3 +285,28 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
       lzsa_find_matches_at(pCompressor, i, &match, 0);
    }
 }
+
+/**
+ * Find all matches for the data to be compressed
+ *
+ * @param pCompressor compression context
+ * @param nMatchesPerOffset maximum number of matches to store for each offset
+ * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ */
+void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nMatchesPerOffset, const int nStartOffset, const int nEndOffset) {
+   lzsa_match *pMatch = pCompressor->match + (nStartOffset * nMatchesPerOffset);
+   int i;
+
+   for (i = nStartOffset; i < nEndOffset; i++) {
+      int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, nMatchesPerOffset);
+
+      while (nMatches < nMatchesPerOffset) {
+         pMatch[nMatches].length = 0;
+         pMatch[nMatches].offset = 0;
+         nMatches++;
+      }
+
+      pMatch += nMatchesPerOffset;
+   }
+}

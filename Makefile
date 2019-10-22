@@ -18,7 +18,6 @@ OBJS += $(OBJDIR)/src/expand_context.o
 OBJS += $(OBJDIR)/src/expand_inmem.o
 OBJS += $(OBJDIR)/src/expand_streaming.o
 OBJS += $(OBJDIR)/src/frame.o
-OBJS += $(OBJDIR)/src/hashmap.o
 OBJS += $(OBJDIR)/src/matchfinder.o
 OBJS += $(OBJDIR)/src/shrink_block_v1.o
 OBJS += $(OBJDIR)/src/shrink_block_v2.o

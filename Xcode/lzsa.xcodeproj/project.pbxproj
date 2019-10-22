@@ -26,7 +26,6 @@
 		0CADC64722AAD8EB003E9821 /* expand_context.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC62F22AAD8EB003E9821 /* expand_context.c */; };
 		0CADC64822AAD8EB003E9821 /* shrink_block_v2.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC63022AAD8EB003E9821 /* shrink_block_v2.c */; };
 		0CADC64A22AB8DAD003E9821 /* divsufsort_utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC64922AB8DAD003E9821 /* divsufsort_utils.c */; };
-		0CADC69622C8A420003E9821 /* hashmap.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CADC69522C8A41F003E9821 /* hashmap.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -81,8 +80,6 @@
 		0CADC63022AAD8EB003E9821 /* shrink_block_v2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = shrink_block_v2.c; path = ../../src/shrink_block_v2.c; sourceTree = "<group>"; };
 		0CADC64922AB8DAD003E9821 /* divsufsort_utils.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = divsufsort_utils.c; sourceTree = "<group>"; };
 		0CADC64B22AB8DC3003E9821 /* divsufsort_config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = divsufsort_config.h; sourceTree = "<group>"; };
-		0CADC69422C8A41F003E9821 /* hashmap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = hashmap.h; path = ../../src/hashmap.h; sourceTree = "<group>"; };
-		0CADC69522C8A41F003E9821 /* hashmap.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; name = hashmap.c; path = ../../src/hashmap.c; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,8 +127,6 @@
 				0CADC62422AAD8EB003E9821 /* format.h */,
 				0CADC5F322AAD8EB003E9821 /* frame.c */,
 				0CADC62C22AAD8EB003E9821 /* frame.h */,
-				0CADC69522C8A41F003E9821 /* hashmap.c */,
-				0CADC69422C8A41F003E9821 /* hashmap.h */,
 				0CADC5F222AAD8EB003E9821 /* lib.h */,
 				0CADC5FC22AAD8EB003E9821 /* libdivsufsort */,
 				0CADC62222AAD8EB003E9821 /* lzsa.c */,
@@ -240,7 +235,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0CADC69622C8A420003E9821 /* hashmap.c in Sources */,
 				0CADC64822AAD8EB003E9821 /* shrink_block_v2.c in Sources */,
 				0CADC63D22AAD8EB003E9821 /* sssort.c in Sources */,
 				0CADC64322AAD8EB003E9821 /* expand_block_v2.c in Sources */,

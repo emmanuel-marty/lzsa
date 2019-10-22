@@ -84,9 +84,6 @@
     <ClInclude Include="..\src\libdivsufsort\include\divsufsort_config.h">
       <Filter>Fichiers sources\libdivsufsort\include</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\hashmap.h">
-      <Filter>Fichiers sources</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort.c">
@@ -145,9 +142,6 @@
     </ClCompile>
     <ClCompile Include="..\src\libdivsufsort\lib\divsufsort_utils.c">
       <Filter>Fichiers sources\libdivsufsort\lib</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\hashmap.c">
-      <Filter>Fichiers sources</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

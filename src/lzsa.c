@@ -48,7 +48,7 @@
 #define OPT_RAW_BACKWARD   8
 #define OPT_STATS          16
 
-#define TOOL_VERSION "1.1.0"
+#define TOOL_VERSION "1.1.2"
 
 /*---------------------------------------------------------------------------*/
 
@@ -1073,6 +1073,7 @@ int main(int argc, char **argv) {
       fprintf(stderr, "  -cbench: benchmark in-memory compression\n");
       fprintf(stderr, "  -dbench: benchmark in-memory decompression\n");
       fprintf(stderr, "    -test: run automated self-tests\n");
+      fprintf(stderr, "   -stats: show compressed data stats\n");
       fprintf(stderr, "       -v: be verbose\n");
       fprintf(stderr, "       -f <value>: LZSA compression format (1-2)\n");
       fprintf(stderr, "       -r: raw block format (max. 64 Kb files)\n");
