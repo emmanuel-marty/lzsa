@@ -8,7 +8,8 @@
 ;  ver.04 by spke (31/07/2019, small re-organization of macros);
 ;  ver.05 by uniabis (22/08/2019, 107(-2) bytes, same speed);
 ;  ver.06 by spke for LZSA 1.0.7 (27/08/2019, 111(+4) bytes, +2.1% speed);
-;  ver.07 by spke for LZSA 1.1.0 (25/09/2019, added full revision history)
+;  ver.07 by spke for LZSA 1.1.0 (25/09/2019, added full revision history);
+;  ver.08 by spke for LZSA 1.1.2 (22/10/2019, re-organized macros and added an option for unrolled copying of long matches)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -56,6 +57,7 @@
 ;     misrepresented as being the original software.
 ;  3. This notice may not be removed or altered from any source distribution.
 
+;	DEFINE	UNROLL_LONG_MATCHES						; uncomment for faster decompression of very compressible data (+57 bytes)
 ;	DEFINE	BACKWARD_DECOMPRESS
 
 	IFNDEF	BACKWARD_DECOMPRESS
@@ -68,11 +70,11 @@
 		ex de,hl : add hl,de
 		ENDM
 
-		MACRO COPY_MATCH
-		ldi : ldi : ldir
+		MACRO COPY1
+		ldi
 		ENDM
 
-		MACRO BLOCKCOPY
+		MACRO COPYBC
 		ldir
 		ENDM
 
@@ -87,11 +89,11 @@
 		ld a,d : sbc h : ld h,a						; 4*4+3*4 = 28t / 7 bytes
 		ENDM
 
-		MACRO COPY_MATCH
-		ldd : ldd : lddr
+		MACRO COPY1
+		ldd
 		ENDM
 
-		MACRO BLOCKCOPY
+		MACRO COPYBC
 		lddr
 		ENDM
 
@@ -110,7 +112,8 @@ ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
 CopyMatch:	ld c,a
 .UseC		NEXT_HL : ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
 		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
-		COPY_MATCH : pop hl						; BC = 0, DE = dest, HL = src
+		COPY1 : COPY1 : COPYBC						; BC = 0, DE = dest
+.popSrc		pop hl								; HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		; where LLL is the number of literals and MMMM is
@@ -121,7 +124,7 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		rrca : rrca : rrca : rrca					; LLL<7 means 0..6 literals...
 
 		ld c,a : ld a,(hl)
-		NEXT_HL : BLOCKCOPY
+		NEXT_HL : COPYBC
 
 		; next we read the first byte of the offset
 		push de : ld e,(hl)
@@ -131,6 +134,8 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 LongOffset:	; read second byte of the offset
 		NEXT_HL : ld d,(hl)
 		add -128+3 : cp 15+3 : jp c,CopyMatch
+
+	IFNDEF	UNROLL_LONG_MATCHES
 
 		; MMMM=15 indicates a multi-byte number of literals
 LongerMatch:	NEXT_HL : add (hl) : jr nc,CopyMatch
@@ -146,12 +151,46 @@ LongerMatch:	NEXT_HL : add (hl) : jr nc,CopyMatch
 		ld a,b : or c : jr nz,CopyMatch.UseC
 		pop de : ret
 
+	ELSE
+
+		; MMMM=15 indicates a multi-byte number of literals
+LongerMatch:	NEXT_HL : add (hl) : jr c,VeryLongMatch
+
+		ld c,a
+.UseC		NEXT_HL : ex (sp),hl
+		ADD_OFFSET
+		COPY1 : COPY1
+
+		; this is an unrolled equivalent of LDIR
+		xor a : sub c
+		and 16-1 : add a
+		ld (.jrOffset),a : jr nz,$+2
+.jrOffset	EQU $-1
+.fastLDIR	DUP 16
+		COPY1
+		EDUP
+		jp pe,.fastLDIR
+		jp CopyMatch.popSrc
+
+VeryLongMatch:	; the codes are designed to overflow;
+		; the overflow value 1 means read 1 extra byte
+		; and overflow value 0 means read 2 extra bytes
+.code1		ld b,a : NEXT_HL : ld c,(hl) : jr nz,LongerMatch.UseC
+.code0		NEXT_HL : ld b,(hl)
+
+		; the two-byte match length equal to zero
+		; designates the end-of-data marker
+		ld a,b : or c : jr nz,LongerMatch.UseC
+		pop de : ret
+
+	ENDIF
+
 MoreLiterals:	; there are three possible situations here
 		xor (hl) : exa
 		ld a,7 : NEXT_HL : add (hl) : jr c,ManyLiterals
 
 CopyLiterals:	ld c,a
-.UseC		NEXT_HL : BLOCKCOPY
+.UseC		NEXT_HL : COPYBC
 
 		push de : ld e,(hl)
 		exa : jp p,ShortOffset : jr LongOffset
