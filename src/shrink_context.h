@@ -72,6 +72,8 @@ typedef struct {
    short from_slot;
 
    unsigned short rep_offset;
+   unsigned short rep_len;
+   int rep_pos;
    int num_literals;
    int score;
 

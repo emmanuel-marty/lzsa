@@ -180,8 +180,9 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
  * @param pCompressor compression context
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nInsertForwardReps non-zero to insert forward repmatch candidates, zero to use the previously inserted candidates
  */
-static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce) {
+static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps) {
    lzsa_arrival *arrival = pCompressor->arrival;
    const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
    const int nMinMatchSize = pCompressor->min_match_size;
@@ -250,6 +251,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      pDestArrival->num_literals = nNumLiterals;
                      pDestArrival->score = nScore;
                      pDestArrival->rep_offset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+                     pDestArrival->rep_pos = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_pos;
+                     pDestArrival->rep_len = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len;
                      break;
                   }
                }
@@ -275,7 +278,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             if (nMatchOffset != nRepOffset &&
                nRepOffset &&
-               i >= nRepOffset &&
+               i > nRepOffset &&
                (i - nRepOffset + nMatchLen) <= (nEndOffset - LAST_LITERALS)) {
                while (nCurMaxRepLen < nMatchLen && pInWindow[i - nRepOffset + nCurMaxRepLen] == pInWindow[i - nMatchOffset + nCurMaxRepLen])
                   nCurMaxRepLen++;
@@ -285,6 +288,36 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          }
          while (j < NMATCHES_PER_OFFSET)
             nMaxRepLen[j++] = 0;
+
+         for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
+            int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+
+            if (nMatchOffset != nRepOffset && nRepOffset && nInsertForwardReps && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len >= MIN_MATCH_SIZE_V2) {
+               int nRepPos = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_pos;
+               int nRepLen = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len;
+
+               if (nRepPos > nMatchOffset &&
+                  (nRepPos - nMatchOffset + nRepLen) <= (nEndOffset - LAST_LITERALS) &&
+                  !memcmp(pInWindow + nRepPos - nRepOffset, pInWindow + nRepPos - nMatchOffset, nRepLen)) {
+
+                  lzsa_match *fwd_match = pCompressor->match + (nRepPos << 5);
+                  int exists = 0;
+                  int r;
+
+                  for (r = 0; r < 32 && fwd_match[r].length >= MIN_MATCH_SIZE_V2; r++) {
+                     if (fwd_match[r].offset == nMatchOffset) {
+                        exists = 1;
+                        break;
+                     }
+                  }
+
+                  if (!exists && r < 32) {
+                     fwd_match[r].offset = nMatchOffset;
+                     fwd_match[r].length = nRepLen;
+                  }
+               }
+            }
+         }
 
          if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE)
             nStartingMatchLen = nMatchLen;
@@ -341,6 +374,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               pDestArrival->num_literals = 0;
                               pDestArrival->score = nScore;
                               pDestArrival->rep_offset = nMatchOffset;
+                              pDestArrival->rep_pos = i;
+                              pDestArrival->rep_len = k;
                               break;
                            }
                         }
@@ -387,6 +422,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               pDestArrival->num_literals = 0;
                               pDestArrival->score = nScore;
                               pDestArrival->rep_offset = nRepOffset;
+                              pDestArrival->rep_pos = i;
+                              pDestArrival->rep_len = k;
                               break;
                            }
                         }
@@ -452,7 +489,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                   /* Check if we can change the current match's offset to be the same as the previous match's offset, and get an extra repmatch. This will occur when
                    * matching large regions of identical bytes for instance, where there are too many offsets to be considered by the parser, and when not compressing to favor the
                    * ratio (the forward arrivals parser already has this covered). */
-                  if (i >= nRepMatchOffset &&
+                  if (i > nRepMatchOffset &&
                      (i - nRepMatchOffset + pMatch->length) <= (nEndOffset - LAST_LITERALS) &&
                      !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length)) {
                      pMatch->offset = nRepMatchOffset;
@@ -462,7 +499,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
 
                if (pBestMatch[nNextIndex].offset && pMatch->offset != pBestMatch[nNextIndex].offset && nRepMatchOffset != pBestMatch[nNextIndex].offset) {
                   /* Otherwise, try to gain a match forward as well */
-                  if (i >= pBestMatch[nNextIndex].offset && (i - pBestMatch[nNextIndex].offset + pMatch->length) <= (nEndOffset - LAST_LITERALS)) {
+                  if (i > pBestMatch[nNextIndex].offset && (i - pBestMatch[nNextIndex].offset + pMatch->length) <= (nEndOffset - LAST_LITERALS)) {
                      int nMaxLen = 0;
                      while (nMaxLen < pMatch->length && pInWindow[i - pBestMatch[nNextIndex].offset + nMaxLen] == pInWindow[i - pMatch->offset + nMaxLen])
                         nMaxLen++;
@@ -517,7 +554,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                      nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
                   int nReplaceRepOffset = 0;
-                  if (nRepMatchOffset && nRepMatchOffset != nPrevRepMatchOffset && nRepMatchLen >= MIN_MATCH_SIZE_V2 && nRepMatchOffset != pBestMatch[nNextIndex].offset && nRepIndex >= pBestMatch[nNextIndex].offset &&
+                  if (nRepMatchOffset && nRepMatchOffset != nPrevRepMatchOffset && nRepMatchLen >= MIN_MATCH_SIZE_V2 && nRepMatchOffset != pBestMatch[nNextIndex].offset && nRepIndex > pBestMatch[nNextIndex].offset &&
                      (nRepIndex - pBestMatch[nNextIndex].offset + nRepMatchLen) <= (nEndOffset - LAST_LITERALS) &&
                      !memcmp(pInWindow + nRepIndex - nRepMatchOffset, pInWindow + nRepIndex - pBestMatch[nNextIndex].offset, nRepMatchLen)) {
                      /* Replacing this match command by literals would let us create a repmatch */
@@ -937,7 +974,7 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
 
    /* Compress optimally without breaking ties in favor of less tokens */
    
-   lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
+   lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */, (nInDataSize < 65536) ? 1 : 0 /* insert forward reps */);
 
    int nDidReduce;
    int nPasses = 0;
@@ -953,7 +990,7 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
       int nReducedCompressedSize;
 
       /* Compress optimally and do break ties in favor of less tokens */
-      lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->improved_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
+      lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->improved_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */, 0 /* use forward reps */);
 
       nPasses = 0;
       do {
