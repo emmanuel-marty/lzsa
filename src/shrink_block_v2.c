@@ -584,8 +584,15 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
          }
 
          if ((i + pMatch->length) < nEndOffset && pMatch->length >= LCP_MAX &&
-            pMatch->offset && pMatch->offset <= 32 && pBestMatch[i + pMatch->length].offset == pMatch->offset && (pMatch->length % pMatch->offset) == 0 &&
-            (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN) {
+            pBestMatch[i + pMatch->length].offset &&
+            pBestMatch[i + pMatch->length].length >= MIN_MATCH_SIZE_V2 &&
+            pBestMatch[i + pMatch->length].offset <= pMatch->length &&
+            (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN &&
+            (i + pMatch->length) > pMatch->offset &&
+            (i - pMatch->offset + pMatch->length + pBestMatch[i + pMatch->length].length) < nEndOffset &&
+            !memcmp(pInWindow + i - pMatch->offset + pMatch->length,
+               pInWindow + i + pMatch->length - pBestMatch[i + pMatch->length].offset,
+               pBestMatch[i + pMatch->length].length)) {
             int nMatchLen = pMatch->length;
 
             /* Join */
