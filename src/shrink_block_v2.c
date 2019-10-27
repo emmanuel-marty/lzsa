@@ -175,9 +175,63 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
 }
 
 /**
+ * Insert forward rep candidate
+ *
+ * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param i input data window position whose matches are being considered
+ * @param nMatchOffset match offset to use as rep candidate
+ * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ */
+static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nEndOffset, int nDepth) {
+   lzsa_arrival *arrival = pCompressor->arrival;
+   int j;
+
+   if (nDepth >= 10) return;
+
+   for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
+      int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+
+      if (nMatchOffset != nRepOffset && nRepOffset && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len >= MIN_MATCH_SIZE_V2) {
+         int nRepPos = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_pos;
+         int nRepLen = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len;
+
+         if (nRepPos > nMatchOffset &&
+            (nRepPos - nMatchOffset + nRepLen) <= (nEndOffset - LAST_LITERALS) &&
+            !memcmp(pInWindow + nRepPos - nRepOffset, pInWindow + nRepPos - nMatchOffset, nRepLen)) {
+
+            lzsa_match *fwd_match = pCompressor->match + (nRepPos << 5);
+            int exists = 0;
+            int r;
+
+            for (r = 0; r < 32 && fwd_match[r].length >= MIN_MATCH_SIZE_V2; r++) {
+               if (fwd_match[r].offset == nMatchOffset) {
+                  exists = 1;
+
+                  if (fwd_match[r].length < nRepLen) {
+                     fwd_match[r].length = nRepLen;
+                     lzsa_insert_forward_match_v2(pCompressor, pInWindow, nRepPos, nMatchOffset, nEndOffset, nDepth + 1);
+                  }
+                  break;
+               }
+            }
+
+            if (!exists && r < 32) {
+               fwd_match[r].offset = nMatchOffset;
+               fwd_match[r].length = nRepLen;
+
+               lzsa_insert_forward_match_v2(pCompressor, pInWindow, nRepPos, nMatchOffset, nEndOffset, nDepth + 1);
+            }
+         }
+      }
+   }
+}
+
+/**
  * Attempt to pick optimal matches using a forward arrivals parser, so as to produce the smallest possible output that decompresses to the same input
  *
  * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  * @param nInsertForwardReps non-zero to insert forward repmatch candidates, zero to use the previously inserted candidates
@@ -289,35 +343,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          while (j < NMATCHES_PER_OFFSET)
             nMaxRepLen[j++] = 0;
 
-         for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-            int nRepOffset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
-
-            if (nMatchOffset != nRepOffset && nRepOffset && nInsertForwardReps && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len >= MIN_MATCH_SIZE_V2) {
-               int nRepPos = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_pos;
-               int nRepLen = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_len;
-
-               if (nRepPos > nMatchOffset &&
-                  (nRepPos - nMatchOffset + nRepLen) <= (nEndOffset - LAST_LITERALS) &&
-                  !memcmp(pInWindow + nRepPos - nRepOffset, pInWindow + nRepPos - nMatchOffset, nRepLen)) {
-
-                  lzsa_match *fwd_match = pCompressor->match + (nRepPos << 5);
-                  int exists = 0;
-                  int r;
-
-                  for (r = 0; r < 32 && fwd_match[r].length >= MIN_MATCH_SIZE_V2; r++) {
-                     if (fwd_match[r].offset == nMatchOffset) {
-                        exists = 1;
-                        break;
-                     }
-                  }
-
-                  if (!exists && r < 32) {
-                     fwd_match[r].offset = nMatchOffset;
-                     fwd_match[r].length = nRepLen;
-                  }
-               }
-            }
-         }
+         if (nInsertForwardReps)
+            lzsa_insert_forward_match_v2(pCompressor, pInWindow, i, nMatchOffset, nEndOffset, 0);
 
          if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE)
             nStartingMatchLen = nMatchLen;
