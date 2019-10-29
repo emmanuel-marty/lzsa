@@ -222,15 +222,6 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
 
                lzsa_insert_forward_match_v2(pCompressor, pInWindow, nRepPos, nMatchOffset, nEndOffset, nDepth + 1);
             }
-            else if (!exists && r >= NMATCHES_PER_INDEX_V2) {
-               for (r = NMATCHES_PER_INDEX_V2 - 1; r >= 0; r--) {
-                  if (fwd_match[r].length < nRepLen) {
-                     fwd_match[r].offset = nMatchOffset;
-                     fwd_match[r].length = nRepLen;
-                     break;
-                  }
-               }
-            }
          }
       }
    }
@@ -378,19 +369,20 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                if (nRepCodingChoiceCost <= pDestSlots[NMATCHES_PER_ARRIVAL - 1].cost) {
                   if (nCodingChoiceCost <= pDestSlots[NMATCHES_PER_ARRIVAL - 1].cost) {
                      int exists = 0;
+                     int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + ((nMatchOffset == nRepOffset) ? 2 : 3);
 
                      for (n = 0;
                         n < NMATCHES_PER_ARRIVAL && pDestSlots[n].cost <= nCodingChoiceCost;
                         n++) {
-                        if (pDestSlots[n].rep_offset == nMatchOffset) {
+                        if (pDestSlots[n].rep_offset == nMatchOffset &&
+                           (!nInsertForwardReps || pDestSlots[n].cost != nCodingChoiceCost || pDestSlots[n].rep_pos >= i || nScore >= (pDestSlots[n].score + nDisableScore) ||
+                              pDestSlots[NMATCHES_PER_ARRIVAL - 1].from_slot)) {
                            exists = 1;
                            break;
                         }
                      }
 
                      if (!exists) {
-                        int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + ((nMatchOffset == nRepOffset) ? 2 : 3);
-
                         for (n = 0; n < NMATCHES_PER_ARRIVAL; n++) {
                            lzsa_arrival *pDestArrival = &pDestSlots[n];
 
@@ -1018,6 +1010,8 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
    /* Compress optimally without breaking ties in favor of less tokens */
    
    lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */, (nInDataSize < 65536) ? 1 : 0 /* insert forward reps */);
+   if (nInDataSize < 65536)
+      lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */, 1 /* insert forward reps */);
 
    int nDidReduce;
    int nPasses = 0;
