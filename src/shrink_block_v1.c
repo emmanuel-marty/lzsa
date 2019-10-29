@@ -163,18 +163,18 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
    int i, j, n;
 
-   memset(arrival + (nStartOffset << MATCHES_PER_OFFSET_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset) << MATCHES_PER_OFFSET_SHIFT));
+   memset(arrival + (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset) << MATCHES_PER_ARRIVAL_SHIFT));
 
-   arrival[nStartOffset << MATCHES_PER_OFFSET_SHIFT].from_slot = -1;
+   arrival[nStartOffset << MATCHES_PER_ARRIVAL_SHIFT].from_slot = -1;
 
    for (i = nStartOffset; i != (nEndOffset - 1); i++) {
       int m;
 
-      for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-         int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+      for (j = 0; j < NMATCHES_PER_ARRIVAL && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
+         int nPrevCost = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].cost;
          int nCodingChoiceCost = nPrevCost + 8 /* literal */;
-         int nScore = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].score + 1;
-         int nNumLiterals = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals + 1;
+         int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 1;
+         int nNumLiterals = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals + 1;
 
          if (nNumLiterals == LITERALS_RUN_LEN_V1 || nNumLiterals == 256 || nNumLiterals == 512) {
             nCodingChoiceCost += 8;
@@ -183,15 +183,15 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          if (!nFavorRatio && nNumLiterals == 1)
             nCodingChoiceCost += MODESWITCH_PENALTY;
 
-         for (n = 0; n < NMATCHES_PER_OFFSET /* we only need the literals + short match cost + long match cost cases */; n++) {
-            lzsa_arrival *pDestArrival = &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n];
+         for (n = 0; n < NMATCHES_PER_ARRIVAL /* we only need the literals + short match cost + long match cost cases */; n++) {
+            lzsa_arrival *pDestArrival = &arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n];
 
             if (pDestArrival->from_slot == 0 ||
                nCodingChoiceCost < pDestArrival->cost ||
                (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
-               memmove(&arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                  &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n],
-                  sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+               memmove(&arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n + 1],
+                  &arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n],
+                  sizeof(lzsa_arrival) * (NMATCHES_PER_ARRIVAL - n - 1));
 
                pDestArrival->cost = nCodingChoiceCost;
                pDestArrival->from_pos = i;
@@ -200,15 +200,15 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
                pDestArrival->match_len = 0;
                pDestArrival->num_literals = nNumLiterals;
                pDestArrival->score = nScore;
-               pDestArrival->rep_offset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+               pDestArrival->rep_offset = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].rep_offset;
                break;
             }
          }
       }
 
-      const lzsa_match *match = pCompressor->match + (i << 3);
+      const lzsa_match *match = pCompressor->match + (i << MATCHES_PER_INDEX_SHIFT_V1);
 
-      for (m = 0; m < 8 && match[m].length; m++) {
+      for (m = 0; m < NMATCHES_PER_INDEX_V1 && match[m].length; m++) {
          int nMatchLen = match[m].length;
          int nMatchOffsetCost = lzsa_get_offset_cost_v1(match[m].offset);
          int nStartingMatchLen, k;
@@ -223,33 +223,33 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          for (k = nStartingMatchLen; k <= nMatchLen; k++) {
             int nMatchLenCost = lzsa_get_match_varlen_size_v1(k - MIN_MATCH_SIZE_V1);
 
-            for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-               int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+            for (j = 0; j < NMATCHES_PER_ARRIVAL && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
+               int nPrevCost = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
-               int nScore = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].score + 5;
+               int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 5;
                int exists = 0;
 
-               if (!nFavorRatio && !arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals)
+               if (!nFavorRatio && !arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals)
                   nCodingChoiceCost += MODESWITCH_PENALTY;
 
                for (n = 0;
-                  n < NMATCHES_PER_OFFSET && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].cost <= nCodingChoiceCost;
+                  n < NMATCHES_PER_ARRIVAL && arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].cost <= nCodingChoiceCost;
                   n++) {
-                  if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].rep_offset) == lzsa_get_offset_cost_v1(match[m].offset)) {
+                  if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].rep_offset) == lzsa_get_offset_cost_v1(match[m].offset)) {
                      exists = 1;
                      break;
                   }
                }
 
-               for (n = 0; !exists && n < NMATCHES_PER_OFFSET /* we only need the literals + short match cost + long match cost cases */; n++) {
-                  lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n];
+               for (n = 0; !exists && n < NMATCHES_PER_ARRIVAL /* we only need the literals + short match cost + long match cost cases */; n++) {
+                  lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n];
 
                   if (pDestArrival->from_slot == 0 ||
                      nCodingChoiceCost < pDestArrival->cost ||
                      (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
-                     memmove(&arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                        &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n],
-                        sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                     memmove(&arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n + 1],
+                        &arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n],
+                        sizeof(lzsa_arrival) * (NMATCHES_PER_ARRIVAL - n - 1));
 
                      pDestArrival->cost = nCodingChoiceCost;
                      pDestArrival->from_pos = i;
@@ -267,7 +267,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
       }
    }
 
-   lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_OFFSET_SHIFT) + 0];
+   lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + 0];
    pBestMatch[i].length = 0;
    pBestMatch[i].offset = 0;
 
@@ -275,7 +275,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
       pBestMatch[end_arrival->from_pos].length = end_arrival->match_len;
       pBestMatch[end_arrival->from_pos].offset = end_arrival->match_offset;
 
-      end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_OFFSET_SHIFT) + (end_arrival->from_slot - 1)];
+      end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_ARRIVAL_SHIFT) + (end_arrival->from_slot - 1)];
    }
 }
 
