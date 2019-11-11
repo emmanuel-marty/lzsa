@@ -41,7 +41,7 @@ extern "C" {
 
 #define LCP_BITS 14
 #define TAG_BITS 3
-#define LCP_MAX (1U<<(LCP_BITS - TAG_BITS - 1))
+#define LCP_MAX ((1U<<(LCP_BITS - TAG_BITS)) - 1)
 #define LCP_AND_TAG_MAX (1U<<(LCP_BITS - 1))
 #define LCP_SHIFT (31-LCP_BITS)
 #define LCP_MASK (((1U<<LCP_BITS) - 1) << LCP_SHIFT)

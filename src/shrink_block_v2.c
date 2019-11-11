@@ -611,25 +611,51 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
             }
          }
 
-         if ((i + pMatch->length) < nEndOffset && pMatch->length >= LCP_MAX &&
-            pBestMatch[i + pMatch->length].offset &&
+         if ((i + pMatch->length) < nEndOffset && pMatch->offset > 0 && pMatch->length >= MIN_MATCH_SIZE_V2 &&
+            pBestMatch[i + pMatch->length].offset > 0 &&
             pBestMatch[i + pMatch->length].length >= MIN_MATCH_SIZE_V2 &&
-            pBestMatch[i + pMatch->length].offset <= pMatch->length &&
+            (pMatch->length + pBestMatch[i + pMatch->length].length) >= LEAVE_ALONE_MATCH_SIZE &&
             (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN &&
             (i + pMatch->length) > pMatch->offset &&
-            (i - pMatch->offset + pMatch->length + pBestMatch[i + pMatch->length].length) < nEndOffset &&
+            (i + pMatch->length) > pBestMatch[i + pMatch->length].offset &&
+            (i + pMatch->length + pBestMatch[i + pMatch->length].length) < nEndOffset &&
             !memcmp(pInWindow + i - pMatch->offset + pMatch->length,
                pInWindow + i + pMatch->length - pBestMatch[i + pMatch->length].offset,
                pBestMatch[i + pMatch->length].length)) {
-            int nMatchLen = pMatch->length;
 
-            /* Join */
+            int nNextIndex = i + pMatch->length;
+            int nNextLiterals = 0;
 
-            pMatch->length += pBestMatch[i + nMatchLen].length;
-            pBestMatch[i + nMatchLen].offset = 0;
-            pBestMatch[i + nMatchLen].length = -1;
-            nDidReduce = 1;
-            continue;
+            while (nNextIndex < nEndOffset && pBestMatch[nNextIndex].length < MIN_MATCH_SIZE_V2) {
+               nNextLiterals++;
+               nNextIndex++;
+            }
+
+            int nCurPartialSize = lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
+
+            nCurPartialSize += 8 /* token */ + lzsa_get_literals_varlen_size_v2(0) + lzsa_get_match_varlen_size_v2(pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V2);
+            if (pBestMatch[i + pMatch->length].offset != pMatch->offset)
+               nCurPartialSize += (pBestMatch[i + pMatch->length].offset <= 32) ? 4 : ((pBestMatch[i + pMatch->length].offset <= 512) ? 8 : ((pBestMatch[i + pMatch->length].offset <= (8192 + 512)) ? 12 : 16));
+
+            if (pBestMatch[nNextIndex].offset != pBestMatch[i + pMatch->length].offset)
+               nCurPartialSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
+
+            int nReducedPartialSize = lzsa_get_match_varlen_size_v2(pMatch->length + pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V2);
+
+            if (pBestMatch[nNextIndex].offset != pMatch->offset)
+               nReducedPartialSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
+
+            if (nCurPartialSize >= nReducedPartialSize) {
+               int nMatchLen = pMatch->length;
+
+               /* Join */
+
+               pMatch->length += pBestMatch[i + nMatchLen].length;
+               pBestMatch[i + nMatchLen].offset = 0;
+               pBestMatch[i + nMatchLen].length = -1;
+               nDidReduce = 1;
+               continue;
+            }
          }
 
          nPrevRepMatchOffset = nRepMatchOffset;
