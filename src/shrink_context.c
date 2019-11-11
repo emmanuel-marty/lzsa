@@ -89,19 +89,19 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
             pCompressor->open_intervals = (unsigned int *)malloc((LCP_AND_TAG_MAX + 1) * sizeof(unsigned int));
 
             if (pCompressor->open_intervals) {
-               pCompressor->arrival = (lzsa_arrival *)malloc(nMaxWindowSize * NMATCHES_PER_ARRIVAL * sizeof(lzsa_arrival));
-
+               pCompressor->arrival = (lzsa_arrival *)malloc(BLOCK_SIZE * NMATCHES_PER_ARRIVAL * sizeof(lzsa_arrival));
+   
                if (pCompressor->arrival) {
-                  pCompressor->best_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
+                  pCompressor->best_match = (lzsa_match *)malloc(BLOCK_SIZE * sizeof(lzsa_match));
 
                   if (pCompressor->best_match) {
-                     pCompressor->improved_match = (lzsa_match *)malloc(nMaxWindowSize * sizeof(lzsa_match));
+                     pCompressor->improved_match = (lzsa_match *)malloc(BLOCK_SIZE * sizeof(lzsa_match));
 
                      if (pCompressor->improved_match) {
                         if (pCompressor->format_version == 2)
-                           pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_INDEX_V2 * sizeof(lzsa_match));
+                           pCompressor->match = (lzsa_match *)malloc(BLOCK_SIZE * NMATCHES_PER_INDEX_V2 * sizeof(lzsa_match));
                         else
-                           pCompressor->match = (lzsa_match *)malloc(nMaxWindowSize * NMATCHES_PER_INDEX_V1 * sizeof(lzsa_match));
+                           pCompressor->match = (lzsa_match *)malloc(BLOCK_SIZE * NMATCHES_PER_INDEX_V1 * sizeof(lzsa_match));
                         if (pCompressor->match)
                            return 0;
                      }

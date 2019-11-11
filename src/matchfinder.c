@@ -295,7 +295,7 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
 void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nMatchesPerOffset, const int nStartOffset, const int nEndOffset) {
-   lzsa_match *pMatch = pCompressor->match + (nStartOffset * nMatchesPerOffset);
+   lzsa_match *pMatch = pCompressor->match;
    int i;
 
    for (i = nStartOffset; i < nEndOffset; i++) {
