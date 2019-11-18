@@ -512,7 +512,7 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
    size_t nDataSizeStep = 128;
    float fProbabilitySizeStep = 0.0005f;
 
-   for (nGeneratedDataSize = 1024; nGeneratedDataSize <= ((nOptions & OPT_RAW) ? BLOCK_SIZE : (4 * BLOCK_SIZE)); nGeneratedDataSize += nDataSizeStep) {
+   for (nGeneratedDataSize = 1024; nGeneratedDataSize <= ((size_t)((nOptions & OPT_RAW) ? BLOCK_SIZE : (4 * BLOCK_SIZE))); nGeneratedDataSize += nDataSizeStep) {
       float fMatchProbability;
 
       fprintf(stdout, "size %zd", nGeneratedDataSize);
@@ -530,7 +530,7 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, in
             /* Try to compress it, expected to succeed */
             size_t nActualCompressedSize = lzsa_compress_inmem(pGeneratedData, pCompressedData, nGeneratedDataSize, lzsa_get_max_compressed_size_inmem(nGeneratedDataSize),
                nFlags, nMinMatchSize, nFormatVersion);
-            if (nActualCompressedSize == -1 || nActualCompressedSize < (lzsa_get_header_size() + lzsa_get_frame_size() + lzsa_get_frame_size() /* footer */)) {
+            if (nActualCompressedSize == -1 || (int)nActualCompressedSize < (lzsa_get_header_size() + lzsa_get_frame_size() + lzsa_get_frame_size() /* footer */)) {
                free(pTmpDecompressedData);
                pTmpDecompressedData = NULL;
                free(pTmpCompressedData);

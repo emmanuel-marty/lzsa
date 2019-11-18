@@ -301,6 +301,27 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const un
    for (i = nStartOffset; i < nEndOffset; ) {
       lzsa_match *pMatch = pBestMatch + i;
 
+      if (pMatch->length == 0 &&
+         (i + 1) < (nEndOffset - LAST_LITERALS) &&
+         pBestMatch[i + 1].length >= MIN_MATCH_SIZE_V1 &&
+         pBestMatch[i + 1].offset &&
+         i >= pBestMatch[i + 1].offset &&
+         (i + pBestMatch[i + 1].length + 1) <= (nEndOffset - LAST_LITERALS) &&
+         !memcmp(pInWindow + i - (pBestMatch[i + 1].offset), pInWindow + i, pBestMatch[i + 1].length + 1)) {
+         int nCurLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length);
+         int nReducedLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length + 1);
+
+         if ((nReducedLenSize - nCurLenSize) <= 8) {
+            /* Merge */
+            pBestMatch[i].length = pBestMatch[i + 1].length + 1;
+            pBestMatch[i].offset = pBestMatch[i + 1].offset;
+            pBestMatch[i + 1].length = 0;
+            pBestMatch[i + 1].offset = 0;
+            nDidReduce = 1;
+            continue;
+         }
+      }
+
       if (pMatch->length >= MIN_MATCH_SIZE_V1) {
          if (pMatch->length <= 9 /* Don't waste time considering large matches, they will always win over literals */ &&
             (i + pMatch->length) < nEndOffset /* Don't consider the last token in the block, we can only reduce a match inbetween other tokens */) {
@@ -639,6 +660,7 @@ int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigne
 
    /* Compress optimally without breaking ties in favor of less tokens */
 
+   memset(pCompressor->best_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
    lzsa_optimize_forward_v1(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
 
    int nDidReduce;
@@ -655,6 +677,7 @@ int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigne
       int nReducedCompressedSize;
 
       /* Compress optimally and do break ties in favor of less tokens */
+      memset(pCompressor->improved_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
       lzsa_optimize_forward_v1(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
       
       nPasses = 0;

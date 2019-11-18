@@ -142,7 +142,7 @@ size_t lzsa_compress_inmem(unsigned char *pInputData, unsigned char *pOutBuffer,
             if (nBlockheaderSize < 0)
                nError = LZSA_ERROR_COMPRESSION;
             else {
-               if (nInDataSize > (nMaxOutBufferSize - (nCompressedSize + nBlockheaderSize)))
+               if ((size_t)nInDataSize > (nMaxOutBufferSize - (nCompressedSize + nBlockheaderSize)))
                   nError = LZSA_ERROR_DST;
                else {
                   memcpy(pOutBuffer + nBlockheaderSize + nCompressedSize, pInputData + nOriginalSize, nInDataSize);
