@@ -304,12 +304,13 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const un
       if (pMatch->length == 0 &&
          (i + 1) < (nEndOffset - LAST_LITERALS) &&
          pBestMatch[i + 1].length >= MIN_MATCH_SIZE_V1 &&
+         pBestMatch[i + 1].length < MAX_VARLEN &&
          pBestMatch[i + 1].offset &&
          i >= pBestMatch[i + 1].offset &&
          (i + pBestMatch[i + 1].length + 1) <= (nEndOffset - LAST_LITERALS) &&
          !memcmp(pInWindow + i - (pBestMatch[i + 1].offset), pInWindow + i, pBestMatch[i + 1].length + 1)) {
-         int nCurLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length);
-         int nReducedLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length + 1);
+         int nCurLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length - MIN_MATCH_SIZE_V1);
+         int nReducedLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length + 1 - MIN_MATCH_SIZE_V1);
 
          if ((nReducedLenSize - nCurLenSize) <= 8) {
             /* Merge */
