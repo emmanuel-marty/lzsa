@@ -361,16 +361,16 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             for (j = 0; j < nMatchesPerArrival && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
                const int nPrevCost = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].cost & 0x3fffffff;
-               int nRepOffset = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].rep_offset;
-
-               int nMatchOffsetCost = (nMatchOffset == nRepOffset) ? 0 : nNoRepmatchOffsetCost;
                int nRepCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
-               int nCodingChoiceCost = nRepCodingChoiceCost + nMatchOffsetCost;
-
-               if (!nFavorRatio && !arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals)
-                  nCodingChoiceCost += MODESWITCH_PENALTY;
 
                if (nRepCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 1].cost) {
+                  int nRepOffset = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].rep_offset;
+                  int nMatchOffsetCost = (nMatchOffset == nRepOffset) ? 0 : nNoRepmatchOffsetCost;
+                  int nCodingChoiceCost = nRepCodingChoiceCost + nMatchOffsetCost;
+
+                  if (!nFavorRatio && !arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals)
+                     nCodingChoiceCost += MODESWITCH_PENALTY;
+
                   if (nCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 1].cost) {
                      int exists = 0;
                      int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + ((nMatchOffset == nRepOffset) ? 2 : 3);
