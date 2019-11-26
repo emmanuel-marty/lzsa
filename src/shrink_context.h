@@ -61,8 +61,7 @@ extern "C" {
 
 #define LEAVE_ALONE_MATCH_SIZE 1000
 
-#define LAST_MATCH_OFFSET 4
-#define LAST_LITERALS 1
+#define LAST_LITERALS 0
 
 #define MODESWITCH_PENALTY 3
 

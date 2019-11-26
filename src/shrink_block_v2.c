@@ -254,15 +254,15 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
    if ((nEndOffset - nStartOffset) > BLOCK_SIZE) return;
 
-   memset(arrival + (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset) << MATCHES_PER_ARRIVAL_SHIFT));
+   memset(arrival + (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset + 1) << MATCHES_PER_ARRIVAL_SHIFT));
 
-   for (i = (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT); i != (nEndOffset << MATCHES_PER_ARRIVAL_SHIFT); i++) {
+   for (i = (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT); i != ((nEndOffset + 1) << MATCHES_PER_ARRIVAL_SHIFT); i++) {
       arrival[i].cost = 0x40000000;
    }
 
    arrival[nStartOffset << MATCHES_PER_ARRIVAL_SHIFT].from_slot = -1;
 
-   for (i = nStartOffset; i != (nEndOffset - 1); i++) {
+   for (i = nStartOffset; i != nEndOffset; i++) {
       int m;
 
       for (j = 0; j < nMatchesPerArrival && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
@@ -481,10 +481,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
    }
 
    lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + 0];
-   pBestMatch[i].length = 0;
-   pBestMatch[i].offset = 0;
 
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0) {
+      if (end_arrival->from_pos >= nEndOffset) return;
       pBestMatch[end_arrival->from_pos].length = end_arrival->match_len;
       pBestMatch[end_arrival->from_pos].offset = end_arrival->match_offset;
       end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_ARRIVAL_SHIFT) + (end_arrival->from_slot - 1)];
@@ -650,14 +649,14 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
             }
          }
 
-         if ((i + pMatch->length) < nEndOffset && pMatch->offset > 0 && pMatch->length >= MIN_MATCH_SIZE_V2 &&
+         if ((i + pMatch->length) <= nEndOffset && pMatch->offset > 0 && pMatch->length >= MIN_MATCH_SIZE_V2 &&
             pBestMatch[i + pMatch->length].offset > 0 &&
             pBestMatch[i + pMatch->length].length >= MIN_MATCH_SIZE_V2 &&
             (pMatch->length + pBestMatch[i + pMatch->length].length) >= LEAVE_ALONE_MATCH_SIZE &&
             (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN &&
             (i + pMatch->length) > pMatch->offset &&
             (i + pMatch->length) > pBestMatch[i + pMatch->length].offset &&
-            (i + pMatch->length + pBestMatch[i + pMatch->length].length) < nEndOffset &&
+            (i + pMatch->length + pBestMatch[i + pMatch->length].length) <= nEndOffset &&
             !memcmp(pInWindow + i - pMatch->offset + pMatch->length,
                pInWindow + i + pMatch->length - pBestMatch[i + pMatch->length].offset,
                pBestMatch[i + pMatch->length].length)) {
