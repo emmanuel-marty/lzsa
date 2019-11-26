@@ -146,7 +146,7 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
          }
       }
 
-      if ((pInBlock + 1) < pInBlockEnd) { /* The last token in the block does not include match information */
+      if (pInBlock < pInBlockEnd) { /* The last token in the block does not include match information */
          unsigned char nOffsetMode = token & 0xc0;
          unsigned int nValue;
 
@@ -185,6 +185,7 @@ int lzsa_decompressor_expand_block_v2(const unsigned char *pInBlock, int nBlockS
             if ((token & 0x20) == 0) {
                /* 16 bit offset */
                nMatchOffset = (((unsigned int)(*pInBlock++)) << 8);
+               if (pInBlock >= pInBlockEnd) return -1;
                nMatchOffset |= (unsigned int)(*pInBlock++);
                nMatchOffset ^= 0xffff;
                nMatchOffset++;
