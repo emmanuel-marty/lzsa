@@ -303,9 +303,16 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
 
                      if (pDestArrival->from_slot) {
+                        int z;
+
+                        for (z = n; z < nMatchesPerArrival - 1; z++) {
+                           if (pDestSlots[z].rep_offset == arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].rep_offset)
+                              break;
+                        }
+
                         memmove(&pDestSlots[n + 1],
                            &pDestSlots[n],
-                           sizeof(lzsa_arrival) * (nMatchesPerArrival - n - 1));
+                           sizeof(lzsa_arrival) * (z - n));
                      }
 
                      pDestArrival->cost = nCodingChoiceCost;
@@ -400,15 +407,25 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
 
                         if (!exists) {
-                           for (n = 0; n < nMatchesPerArrival; n++) {
+                           for (n = 0; n < nMatchesPerArrival - 1; n++) {
                               lzsa_arrival *pDestArrival = &pDestSlots[n];
 
                               if (nCodingChoiceCost < pDestArrival->cost ||
                                  (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
                                  if (pDestArrival->from_slot) {
+                                    int z;
+
+                                    for (z = n; z < nMatchesPerArrival - 1; z++) {
+                                       if (pDestSlots[z].rep_offset == nMatchOffset)
+                                          break;
+                                    }
+
+                                    if (z == (nMatchesPerArrival - 1) && pDestSlots[z].from_slot && pDestSlots[z].match_len < MIN_MATCH_SIZE_V2)
+                                       z--;
+
                                     memmove(&pDestSlots[n + 1],
                                        &pDestSlots[n],
-                                       sizeof(lzsa_arrival) * (nMatchesPerArrival - n - 1));
+                                       sizeof(lzsa_arrival) * (z - n));
                                  }
 
                                  pDestArrival->cost = nCodingChoiceCost;
@@ -456,9 +473,16 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                            if (nRepCodingChoiceCost < pDestArrival->cost ||
                               (nRepCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
                               if (pDestArrival->from_slot) {
+                                 int z;
+
+                                 for (z = n; z < nMatchesPerArrival - 1; z++) {
+                                    if (pDestSlots[z].rep_offset == nRepOffset)
+                                       break;
+                                 }
+
                                  memmove(&pDestSlots[n + 1],
                                     &pDestSlots[n],
-                                    sizeof(lzsa_arrival) * (nMatchesPerArrival - n - 1));
+                                    sizeof(lzsa_arrival) * (z - n));
                               }
 
                               pDestArrival->cost = nRepCodingChoiceCost;
@@ -1078,8 +1102,6 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
    
    memset(pCompressor->best_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
    lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */, (nInDataSize < 65536) ? 1 : 0 /* insert forward reps */, nMatchesPerArrival);
-   if (nInDataSize < 65536)
-      lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */, 1 /* insert forward reps */, nMatchesPerArrival);
 
    int nDidReduce;
    int nPasses = 0;

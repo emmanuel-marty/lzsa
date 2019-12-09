@@ -195,10 +195,11 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
  * @param nOffset offset to find matches at, in the input window
  * @param pMatches pointer to returned matches
  * @param nMaxMatches maximum number of matches to return (0 for none)
+ * @param nInWindowSize total input size in bytes (previously compressed bytes + bytes to compress)
  *
  * @return number of matches
  */
-int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches) {
+int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches, const int nInWindowSize) {
    unsigned int *intervals = pCompressor->intervals;
    unsigned int *pos_data = pCompressor->pos_data;
    unsigned int ref;
@@ -238,6 +239,24 @@ int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_m
    /* Ascend indirectly via pos_data[] links.  */
    match_pos = super_ref & EXCL_VISITED_MASK;
    matchptr = pMatches;
+
+   if (pCompressor->format_version >= 2 && nInWindowSize < 65536) {
+      if ((matchptr - pMatches) < nMaxMatches) {
+         int nMatchOffset = (int)(nOffset - match_pos);
+
+         if (nMatchOffset <= MAX_OFFSET) {
+            if (pCompressor->format_version >= 2) {
+               matchptr->length = (unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
+            }
+            else {
+               matchptr->length = (unsigned short)(ref >> LCP_SHIFT);
+            }
+            matchptr->offset = (unsigned short)nMatchOffset;
+            matchptr++;
+         }
+      }
+   }
+
    for (;;) {
       while ((super_ref = pos_data[match_pos]) > ref)
          match_pos = intervals[super_ref & POS_MASK] & EXCL_VISITED_MASK;
@@ -282,7 +301,7 @@ void lzsa_skip_matches(lzsa_compressor *pCompressor, const int nStartOffset, con
    /* Skipping still requires scanning for matches, as this also performs a lazy update of the intervals. However,
     * we don't store the matches. */
    for (i = nStartOffset; i < nEndOffset; i++) {
-      lzsa_find_matches_at(pCompressor, i, &match, 0);
+      lzsa_find_matches_at(pCompressor, i, &match, 0, 0);
    }
 }
 
@@ -299,7 +318,7 @@ void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nMatchesPerOf
    int i;
 
    for (i = nStartOffset; i < nEndOffset; i++) {
-      int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, nMatchesPerOffset);
+      int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, nMatchesPerOffset, nEndOffset - nStartOffset);
 
       while (nMatches < nMatchesPerOffset) {
          pMatch[nMatches].length = 0;
