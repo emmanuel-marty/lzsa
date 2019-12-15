@@ -40,7 +40,7 @@ extern "C" {
 #endif
 
 #define LCP_BITS 14
-#define TAG_BITS 3
+#define TAG_BITS 4
 #define LCP_MAX ((1U<<(LCP_BITS - TAG_BITS)) - 1)
 #define LCP_AND_TAG_MAX (1U<<(LCP_BITS - 1))
 #define LCP_SHIFT (31-LCP_BITS)
@@ -50,7 +50,7 @@ extern "C" {
 #define EXCL_VISITED_MASK  0x7fffffff
 
 #define NMATCHES_PER_ARRIVAL_SMALL 8
-#define NMATCHES_PER_ARRIVAL_BIG 23
+#define NMATCHES_PER_ARRIVAL_BIG 32
 #define MATCHES_PER_ARRIVAL_SHIFT 5
 
 #define NMATCHES_PER_INDEX_V1 8

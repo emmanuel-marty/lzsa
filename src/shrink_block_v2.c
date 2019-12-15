@@ -334,9 +334,13 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
       lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
 
+      int nMinRepLen[NMATCHES_PER_ARRIVAL_BIG];
+      memset(nMinRepLen, 0, nMatchesPerArrival * sizeof(int));
+
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
-         int nMatchLen = match[m].length;
+         int nMatchLen = match[m].length & 0x7fff;
          int nMatchOffset = match[m].offset;
+         int nScorePenalty = ((match[m].length & 0x8000) >> 15);
          int nNoRepmatchOffsetCost = (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16));
          int nStartingMatchLen, k;
          int nMaxRepLen[NMATCHES_PER_ARRIVAL_BIG];
@@ -354,8 +358,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                else {
                   if (i > nRepOffset &&
                      (i - nRepOffset + nMatchLen) <= (nEndOffset - LAST_LITERALS)) {
-                     while (nCurMaxRepLen < nMatchLen && pInWindow[i - nRepOffset + nCurMaxRepLen] == pInWindow[i - nMatchOffset + nCurMaxRepLen])
+                     nCurMaxRepLen = nMinRepLen[j];
+                     while (nCurMaxRepLen < nMatchLen && pInWindow[i - nRepOffset + nCurMaxRepLen] == pInWindow[i + nCurMaxRepLen])
                         nCurMaxRepLen++;
+                     nMinRepLen[j] = nCurMaxRepLen;
                   }
                }
             }
@@ -368,13 +374,29 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          if (nInsertForwardReps)
             lzsa_insert_forward_match_v2(pCompressor, pInWindow, i, nMatchOffset, nStartOffset, nEndOffset, nMatchesPerArrival, 0);
 
-         if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE)
+         int nMatchLenCost = 0;
+         if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE) {
             nStartingMatchLen = nMatchLen;
-         else
+            nMatchLenCost = 4 + 24;
+         }
+         else {
             nStartingMatchLen = nMinMatchSize;
+            nMatchLenCost = 0;
+         }
 
          for (k = nStartingMatchLen; k <= nMatchLen; k++) {
-            int nMatchLenCost = lzsa_get_match_varlen_size_v2(k - MIN_MATCH_SIZE_V2);
+            if (k == (MATCH_RUN_LEN_V2 + MIN_MATCH_SIZE_V2)) {
+               nMatchLenCost = 4;
+            }
+            else {
+               if (k == (MATCH_RUN_LEN_V2 + 15 + MIN_MATCH_SIZE_V2))
+                  nMatchLenCost = 4 + 8;
+               else {
+                  if (k == 256)
+                     nMatchLenCost = 4 + 24;
+               }
+            }
+
             lzsa_arrival *pDestSlots = &arrival[(i + k) << MATCHES_PER_ARRIVAL_SHIFT];
             int nInsertedNoRepMatchCandidate = 0;
 
@@ -393,7 +415,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
                      if (nCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 1].cost) {
                         int exists = 0;
-                        int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 3;
+                        int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 3 + nScorePenalty;
 
                         for (n = 0;
                            n < nMatchesPerArrival && pDestSlots[n].cost <= nCodingChoiceCost;
@@ -501,8 +523,14 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      }
                   }
                }
+               else {
+                  break;
+               }
             }
          }
+
+         if (nMatchLen >= LCP_MAX && ((m + 1) >= NMATCHES_PER_INDEX_V2 || match[m + 1].length < LCP_MAX))
+            break;
       }
    }
 
