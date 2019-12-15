@@ -48,7 +48,7 @@
 #define OPT_RAW_BACKWARD   8
 #define OPT_STATS          16
 
-#define TOOL_VERSION "1.1.6"
+#define TOOL_VERSION "1.2.0"
 
 /*---------------------------------------------------------------------------*/
 
