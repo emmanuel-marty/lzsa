@@ -183,6 +183,7 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
  * @param nMatchOffset match offset to use as rep candidate
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nMatchesPerArrival number of arrivals to record per input buffer position
  * @param nDepth current insertion depth
  */
 static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nStartOffset, const int nEndOffset, const int nMatchesPerArrival, int nDepth) {
@@ -241,15 +242,19 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
  *
  * @param pCompressor compression context
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
+ * @param pBestMatch pointer to buffer for outputting optimal matches
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nReduce non-zero to reduce the number of tokens when the path costs are equal, zero not to
  * @param nInsertForwardReps non-zero to insert forward repmatch candidates, zero to use the previously inserted candidates
+ * @param nMatchesPerArrival number of arrivals to record per input buffer position
  */
 static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps, const int nMatchesPerArrival) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT);
    const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
+   const int nLeaveAloneMatchSize = (nMatchesPerArrival == NMATCHES_PER_ARRIVAL_V2_SMALL) ? LEAVE_ALONE_MATCH_SIZE_SMALL : LEAVE_ALONE_MATCH_SIZE;
    int i, j, n;
 
    if ((nEndOffset - nStartOffset) > BLOCK_SIZE) return;
@@ -334,7 +339,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
       lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
 
-      int nMinRepLen[NMATCHES_PER_ARRIVAL_BIG];
+      int nMinRepLen[NMATCHES_PER_ARRIVAL_V2_BIG];
       memset(nMinRepLen, 0, nMatchesPerArrival * sizeof(int));
 
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
@@ -343,7 +348,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          int nScorePenalty = ((match[m].length & 0x8000) >> 15);
          int nNoRepmatchOffsetCost = (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16));
          int nStartingMatchLen, k;
-         int nMaxRepLen[NMATCHES_PER_ARRIVAL_BIG];
+         int nMaxRepLen[NMATCHES_PER_ARRIVAL_V2_BIG];
 
          if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
             nMatchLen = nEndOffset - LAST_LITERALS - i;
@@ -375,7 +380,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             lzsa_insert_forward_match_v2(pCompressor, pInWindow, i, nMatchOffset, nStartOffset, nEndOffset, nMatchesPerArrival, 0);
 
          int nMatchLenCost = 0;
-         if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE) {
+         if (nMatchLen >= nLeaveAloneMatchSize) {
             nStartingMatchLen = nMatchLen;
             nMatchLenCost = 4 + 24;
          }
@@ -1124,7 +1129,7 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
  */
 int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
    int nResult, nBaseCompressedSize;
-   int nMatchesPerArrival = (nInDataSize < 65536) ? NMATCHES_PER_ARRIVAL_BIG : NMATCHES_PER_ARRIVAL_SMALL;
+   int nMatchesPerArrival = (nInDataSize < 65536) ? NMATCHES_PER_ARRIVAL_V2_BIG : NMATCHES_PER_ARRIVAL_V2_SMALL;
 
    /* Compress optimally without breaking ties in favor of less tokens */
    

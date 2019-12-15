@@ -105,7 +105,7 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
       }
    }
    else {
-      for (i = 1; i < nInWindowSize - 1; i++) {
+      for (i = 1; i < nInWindowSize; i++) {
          int nIndex = (int)(intervals[i] & POS_MASK);
          int nLen = PLCP[nIndex];
          if (nLen < nMinMatchSize)
@@ -115,9 +115,6 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
          intervals[i] = ((unsigned int)nIndex) | (((unsigned int)nLen) << LCP_SHIFT);
       }
    }
-
-   if (i < nInWindowSize)
-      intervals[i] &= POS_MASK;
 
    /**
     * Build intervals for finding matches
