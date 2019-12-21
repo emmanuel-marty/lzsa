@@ -207,6 +207,10 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
             int nMaxRepLen = nEndOffset - nRepPos;
             if (nMaxRepLen > LCP_MAX)
                nMaxRepLen = LCP_MAX;
+            while ((nCurRepLen + 8) < nMaxRepLen && !memcmp(pInWindow + nRepPos + nCurRepLen, pInWindow + nRepPos - nMatchOffset + nCurRepLen, 8))
+               nCurRepLen += 8;
+            while ((nCurRepLen + 4) < nMaxRepLen && !memcmp(pInWindow + nRepPos + nCurRepLen, pInWindow + nRepPos - nMatchOffset + nCurRepLen, 4))
+               nCurRepLen += 4;
             while (nCurRepLen < nMaxRepLen && pInWindow[nRepPos + nCurRepLen] == pInWindow[nRepPos - nMatchOffset + nCurRepLen])
                nCurRepLen++;
 
@@ -364,6 +368,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                   if (i > nRepOffset &&
                      (i - nRepOffset + nMatchLen) <= (nEndOffset - LAST_LITERALS)) {
                      nCurMaxRepLen = nMinRepLen[j];
+                     while ((nCurMaxRepLen + 8) < nMatchLen && !memcmp(pInWindow + i - nRepOffset + nCurMaxRepLen, pInWindow + i + nCurMaxRepLen, 8))
+                        nCurMaxRepLen += 8;
+                     while ((nCurMaxRepLen + 4) < nMatchLen && !memcmp(pInWindow + i - nRepOffset + nCurMaxRepLen, pInWindow + i + nCurMaxRepLen, 4))
+                        nCurMaxRepLen += 4;
                      while (nCurMaxRepLen < nMatchLen && pInWindow[i - nRepOffset + nCurMaxRepLen] == pInWindow[i + nCurMaxRepLen])
                         nCurMaxRepLen++;
                      nMinRepLen[j] = nCurMaxRepLen;
