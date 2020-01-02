@@ -40,8 +40,8 @@ extern "C" {
 #endif
 
 #define LCP_BITS 14
-#define TAG_BITS 3
-#define LCP_MAX (1U<<(LCP_BITS - TAG_BITS - 1))
+#define TAG_BITS 4
+#define LCP_MAX ((1U<<(LCP_BITS - TAG_BITS)) - 1)
 #define LCP_AND_TAG_MAX (1U<<(LCP_BITS - 1))
 #define LCP_SHIFT (31-LCP_BITS)
 #define LCP_MASK (((1U<<LCP_BITS) - 1) << LCP_SHIFT)
@@ -49,13 +49,21 @@ extern "C" {
 #define VISITED_FLAG 0x80000000
 #define EXCL_VISITED_MASK  0x7fffffff
 
-#define NMATCHES_PER_OFFSET 8
-#define MATCHES_PER_OFFSET_SHIFT 3
+#define NMATCHES_PER_ARRIVAL_V1 8
+#define NMATCHES_PER_ARRIVAL_V2_SMALL 9
+#define NMATCHES_PER_ARRIVAL_V2_BIG 32
+#define MATCHES_PER_ARRIVAL_SHIFT 5
 
-#define LEAVE_ALONE_MATCH_SIZE 1000
+#define NMATCHES_PER_INDEX_V1 8
+#define MATCHES_PER_INDEX_SHIFT_V1 3
 
-#define LAST_MATCH_OFFSET 4
-#define LAST_LITERALS 1
+#define NMATCHES_PER_INDEX_V2 64
+#define MATCHES_PER_INDEX_SHIFT_V2 6
+
+#define LEAVE_ALONE_MATCH_SIZE 300
+#define LEAVE_ALONE_MATCH_SIZE_SMALL 1000
+
+#define LAST_LITERALS 0
 
 #define MODESWITCH_PENALTY 3
 
@@ -68,10 +76,10 @@ typedef struct _lzsa_match {
 /** Forward arrival slot */
 typedef struct {
    int cost;
-   int from_pos;
+   unsigned short rep_offset;
    short from_slot;
 
-   unsigned short rep_offset;
+   int from_pos;
    unsigned short rep_len;
    int rep_pos;
    int num_literals;

@@ -157,24 +157,26 @@ static inline int lzsa_get_offset_cost_v1(const unsigned int nMatchOffset) {
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  */
 static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce) {
-   lzsa_arrival *arrival = pCompressor->arrival;
+   lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT);
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
    int i, j, n;
 
-   memset(arrival + (nStartOffset << MATCHES_PER_OFFSET_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset) << MATCHES_PER_OFFSET_SHIFT));
+   if ((nEndOffset - nStartOffset) > BLOCK_SIZE) return;
 
-   arrival[nStartOffset << MATCHES_PER_OFFSET_SHIFT].from_slot = -1;
+   memset(arrival + (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT), 0, sizeof(lzsa_arrival) * ((nEndOffset - nStartOffset + 1) << MATCHES_PER_ARRIVAL_SHIFT));
 
-   for (i = nStartOffset; i != (nEndOffset - 1); i++) {
+   arrival[nStartOffset << MATCHES_PER_ARRIVAL_SHIFT].from_slot = -1;
+
+   for (i = nStartOffset; i != nEndOffset; i++) {
       int m;
 
-      for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-         int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+      for (j = 0; j < NMATCHES_PER_ARRIVAL_V1 && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
+         int nPrevCost = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].cost;
          int nCodingChoiceCost = nPrevCost + 8 /* literal */;
-         int nScore = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].score + 1;
-         int nNumLiterals = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals + 1;
+         int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 1;
+         int nNumLiterals = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals + 1;
 
          if (nNumLiterals == LITERALS_RUN_LEN_V1 || nNumLiterals == 256 || nNumLiterals == 512) {
             nCodingChoiceCost += 8;
@@ -183,15 +185,15 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          if (!nFavorRatio && nNumLiterals == 1)
             nCodingChoiceCost += MODESWITCH_PENALTY;
 
-         for (n = 0; n < NMATCHES_PER_OFFSET /* we only need the literals + short match cost + long match cost cases */; n++) {
-            lzsa_arrival *pDestArrival = &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n];
+         for (n = 0; n < NMATCHES_PER_ARRIVAL_V1 /* we only need the literals + short match cost + long match cost cases */; n++) {
+            lzsa_arrival *pDestArrival = &arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n];
 
             if (pDestArrival->from_slot == 0 ||
                nCodingChoiceCost < pDestArrival->cost ||
                (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
-               memmove(&arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                  &arrival[((i + 1) << MATCHES_PER_OFFSET_SHIFT) + n],
-                  sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+               memmove(&arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n + 1],
+                  &arrival[((i + 1) << MATCHES_PER_ARRIVAL_SHIFT) + n],
+                  sizeof(lzsa_arrival) * (NMATCHES_PER_ARRIVAL_V1 - n - 1));
 
                pDestArrival->cost = nCodingChoiceCost;
                pDestArrival->from_pos = i;
@@ -200,15 +202,15 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
                pDestArrival->match_len = 0;
                pDestArrival->num_literals = nNumLiterals;
                pDestArrival->score = nScore;
-               pDestArrival->rep_offset = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].rep_offset;
+               pDestArrival->rep_offset = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].rep_offset;
                break;
             }
          }
       }
 
-      const lzsa_match *match = pCompressor->match + (i << 3);
+      const lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V1);
 
-      for (m = 0; m < 8 && match[m].length; m++) {
+      for (m = 0; m < NMATCHES_PER_INDEX_V1 && match[m].length; m++) {
          int nMatchLen = match[m].length;
          int nMatchOffsetCost = lzsa_get_offset_cost_v1(match[m].offset);
          int nStartingMatchLen, k;
@@ -223,33 +225,33 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          for (k = nStartingMatchLen; k <= nMatchLen; k++) {
             int nMatchLenCost = lzsa_get_match_varlen_size_v1(k - MIN_MATCH_SIZE_V1);
 
-            for (j = 0; j < NMATCHES_PER_OFFSET && arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].from_slot; j++) {
-               int nPrevCost = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].cost;
+            for (j = 0; j < NMATCHES_PER_ARRIVAL_V1 && arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].from_slot; j++) {
+               int nPrevCost = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
-               int nScore = arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].score + 5;
+               int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 5;
                int exists = 0;
 
-               if (!nFavorRatio && !arrival[(i << MATCHES_PER_OFFSET_SHIFT) + j].num_literals)
+               if (!nFavorRatio && !arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals)
                   nCodingChoiceCost += MODESWITCH_PENALTY;
 
                for (n = 0;
-                  n < NMATCHES_PER_OFFSET && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].cost <= nCodingChoiceCost;
+                  n < NMATCHES_PER_ARRIVAL_V1 && arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].from_slot && arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].cost <= nCodingChoiceCost;
                   n++) {
-                  if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n].rep_offset) == lzsa_get_offset_cost_v1(match[m].offset)) {
+                  if (lzsa_get_offset_cost_v1(arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n].rep_offset) == lzsa_get_offset_cost_v1(match[m].offset)) {
                      exists = 1;
                      break;
                   }
                }
 
-               for (n = 0; !exists && n < NMATCHES_PER_OFFSET /* we only need the literals + short match cost + long match cost cases */; n++) {
-                  lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n];
+               for (n = 0; !exists && n < NMATCHES_PER_ARRIVAL_V1 /* we only need the literals + short match cost + long match cost cases */; n++) {
+                  lzsa_arrival *pDestArrival = &arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n];
 
                   if (pDestArrival->from_slot == 0 ||
                      nCodingChoiceCost < pDestArrival->cost ||
                      (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
-                     memmove(&arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n + 1],
-                        &arrival[((i + k) << MATCHES_PER_OFFSET_SHIFT) + n],
-                        sizeof(lzsa_arrival) * (NMATCHES_PER_OFFSET - n - 1));
+                     memmove(&arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n + 1],
+                        &arrival[((i + k) << MATCHES_PER_ARRIVAL_SHIFT) + n],
+                        sizeof(lzsa_arrival) * (NMATCHES_PER_ARRIVAL_V1 - n - 1));
 
                      pDestArrival->cost = nCodingChoiceCost;
                      pDestArrival->from_pos = i;
@@ -267,15 +269,14 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
       }
    }
 
-   lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_OFFSET_SHIFT) + 0];
-   pBestMatch[i].length = 0;
-   pBestMatch[i].offset = 0;
+   lzsa_arrival *end_arrival = &arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + 0];
 
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0) {
+      if (end_arrival->from_pos >= nEndOffset) return;
       pBestMatch[end_arrival->from_pos].length = end_arrival->match_len;
       pBestMatch[end_arrival->from_pos].offset = end_arrival->match_offset;
 
-      end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_OFFSET_SHIFT) + (end_arrival->from_slot - 1)];
+      end_arrival = &arrival[(end_arrival->from_pos << MATCHES_PER_ARRIVAL_SHIFT) + (end_arrival->from_slot - 1)];
    }
 }
 
@@ -284,19 +285,42 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
  * impacting the compression ratio
  *
  * @param pCompressor compression context
+ * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
  * @param pBestMatch optimal matches to emit
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  *
  * @return non-zero if the number of tokens was reduced, 0 if it wasn't
  */
-static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
+static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
    int nDidReduce = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
       lzsa_match *pMatch = pBestMatch + i;
+
+      if (pMatch->length == 0 &&
+         (i + 1) < (nEndOffset - LAST_LITERALS) &&
+         pBestMatch[i + 1].length >= MIN_MATCH_SIZE_V1 &&
+         pBestMatch[i + 1].length < MAX_VARLEN &&
+         pBestMatch[i + 1].offset &&
+         i >= pBestMatch[i + 1].offset &&
+         (i + pBestMatch[i + 1].length + 1) <= (nEndOffset - LAST_LITERALS) &&
+         !memcmp(pInWindow + i - (pBestMatch[i + 1].offset), pInWindow + i, pBestMatch[i + 1].length + 1)) {
+         int nCurLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length - MIN_MATCH_SIZE_V1);
+         int nReducedLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length + 1 - MIN_MATCH_SIZE_V1);
+
+         if ((nReducedLenSize - nCurLenSize) <= 8) {
+            /* Merge */
+            pBestMatch[i].length = pBestMatch[i + 1].length + 1;
+            pBestMatch[i].offset = pBestMatch[i + 1].offset;
+            pBestMatch[i + 1].length = 0;
+            pBestMatch[i + 1].offset = 0;
+            nDidReduce = 1;
+            continue;
+         }
+      }
 
       if (pMatch->length >= MIN_MATCH_SIZE_V1) {
          if (pMatch->length <= 9 /* Don't waste time considering large matches, they will always win over literals */ &&
@@ -326,17 +350,33 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, lzsa_mat
             }
          }
 
-         if ((i + pMatch->length) < nEndOffset && pMatch->length >= LCP_MAX &&
-            pMatch->offset && pMatch->offset <= 32 && pBestMatch[i + pMatch->length].offset == pMatch->offset && (pMatch->length % pMatch->offset) == 0 &&
-            (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN) {
-            int nMatchLen = pMatch->length;
+         if ((i + pMatch->length) <= nEndOffset && pMatch->offset > 0 && pMatch->length >= MIN_MATCH_SIZE_V1 &&
+            pBestMatch[i + pMatch->length].offset > 0 &&
+            pBestMatch[i + pMatch->length].length >= MIN_MATCH_SIZE_V1 &&
+            (pMatch->length + pBestMatch[i + pMatch->length].length) >= LEAVE_ALONE_MATCH_SIZE &&
+            (pMatch->length + pBestMatch[i + pMatch->length].length) <= MAX_VARLEN &&
+            (i + pMatch->length) > pMatch->offset &&
+            (i + pMatch->length) > pBestMatch[i + pMatch->length].offset &&
+            (i + pMatch->length + pBestMatch[i + pMatch->length].length) <= nEndOffset &&
+            !memcmp(pInWindow + i - pMatch->offset + pMatch->length,
+               pInWindow + i + pMatch->length - pBestMatch[i + pMatch->length].offset,
+               pBestMatch[i + pMatch->length].length)) {
 
-            /* Join */
+            int nCurPartialSize = lzsa_get_match_varlen_size_v1(pMatch->length - MIN_MATCH_SIZE_V1);
+            nCurPartialSize += 8 /* token */ + lzsa_get_literals_varlen_size_v1(0) + ((pBestMatch[i + pMatch->length].offset <= 256) ? 8 : 16) /* match offset */ + lzsa_get_match_varlen_size_v1(pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V1);
 
-            pMatch->length += pBestMatch[i + nMatchLen].length;
-            pBestMatch[i + nMatchLen].offset = 0;
-            pBestMatch[i + nMatchLen].length = -1;
-            continue;
+            int nReducedPartialSize = lzsa_get_match_varlen_size_v1(pMatch->length + pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V1);
+
+            if (nCurPartialSize >= nReducedPartialSize) {
+               int nMatchLen = pMatch->length;
+
+               /* Join */
+
+               pMatch->length += pBestMatch[i + nMatchLen].length;
+               pBestMatch[i + nMatchLen].offset = 0;
+               pBestMatch[i + nMatchLen].length = -1;
+               continue;
+            }
          }
 
          i += pMatch->length;
@@ -620,34 +660,36 @@ int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigne
 
    /* Compress optimally without breaking ties in favor of less tokens */
 
-   lzsa_optimize_forward_v1(pCompressor, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
+   memset(pCompressor->best_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
+   lzsa_optimize_forward_v1(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
 
    int nDidReduce;
    int nPasses = 0;
    do {
-      nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+      nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
       nPasses++;
    } while (nDidReduce && nPasses < 20);
 
-   nBaseCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->best_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
-   lzsa_match *pBestMatch = pCompressor->best_match;
+   nBaseCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+   lzsa_match *pBestMatch = pCompressor->best_match - nPreviousBlockSize;
 
    if (nBaseCompressedSize > 0 && nInDataSize < 65536) {
       int nReducedCompressedSize;
 
       /* Compress optimally and do break ties in favor of less tokens */
-      lzsa_optimize_forward_v1(pCompressor, pCompressor->improved_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
+      memset(pCompressor->improved_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
+      lzsa_optimize_forward_v1(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
       
       nPasses = 0;
       do {
-         nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pCompressor->improved_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+         nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pInWindow, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
          nPasses++;
       } while (nDidReduce && nPasses < 20);
 
-      nReducedCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->improved_match, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+      nReducedCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
       if (nReducedCompressedSize > 0 && nReducedCompressedSize <= nBaseCompressedSize) {
          /* Pick the parse with the reduced number of tokens as it didn't negatively affect the size */
-         pBestMatch = pCompressor->improved_match;
+         pBestMatch = pCompressor->improved_match - nPreviousBlockSize;
       }
    }
 
