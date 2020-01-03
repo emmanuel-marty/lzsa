@@ -91,7 +91,7 @@ LZSA_FROM_BANK  =       0
 
                 !if     LZSA_FROM_BANK {
                         !macro  LZSA_INC_PAGE {
-                        jsr     .next_page
+                        jsr     lzsa2_next_page
                         }
                 } else {
                         !macro LZSA_INC_PAGE {
@@ -470,12 +470,13 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 lzsa2_get_byte: 
                 lda     (lzsa_srcptr),y         ; Subroutine version for when
                 inc     <lzsa_srcptr + 0        ; inlining isn't advantageous.
-                beq     .next_page
+                beq     lzsa2_next_page
                 rts
 
-.next_page:     inc     <lzsa_srcptr + 1        ; Inc & test for bank overflow.
+lzsa2_next_page:
+                inc     <lzsa_srcptr + 1        ; Inc & test for bank overflow.
                 !if     LZSA_FROM_BANK {
-                bmi     .next_bank              ; Change for target hardware!
+                bmi     lzsa2_next_bank         ; Change for target hardware!
                 }
                 rts
 
