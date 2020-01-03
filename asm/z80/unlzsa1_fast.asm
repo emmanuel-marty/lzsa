@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA1 decompressor by spke & uniabis (111 bytes)
+;  Speed-optimized LZSA1 decompressor by spke & uniabis (109 bytes)
 ;
 ;  ver.00 by spke for LZSA 0.5.4 (03-24/04/2019, 134 bytes);
 ;  ver.01 by spke for LZSA 0.5.6 (25/04/2019, 110(-24) bytes, +0.2% speed);
@@ -9,7 +9,8 @@
 ;  ver.05 by uniabis (22/08/2019, 107(-2) bytes, same speed);
 ;  ver.06 by spke for LZSA 1.0.7 (27/08/2019, 111(+4) bytes, +2.1% speed);
 ;  ver.07 by spke for LZSA 1.1.0 (25/09/2019, added full revision history);
-;  ver.08 by spke for LZSA 1.1.2 (22/10/2019, re-organized macros and added an option for unrolled copying of long matches)
+;  ver.08 by spke for LZSA 1.1.2 (22/10/2019, re-organized macros and added an option for unrolled copying of long matches);
+;  ver.09 by spke for LZSA 1.2.1 (02/01/2020, 109(-2) bytes, same speed)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -102,11 +103,12 @@
 @DecompressLZSA1:
 		ld b,0 : jr ReadToken
 
-NoLiterals:	xor (hl)
-		push de : NEXT_HL : ld e,(hl) : jp m,LongOffset
+NoLiterals:	xor (hl) : NEXT_HL : jp m,LongOffset
+
+ShortOffset:	push de : ld e,(hl) : ld d,#FF
 
  		; short matches have length 0+3..14+3
-ShortOffset:	ld d,#FF : add 3 : cp 15+3 : jr nc,LongerMatch
+		add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
 CopyMatch:	ld c,a
@@ -121,18 +123,16 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		ld a,(hl) : and #70 : jr z,NoLiterals
 
 		cp #70 : jr z,MoreLiterals					; LLL=7 means 7+ literals...
-		rrca : rrca : rrca : rrca					; LLL<7 means 0..6 literals...
+		rrca : rrca : rrca : rrca : ld c,a				; LLL<7 means 0..6 literals...
 
-		ld c,a : ld a,(hl)
-		NEXT_HL : COPYBC
+		ld a,(hl) : NEXT_HL
+		COPYBC
 
-		; next we read the first byte of the offset
-		push de : ld e,(hl)
 		; the top bit of token is set if the offset contains two bytes
 		and #8F : jp p,ShortOffset
 
 LongOffset:	; read second byte of the offset
-		NEXT_HL : ld d,(hl)
+		push de : ld e,(hl) : NEXT_HL : ld d,(hl)
 		add -128+3 : cp 15+3 : jp c,CopyMatch
 
 	IFNDEF	UNROLL_LONG_MATCHES
@@ -186,13 +186,12 @@ VeryLongMatch:	; the codes are designed to overflow;
 	ENDIF
 
 MoreLiterals:	; there are three possible situations here
-		xor (hl) : exa
-		ld a,7 : NEXT_HL : add (hl) : jr c,ManyLiterals
+		xor (hl) : NEXT_HL : exa
+		ld a,7 : add (hl) : jr c,ManyLiterals
 
 CopyLiterals:	ld c,a
 .UseC		NEXT_HL : COPYBC
 
-		push de : ld e,(hl)
 		exa : jp p,ShortOffset : jr LongOffset
 
 ManyLiterals:
