@@ -10,7 +10,7 @@
 ; Optional code is presented for two minor 6502 optimizations that break
 ; compatibility with the current LZSA2 format standard.
 ;
-; The code is 241 bytes for the small version, and 256 bytes for the normal.
+; The code is 241 bytes for the small version, and 268 bytes for the normal.
 ;
 ; Copyright John Brandwood 2019.
 ;
@@ -84,6 +84,13 @@ LZSA_SHORT_CP   =       1
                 ;
 
 LZSA_FROM_BANK  =       0
+
+                ;
+                ; We will read from or write to $FFFF.  This prevents the
+                ; use of the "INC ptrhi / BNE" trick and reduces speed.
+                ;
+
+LZSA_USE_FFFF  =        0
 
                 ;
                 ; Macro to increment the source pointer to the next page.
@@ -190,13 +197,41 @@ DECOMPRESS_LZSA2_FAST:
 lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 sty     <lzsa_nibflg            ; Initialize nibble buffer.
 
+                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
+                beq     .cp_length              ; always taken
+.incsrc1:
+                inc     <lzsa_srcptr + 1
+                bne     .resume_src1            ; always taken
+.incsrc2:
+                inc     <lzsa_srcptr + 1
+                bne     .resume_src2            ; always taken
+
+.incdst:
+                inc     <lzsa_dstptr + 1
+                bne     .resume_dst             ; always taken
+
+                }
+
                 ;
                 ; Copy bytes from compressed source data.
                 ;
 
 .cp_length:     ldx     #$00                    ; Hi-byte of length or offset.
 
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
                 +LZSA_GET_SRC
+
+                } else {
+
+                lda     (lzsa_srcptr),y
+                inc     <lzsa_srcptr + 0
+                beq     .incsrc1
+.resume_src1:
+
+                }
+
                 sta     <lzsa_cmdbuf            ; Preserve this for later.
                 and     #$18                    ; Extract literal length.
                 beq     .lz_offset              ; Skip directly to match?
@@ -222,12 +257,27 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 .cp_page:       lda     (lzsa_srcptr),y
                 sta     (lzsa_dstptr),y
                 inc     <lzsa_srcptr + 0
+
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
                 bne     .skip1
                 inc     <lzsa_srcptr + 1
 .skip1:         inc     <lzsa_dstptr + 0
                 bne     .skip2
                 inc     <lzsa_dstptr + 1
-.skip2:         dex
+.skip2:
+
+                } else {
+
+                beq     .incsrc2
+.resume_src2:
+                inc     <lzsa_dstptr + 0
+                beq     .incdst
+.resume_dst:
+
+                }
+
+                dex
                 bne     .cp_page
                 dec     <lzsa_length            ; Any full pages left to copy?
                 bne     .cp_page
@@ -374,7 +424,19 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 .get_16_bits:   jsr     lzsa2_get_byte          ; Get hi-byte of offset.
                 tax
 
-.get_low8:      +LZSA_GET_SRC                   ; Get lo-byte of offset.
+.get_low8:
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
+                +LZSA_GET_SRC                   ; Get lo-byte of offset.
+
+                } else {
+
+                lda     (lzsa_srcptr),y
+                inc     <lzsa_srcptr + 0
+                beq     .incsrc3
+.resume_src3:
+
+                }
 
 .set_offset:    stx     <lzsa_offset + 1        ; Save new offset.
                 sta     <lzsa_offset + 0
@@ -423,6 +485,14 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 bne     .lz_page
 
                 jmp     .cp_length              ; Loop around to the beginning.
+
+                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
+.incsrc3:
+                inc     <lzsa_srcptr + 1
+                bne     .resume_src3            ; always taken
+
+                }
 
                 ;
                 ; Lookup tables to differentiate literal and match lengths.
@@ -496,7 +566,19 @@ lzsa2_get_nibble:
                 bcs     .got_nibble
 
                 inc     <lzsa_nibflg            ; Reset the flag.
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
                 +LZSA_GET_SRC
+
+                } else {
+
+                lda     (lzsa_srcptr),y
+                inc     <lzsa_srcptr + 0
+                beq     .incsrc4
+.resume_src4:
+
+                }
+
                 sta     <lzsa_nibble            ; Preserve for next time.
                 lsr                             ; Extract the hi-nibble.
                 lsr
@@ -514,7 +596,19 @@ lzsa2_get_nibble:
 
 lzsa2_new_nibble:
                 inc     <lzsa_nibflg            ; Reset the flag.
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
                 +LZSA_GET_SRC
+
+                } else {
+
+                lda     (lzsa_srcptr),y
+                inc     <lzsa_srcptr + 0
+                beq     .incsrc4
+.resume_src4:
+
+                }
+
                 sta     <lzsa_nibble            ; Preserve for next time.
                 lsr                             ; Extract the hi-nibble.
                 lsr
@@ -526,5 +620,13 @@ lzsa2_new_nibble:
                 }
 
                 rts
+
+                }
+
+                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+
+.incsrc4:
+                inc     <lzsa_srcptr + 1
+                bne     .resume_src4            ; always taken
 
                 }
