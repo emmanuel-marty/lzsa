@@ -203,6 +203,8 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 .incsrc1:
                 inc     <lzsa_srcptr + 1
                 bne     .resume_src1            ; always taken
+
+                !if     LZSA_SHORT_CP {
 .incsrc2:
                 inc     <lzsa_srcptr + 1
                 bne     .resume_src2            ; always taken
@@ -210,6 +212,8 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 .incdst:
                 inc     <lzsa_dstptr + 1
                 bne     .resume_dst             ; always taken
+
+                }
 
                 }
 
