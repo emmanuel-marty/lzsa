@@ -74,11 +74,11 @@ LZSA_NO_INLINE  =       0
                 !if      LZSA_SMALL_SIZE {
 LZSA_SHORT_CP   =       1
                 } else {
-LZSA_SHORT_CP   =       1
+LZSA_SHORT_CP   =       0
                 }
 
                 ;
-                ; Assume that we're decompessing from a large multi-bank
+                ; Assume that we're decompressing from a large multi-bank
                 ; compressed data file, and that the next bank may need to
                 ; paged in when a page-boundary is crossed.
                 ;
