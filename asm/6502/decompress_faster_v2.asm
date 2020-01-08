@@ -197,7 +197,7 @@ DECOMPRESS_LZSA2_FAST:
 lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 sty     <lzsa_nibflg            ; Initialize nibble buffer.
 
-                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) = 0 {
 
                 beq     .cp_length              ; always taken
 .incsrc1:
@@ -232,10 +232,10 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
                 beq     .incsrc1
-.resume_src1:
 
                 }
 
+.resume_src1:
                 sta     <lzsa_cmdbuf            ; Preserve this for later.
                 and     #$18                    ; Extract literal length.
                 beq     .lz_offset              ; Skip directly to match?
@@ -491,7 +491,7 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
 
                 jmp     .cp_length              ; Loop around to the beginning.
 
-                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) = 0 {
 
 .incsrc3:
                 inc     <lzsa_srcptr + 1
@@ -628,7 +628,7 @@ lzsa2_new_nibble:
 
                 }
 
-                !if     !(LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
+                !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) = 0 {
 
 .incsrc4:
                 inc     <lzsa_srcptr + 1

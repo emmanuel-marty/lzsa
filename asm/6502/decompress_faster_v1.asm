@@ -5,7 +5,7 @@
 ;
 ; NMOS 6502 decompressor for data stored in Emmanuel Marty's LZSA1 format.
 ;
-; This code is written for the PCEAS/NECASM assembler in HuC & MagicKit.
+; This code is written for the ACME assembler.
 ;
 ; Optional code is presented for one minor 6502 optimization that breaks
 ; compatibility with the current LZSA1 format standard.
