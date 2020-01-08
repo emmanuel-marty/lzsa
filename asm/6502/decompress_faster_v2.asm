@@ -10,7 +10,7 @@
 ; Optional code is presented for two minor 6502 optimizations that break
 ; compatibility with the current LZSA2 format standard.
 ;
-; The code is 241 bytes for the small version, and 268 bytes for the normal.
+; The code is 241 bytes for the small version, and 267 bytes for the normal.
 ;
 ; Copyright John Brandwood 2019.
 ;
@@ -399,8 +399,8 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 cpx     #$00                    ; X=$FF for a 5-bit offset.
                 bne     .set_offset
                 sbc     #2                      ; Subtract 512 because 13-bit
-                tax                             ; offset starts at $FE00.
-                bne     .get_low8               ; Always NZ from previous TAX.
+                                                ; offset starts at $FE00.
+                bne     .get_low8x              ; Always NZ from previous SBC.
 
 .get_9_bits:    dex                             ; X=$FF if CS, X=$FE if CC.
                 asl
@@ -422,7 +422,8 @@ lzsa2_unpack:   ldy     #0                      ; Initialize source index.
                 ;
 
 .get_16_bits:   jsr     lzsa2_get_byte          ; Get hi-byte of offset.
-                tax
+
+.get_low8x:     tax
 
 .get_low8:
                 !if     (LZSA_FROM_BANK | LZSA_NO_INLINE | LZSA_USE_FFFF) {
