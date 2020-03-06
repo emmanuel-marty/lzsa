@@ -55,7 +55,7 @@ Inspirations:
 * [LZ5/Lizard](https://github.com/inikep/lizard) by Przemyslaw Skibinski and Yann Collet.
 * The suffix array intervals in [Wimlib](https://wimlib.net/git/?p=wimlib;a=tree) by Eric Biggers.
 * ZX7 by Einar Saukas
-* [apc](https://github.com/svendahl/cap) by Sven-Åke Dahl
+* [apc](https://github.com/svendahl/cap) by Sven-Ã…ke Dahl
 * [Charles Bloom](http://cbloomrants.blogspot.com/)'s compression blog
 
 License:
@@ -73,6 +73,7 @@ External links:
 
 * [i8080 decompressors](https://gitlab.com/ivagor/lzsa8080/tree/master) by Ivan Gorodetsky
 * [PDP-11 decompressors](https://gitlab.com/ivagor/lzsa8080/tree/master/PDP11) also by Ivan Gorodetsky
+* [MC68000 decompressors](https://github.com/tattlemuss/lz4-m68k/blob/master/src/lzsa.s) by Steven Tattersall
 * LZSA's page on [Pouet](https://www.pouet.net/prod.php?which=81573)
 
 # Compressed format
