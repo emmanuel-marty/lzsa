@@ -433,9 +433,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         for (n = 0;
                            n < nMatchesPerArrival && pDestSlots[n].cost < nCodingChoiceCost;
                            n++) {
-                           if (pDestSlots[n].rep_offset == nMatchOffset &&
-                              (!nInsertForwardReps || pDestSlots[n].cost != nCodingChoiceCost || pDestSlots[n].rep_pos >= i || nScore >= (pDestSlots[n].score + nDisableScore) ||
-                                 pDestSlots[nMatchesPerArrival - 1].from_slot)) {
+                           if (pDestSlots[n].rep_offset == nMatchOffset) {
                               exists = 1;
                               break;
                            }
@@ -446,7 +444,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               nn < nMatchesPerArrival && pDestSlots[nn].cost == nCodingChoiceCost;
                               nn++) {
                               if (pDestSlots[nn].rep_offset == nMatchOffset &&
-                                 (!nInsertForwardReps || pDestSlots[nn].cost != nCodingChoiceCost || pDestSlots[nn].rep_pos >= i || nScore >= (pDestSlots[nn].score + nDisableScore) ||
+                                 (!nInsertForwardReps || pDestSlots[nn].rep_pos >= i || nScore >= (pDestSlots[nn].score + nDisableScore) ||
                                     pDestSlots[nMatchesPerArrival - 1].from_slot)) {
                                  exists = 1;
                                  break;
