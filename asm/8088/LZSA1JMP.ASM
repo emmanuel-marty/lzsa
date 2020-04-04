@@ -1,32 +1,135 @@
-;  lzsa1fta.asm time-efficient decompressor implementation for 8086 CPUs.
-;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
+; lzsa2fta.asm time-efficient decompressor implementation for 808x CPUs.
+; Turbo Assembler IDEAL mode dialect.
+; (Is supposed to also assemble with NASM's IDEAL mode support, but YMMV.)
 ;
-;  Usual DOS assembler SMALL model assumptions apply.  This code:
-;  - Assumes it was invoked via NEAR call (change RET to RETF for FAR calls)
-;  - Is interrupt-safe
-;  - Is not re-entrant (do not decompress while already running decompression)
-;  - Trashes all data and segment registers
+; This code assembles to about 3K of lookup tables and unrolled code,
+; but the tradeoff for that size is the absolute fastest decompressor
+; of LZSA1 block data for 808x CPUs.
+; If you need moderately fast code with less size, see LZSA1FTA.ASM.
+; If you need the smallest decompression code, see decompress_small_v1.S.
 ;
-;  Copyright (C) 2019 Jim Leonard, Emmanuel Marty
+; Usual DOS assembler SMALL model assumptions apply.  This code:
+; - Assumes it was invoked via NEAR call (change RET to RETF for FAR calls)
+; - Is interrupt-safe
+; - Is not re-entrant (do not decompress while already running decompression)
+; - Trashes all data and segment registers
 ;
-;  This software is provided 'as-is', without any express or implied
-;  warranty.  In no event will the authors be held liable for any damages
-;  arising from the use of this software.
+; Copyright (C) 2019 Jim Leonard, Emmanuel Marty
+; Additional speed optimizations by Pavel Zagrebin
 ;
-;  Permission is granted to anyone to use this software for any purpose,
-;  including commercial applications, and to alter it and redistribute it
-;  freely, subject to the following restrictions:
+; This software is provided 'as-is', without any express or implied
+; warranty.  In no event will the authors be held liable for any damages
+; arising from the use of this software.
 ;
-;  1. The origin of this software must not be misrepresented; you must not
-;     claim that you wrote the original software. If you use this software
-;     in a product, an acknowledgment in the product documentation would be
-;     appreciated but is not required.
-;  2. Altered source versions must be plainly marked as such, and must not be
-;     misrepresented as being the original software.
-;  3. This notice may not be removed or altered from any source distribution.
+; Permission is granted to anyone to use this software for any purpose,
+; including commercial applications, and to alter it and redistribute it
+; freely, subject to the following restrictions:
+;
+; 1. The origin of this software must not be misrepresented; you must not
+;    claim that you wrote the original software. If you use this software
+;    in a product, an acknowledgment in the product documentation would be
+;    appreciated but is not required.
+; 2. Altered source versions must be plainly marked as such, and must not be
+;    misrepresented as being the original software.
+; 3. This notice may not be removed or altered from any source distribution.
+;
+; ===========================================================================
+;
+; The key area to concentrate on when optimizing LZSA1 decompression speed is
+; reducing time spent handling the shortest matches. This is for two reasons:
+;   1. shorter matches are more common
+;   2. short matches are least efficient in terms of decomp speed per byte
+; You can confirm #1 using the --stats mode of the compressor.
+;
+; Branches are costly on 8086.  To ensure we branch as little as possible, a
+; jumptable will be used to branch directly to as many direct decode paths as
+; possible.  This will burn up 512 bytes of RAM for a jumptable, and a few
+; hundred bytes of duplicated program code (rather than JMP/CALL common code
+; blocks, we inline them to avoid the branch overhead).
+;
+; ===========================================================================
+;
+; === LZSA1 block reference:
+;
+; Blocks encoded as LZSA1 are composed from consecutive commands.
+; Each command follows this format:
+;
+; token: <O|LLL|MMMM>
+; optional extra literal length
+; literal values
+; match offset low
+; optional match offset high
+; optional extra encoded match length
+;
+;
+; === LZSA1 Token Reference:
+;
+; 7 6 5 4 3 2 1 0
+; O L L L M M M M
+;
+; L: 3-bit literals length (0-6, or 7 if extended). If the number of literals for
+; this command is 0 to 6, the length is encoded in the token and no extra bytes
+; are required. Otherwise, a value of 7 is encoded and extra bytes follow as
+; 'optional extra literal length'
+;
+; M: 4-bit encoded match length (0-14, or 15 if extended). Likewise, if the
+; encoded match length for this command is 0 to 14, it is directly stored,
+; otherwise 15 is stored and extra bytes follow as 'optional extra encoded match
+; length'. Except for the last command in a block, a command always contains a
+; match, so the encoded match length is the actual match length, offset by the
+; minimum which is 3 bytes. For instance, an actual match length of 10 bytes to
+; be copied, is encoded as 7.
+;
+; O: set for a 2-bytes match offset, clear for a 1-byte match offset
+;
+;
+; === Decoding extended literal length:
+;
+; If the literals length is 7 or more, then an extra byte follows here, with
+; three possible values:
+;
+;   0-248: the value is added to the 7 stored in the token.
+;   250: a second byte follows. The final literals value is 256 + the second byte.
+;   249: a little-endian 16-bit value follows, forming the final literals value.
+;
+;
+; === Decoding match offsets:
+;
+; match offset low: The low 8 bits of the match offset follows.
+;
+; optional match offset high: If the 'O' bit (bit 7) is set in the token, the
+; high 8 bits of the match offset follow, otherwise they are understood to be all
+; set to 1. For instance, a short offset of 0x70 is interpreted as 0xff70
+;
+;
+; === Decoding extra encoded match length:
+;
+; optional extra encoded match length: If the encoded match length is 15 or more,
+; the 'M' bits in the token form the value 15, and an extra byte follows here,
+; with three possible types of value.
+;
+;  0-237: the value is added to the 15 stored in the token.
+;         The final value is 3 + 15 + this byte.
+;  239:   a second byte follows. The final match length is 256 + the second byte.
+;  238:   a second and third byte follow, forming a little-endian 16-bit value.
+;         The final encoded match length is that 16-bit value.
+;
+; ===========================================================================
 
-        IDEAL
-        P8086
+        IDEAL   ; Use Turbo Assembler IDEAL syntax checking
+        P8086   ; Restrict code generation to the 808x and later
+        JUMPS   ; Perform fixups for out-of-bound conditional jumps
+                ; This is required for the (L=07 & M=0Fh) decode paths as they
+                ; have the most code, but these are uncommon paths so the
+                ; tiny speed loss in just these paths is not a concern.
+
+;Setting OPTIMIZE_LONG_RLE to 1 speeds up decompressing long runs of the
+;same 16-bit word value, but hurts decompression speed of other data
+;types slightly.  Turn this on if you know your data has very long 16-bit
+;word-based runs (reported as RLE2 sequences in the LZSA compressor output
+;with an average length of at least 32 bytes), otherwise leave it off.
+
+OPTIMIZE_LONG_RLE EQU 0
 
 SEGMENT CODE para public
 
@@ -34,202 +137,415 @@ ASSUME  cs:CODE, ds:CODE
 
 PUBLIC  lzsa1_decompress_speed_jumptable
 
-;  ---------------------------------------------------------------------------
-;  Decompress raw LZSA1 block
-;  inputs:
-;  * ds:si: raw LZSA1 block
-;  * es:di: output buffer
-;  output:
-;  * ax:    decompressed size
-;  ---------------------------------------------------------------------------
+; EQU helper statements (so we can construct a jump table without going crazy)
 
-;Jump table for handling LLL bits in initial LZSA1 tokens.
-;Previous code would SHR val,4 to get a count from 0 to 7, then rep movsb.
-;We can overload the shift operation into a jump table that jumps directly
-;to optimized copying routine for 0-7 bytes.  Must declare in code segment.
-;Note: If this looks strange for declaring a jump table, that's because it
-;is a workaround for the Turbo Pascal harness that tests it.  Turbo Pascal
-;treats OFFSET (label) as a relocatble item and throws an error, so we fool
-;it by building the table with absolute EQU/literals instead.
-L0b EQU OFFSET check_offset_size
-L1b EQU OFFSET copy1b
-L2b EQU OFFSET copy2b
-L3b EQU OFFSET copy3b
-L4b EQU OFFSET copy4b
-L5b EQU OFFSET copy5b
-L6b EQU OFFSET copy6b
-L7b EQU OFFSET need_length_byte
-copytable DW L0b,L0b,L0b,L0b,L0b,L0b,L0b,L0b
-          DW L1b,L1b,L1b,L1b,L1b,L1b,L1b,L1b
-          DW L2b,L2b,L2b,L2b,L2b,L2b,L2b,L2b
-          DW L3b,L3b,L3b,L3b,L3b,L3b,L3b,L3b
-          DW L4b,L4b,L4b,L4b,L4b,L4b,L4b,L4b
-          DW L5b,L5b,L5b,L5b,L5b,L5b,L5b,L5b
-          DW L6b,L6b,L6b,L6b,L6b,L6b,L6b,L6b
-          DW L7b,L7b,L7b,L7b,L7b,L7b,L7b,L7b
+minmatch EQU 3
+litrunlen EQU 7
+
+leml1 EQU OFFSET lit_ext_mat_len_1b
+leme1 EQU OFFSET lit_ext_mat_ext_1b
+leml2 EQU OFFSET lit_ext_mat_len_2b
+leme2 EQU OFFSET lit_ext_mat_ext_2b
+
+;short-circuit special cases for 0 through 6 literal copies:
+l6ml1 EQU OFFSET lit_len_mat_len_1b_6
+l6me1 EQU OFFSET lit_len_mat_ext_1b
+l6ml2 EQU OFFSET lit_len_mat_len_2b_6
+l6me2 EQU OFFSET lit_len_mat_ext_2b
+l5ml1 EQU OFFSET lit_len_mat_len_1b_45
+l5me1 EQU OFFSET lit_len_mat_ext_1b + 1
+l5ml2 EQU OFFSET lit_len_mat_len_2b_45
+l5me2 EQU OFFSET lit_len_mat_ext_2b + 1
+l4ml1 EQU OFFSET lit_len_mat_len_1b_45 + 1
+l4me1 EQU OFFSET lit_len_mat_ext_1b + 2
+l4ml2 EQU OFFSET lit_len_mat_len_2b_45 + 1
+l4me2 EQU OFFSET lit_len_mat_ext_2b + 2
+l3ml1 EQU OFFSET lit_len_mat_len_1b_23
+l3me1 EQU OFFSET lit_len_mat_ext_1b + 3
+l3ml2 EQU OFFSET lit_len_mat_len_2b_23
+l3me2 EQU OFFSET lit_len_mat_ext_2b + 3
+l2ml1 EQU OFFSET lit_len_mat_len_1b_23 + 1
+l2me1 EQU OFFSET lit_len_mat_ext_1b + 4
+l2ml2 EQU OFFSET lit_len_mat_len_2b_23 + 1
+l2me2 EQU OFFSET lit_len_mat_ext_2b + 4
+l1ml1 EQU OFFSET lit_len_mat_len_1b_01
+l1me1 EQU OFFSET lit_len_mat_ext_1b + 5
+l1ml2 EQU OFFSET lit_len_mat_len_2b_01
+l1me2 EQU OFFSET lit_len_mat_ext_2b + 5
+l0ml1 EQU OFFSET lit_len_mat_len_1b_01 + 1 ; MMMM handling comes after LLL code
+l0me1 EQU OFFSET lit_len_mat_ext_1b + 6    ; MMMM handling comes after LLL code
+l0ml2 EQU OFFSET lit_len_mat_len_2b_01 + 1 ; MMMM handling comes after LLL code
+l0me2 EQU OFFSET lit_len_mat_ext_2b + 6    ; MMMM handling comes after LLL code
+
+;         0     1     2     3     4     5     6     7     8     9     a     b     c     d     e     f
+jtbl DW l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0ml1,l0me1 ;0
+     DW l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1ml1,l1me1 ;1
+     DW l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2ml1,l2me1 ;2
+     DW l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3ml1,l3me1 ;3
+     DW l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4ml1,l4me1 ;4
+     DW l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5ml1,l5me1 ;5
+     DW l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6ml1,l6me1 ;6
+     DW leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leml1,leme1 ;7
+     DW l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0ml2,l0me2 ;8
+     DW l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1ml2,l1me2 ;9
+     DW l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2ml2,l2me2 ;a
+     DW l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3ml2,l3me2 ;b
+     DW l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4ml2,l4me2 ;c
+     DW l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5ml2,l5me2 ;d
+     DW l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6ml2,l6me2 ;e
+     DW leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leml2,leme2 ;f
 
 PROC    lzsa1_decompress_speed_jumptable  NEAR
+; ---------------------------------------------------------------------------
+; Decompress raw LZSA1 block
+; inputs:
+; * ds:si: raw LZSA1 block
+; * es:di: output buffer
+; output:
+; * ax:    decompressed size
+; ---------------------------------------------------------------------------
+
+MACRO get_byte_match_offset
+        mov     ah,0ffh         ;O=0, so set up offset's high byte
+        lodsb                   ;load low byte; ax=match offset
+        xchg    bp,ax           ;bp=match offset  ax=00 + original token
+ENDM
+
+MACRO get_word_match_offset
+        lodsw                   ;ax=match offset
+        xchg    bp,ax           ;bp=match offset  ax=00 + original token
+ENDM
+
+MACRO do_match_copy_long
+LOCAL even0,even1,even2,do_run,do_run_w
+; Copies a long match as optimally as possible.
+; requirements: cx=length, bp=negative offset, ds:si=compdata, es:di=output
+; trashes: ax, bx
+; must leave cx=0 at exit
+        mov     bx,ds           ;save ds
+        mov     ax,es
+        mov     ds,ax           ;ds=es
+        xchg    ax,si           ;save si
+        lea     si,[bp+di]      ;si = output buffer + negative match offset
+        cmp     bp,-2           ;do we have a byte/word run to optimize?
+IF OPTIMIZE_LONG_RLE
+        jae     do_run          ;catch offset = -2 or -1
+ELSE
+        ja      do_run          ;catch offset = -1
+ENDIF
+
+;If we're here, we have a long copy and it isn't byte-overlapping (if it
+;overlapped, we'd be in @@do_run)  So, let's copy faster with REP MOVSW.
+;This affects 8088 only slightly, but is a bigger win on 8086 and higher.
+        shr     cx,1
+        jnc     even0
+        movsb
+even0:
+        rep     movsw
+        xchg    si,ax           ;restore si
+        mov     ds,bx           ;restore ds
+        jmp     decode_token
+do_run:
+IF OPTIMIZE_LONG_RLE
+        je      do_run_w        ;if applicable, handle word-sized value faster
+ENDIF
+        xchg    dx,ax           ;save si into dx, as ax is getting trashed
+        lodsb                   ;load first byte of run into al
+        mov     ah,al
+        shr     cx,1
+        jnc     even1
+        stosb
+even1:
+        rep     stosw           ;perform word run
+        mov     si,dx           ;restore si
+        mov     ds,bx           ;restore ds
+        jmp     decode_token
+
+IF OPTIMIZE_LONG_RLE
+do_run_w:
+        xchg    dx,ax           ;save si into dx, as ax is getting trashed
+        lodsw                   ;load first word of run
+        shr     cx,1
+        rep     stosw           ;perform word run
+        jnc     even2
+        stosb                   ;should be after rep stosw!
+even2:
+        mov     si,dx           ;restore si
+        mov     ds,bx           ;restore ds
+        jmp     decode_token
+ENDIF
+ENDM
+
+MACRO do_match_copy
+; Copies a shorter match with as little overhead as possible.
+; requirements: cx=length, bp=negative offset, ds:si=compdata, es:di=output
+; trashes: ax, bx
+; must leave cx=0 at exit
+        mov     bx,ds           ;save ds
+        mov     ax,es
+        mov     ds,ax           ;ds=es
+        xchg    ax,si           ;save si
+        lea     si,[bp+di]      ;si = output buffer + negative match offset
+        movsb
+        movsb
+        movsb                   ;Handle MINMATCH (instead of add cx,MINMATCH)
+        rep     movsb
+        xchg    si,ax           ;restore si
+        mov     ds,bx           ;restore ds
+        jmp     decode_token
+ENDM
+
+MACRO do_literal_copy
+LOCAL even
+; Copies a literal sequence using words.
+; Meant for longer lengths; for 128 bytes or less, use REP MOVSB.
+; requirements: cx=length, ds:si=compdata, es:di=output
+; must leave cx=0 at exit
+        shr     cx,1
+        jnc even
+        movsb
+even:
+        rep     movsw
+ENDM
+
+MACRO copy_small_match_len
+        and     al,0FH          ;isolate length in token (MMMM)
+        xchg    cx,ax           ;cx=match length
+        do_match_copy           ;copy match with cx=length, bp=offset
+ENDM
+
+MACRO copy_large_match_len
+LOCAL val239,val238,EOD
+; Handle MMMM=Fh
+; Assumptions: ah=0 from get_????_match_offset's xchg
+        lodsb                   ;grab extra match length byte
+        add     al,0Fh+minmatch ;add MATCH_RUN_LEN + MIN_MATCH_SIZE
+;       jz      val238          ;if zf & cf, 238: get 16-bit match length
+        jc      val239          ;if cf,      239: get extra match length byte
+        xchg    cx,ax           ;otherwise, we have our match length
+        do_match_copy_long      ;copy match with cx=length, bp=offset
+val239:
+        jz val238
+        lodsb                   ;ah=0; grab single extra length byte
+        inc     ah              ;ax=256+length byte
+        xchg    cx,ax
+        do_match_copy_long      ;copy match with cx=length, bp=offset
+val238:
+        lodsw                   ;grab 16-bit length
+        xchg    cx,ax
+        jcxz    EOD             ;is it the EOD marker? Exit if so
+        do_match_copy_long      ;copy match with cx=length, bp=offset
+EOD:
+        jmp     done_decompressing
+ENDM
+
 
 lzsa1_start:
         push    di              ;remember decompression offset
         cld                     ;ensure string ops move forward
         xor     cx,cx
 
-@@decode_token:
-        xchg    cx,ax           ;clear ah (cx = 0 from match copy's rep movsb)
+decode_token:
+        xchg    cx,ax           ;clear ah (cx = 0 from match copy's REP)
         lodsb                   ;read token byte: O|LLL|MMMM
-        mov     dx,ax           ;copy our token to dl for later MMMM handling
+        mov     bp,ax           ;preserve 0+token in bp for later MMMM handling
+        mov     bx,ax           ;prep for table lookup
+        shl     bx,1            ;adjust for offset word size
+        jmp     [cs:jtbl+bx]    ;jump directly to relevant decode path
 
-        and     al,070H         ;isolate literals length in token (LLL)
-        jz      check_offset_size ;if LLL=0, we have no literals; goto match
+; There are eight basic decode paths for an LZSA1 token.  Each of these
+; paths perform only the necessary actions to decode the token and then
+; fetch the next token.  This results in a lot of code duplication, but
+; it is the only way to get down to two branches per token (jump to unique
+; decode path, then jump back to next token) for the most common cases.
 
-; Jump to short copy routine for LLL=1 though 6, need_length_byte for LLL=7
-        mov     bx,ax           ;prep for table lookup (must copy, don't XCHG!)
-        jmp     [cs:copytable+bx]
+; Path #1: LLL=0-6, MMMM=0-Eh, O=0 (1-byte match offset)
+; Handle LLL=0-6 by jumping directly into # of bytes to copy (6 down to 1)
+lit_len_mat_len_1b_01:
+        movsb
+        get_byte_match_offset
+        copy_small_match_len
+lit_len_mat_len_1b_23:
+        movsb
+        movsw
+        get_byte_match_offset
+        copy_small_match_len
+lit_len_mat_len_1b_45:
+        movsb
+        movsw
+        movsw
+        get_byte_match_offset
+        copy_small_match_len
+lit_len_mat_len_1b_6:
+        movsw
+        movsw
+        movsw
+        get_byte_match_offset
+        copy_small_match_len
 
-need_length_byte:
-        lodsb                   ;grab extra length byte
-        add     al,07H          ;add LITERALS_RUN_LEN
-        jnc     @@got_literals_exact ;if no overflow, we have full count
-        je      @@big_literals
+; Path #2: LLL=0-6, MMMM=Fh,   O=0 (1-byte match offset)
+lit_len_mat_ext_1b:
+        movsb
+        movsb
+        movsb
+        movsb
+        movsb
+        movsb
+        get_byte_match_offset
+        copy_large_match_len
 
-@@mid_literals:
-        lodsb                   ;grab single extra length byte
-        inc     ah              ;add 256
-        xchg    cx,ax           ;with longer counts, we can save some time
-        shr     cx,1            ;by doing a word copy instead of a byte copy.
-        rep     movsw           ;We don't need to account for overlap because
-        adc     cx,0            ;source for literals isn't the output buffer.
-        rep     movsb
-        jmp     check_offset_size
 
-@@big_literals:
-        lodsw                   ;grab 16-bit extra length
-        xchg    cx,ax           ;with longer counts, we can save some time
-        shr     cx,1            ;by doing a word copy instead of a byte copy.
-        rep     movsw
-        adc     cx,0
-        rep     movsb
-        jmp     check_offset_size
-
-; Used for counts 7-248. In test data, average value around 1Ah.  YMMV.
-@@got_literals_exact:
+; Path #3: LLL=7,   MMMM=0-Eh, O=0 (1-byte match offset)
+lit_ext_mat_len_1b:
+; on entry: ax=0 + token, bp=ax
+        lodsb                   ;grab extra literal length byte
+        add     al,litrunlen    ;add 7h literal run length
+;       jz      @@val249_3      ;if zf & cf, 249: get 16-bit literal length
+        jc      @@val250_3      ;if cf,      250: get extra literal length byte
+        xchg    cx,ax           ;otherwise, we have our literal length
+        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        get_byte_match_offset
+        copy_small_match_len
+@@val250_3:
+jz      @@val249_3
+        lodsb                   ;ah=0; grab single extra length byte
+        inc     ah              ;ax=256+length byte
         xchg    cx,ax
-        rep     movsb           ;copy cx literals from ds:si to es:di
-        jmp     check_offset_size
-
-;Literal copy sequence for lengths 1-6:
-copy6b: movsb
-copy5b: movsb
-copy4b: movsb
-copy3b: movsb
-copy2b: movsb
-copy1b: movsb
-
-;Literals done; fall through to match offset determination
-check_offset_size:
-        test    dl,dl           ;check match offset size in token (O bit)
-        js      @@get_long_offset ;load absolute 16-bit match offset
-
-        mov     ah,0ffh         ;set up high byte
-        lodsb                   ;load low byte
-
-@@get_match_length:
-        xchg    dx,ax           ;dx: match offset  ax: original token
-        and     al,0FH          ;isolate match length in token (MMMM)
-        cmp     al,0FH          ;MATCH_RUN_LEN?
-        jne     @@got_matchlen_short  ;no, we have the full match length from the token, go copy
-
-        lodsb                   ;grab extra length byte
-        add     al,012H         ;add MIN_MATCH_SIZE + MATCH_RUN_LEN
-        jnc     @@do_long_copy  ;if no overflow, we have the entire length
-        jne     @@mid_matchlen
-
+        do_literal_copy
+        get_byte_match_offset
+        copy_small_match_len
+@@val249_3:
         lodsw                   ;grab 16-bit length
-        xchg    cx,ax           ;get ready to do a long copy
-        jcxz    @@done_decompressing ;wait, is it the EOD marker? Exit if so
-        jmp     @@copy_len_preset ;otherwise, do the copy
+        xchg    cx,ax
+        do_literal_copy
+        get_byte_match_offset
+        copy_small_match_len
 
-@@got_matchlen_short:
-        add     al,3            ;add MIN_MATCH_SIZE
-        xchg    cx,ax           ;copy match length into cx
-        mov     bp,ds           ;save ds
-        mov     ax,es
-        mov     ds,ax           ;ds=es
-        xchg    ax,si           ;save si
-        mov     si,di           ;ds:si now points at back reference in output data
-        add     si,dx
-        rep     movsb           ;copy match
-        xchg    si,ax           ;restore si
-        mov     ds,bp           ;restore ds
-        jmp     @@decode_token  ;go decode another token
 
-@@done_decompressing:
+; Path #4: LLL=7,   MMMM=Fh,   O=0 (1-byte match offset)
+lit_ext_mat_ext_1b:
+; on entry: ax=0 + token, bp=ax
+        lodsb                   ;grab extra literal length byte
+        add     al,litrunlen    ;add 7h literal run length
+;       jz      @@val249_4      ;if zf & cf, 249: get 16-bit literal length
+        jc      @@val250_4      ;if cf,      250: get extra literal length byte
+        xchg    cx,ax           ;otherwise, we have our literal length
+        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        get_byte_match_offset
+        copy_large_match_len
+@@val250_4:
+jz @@val249_4
+        lodsb                   ;ah=0; grab single extra length byte
+        inc     ah              ;ax=256+length byte
+        xchg    cx,ax
+        do_literal_copy
+        get_byte_match_offset
+        copy_large_match_len
+@@val249_4:
+        lodsw                   ;grab 16-bit length
+        xchg    cx,ax
+        do_literal_copy
+        get_byte_match_offset
+        copy_large_match_len
+
+
+; Path #5: LLL=0-6, MMMM=0-Eh, O=1 (2-byte match offset)
+; Handle LLL=0-6 by jumping directly into # of bytes to copy (6 down to 1)
+lit_len_mat_len_2b_01:
+        movsb
+        get_word_match_offset
+        copy_small_match_len
+lit_len_mat_len_2b_23:
+        movsb
+        movsw
+        get_word_match_offset
+        copy_small_match_len
+lit_len_mat_len_2b_45:
+        movsb
+        movsw
+        movsw
+        get_word_match_offset
+        copy_small_match_len
+lit_len_mat_len_2b_6:
+        movsw
+        movsw
+        movsw
+        get_word_match_offset
+        copy_small_match_len
+
+
+; Path #6: LLL=0-6, MMMM=Fh,   O=1 (2-byte match offset)
+; Path #6: LLL=0-6, MMMM=Fh,   O=1 (2-byte match offset)
+lit_len_mat_ext_2b:
+        movsb
+        movsb
+        movsb
+        movsb
+        movsb
+        movsb
+        get_word_match_offset
+        copy_large_match_len
+
+; Path #7: LLL=7,   MMMM=0-Eh, O=1 (2-byte match offset)
+lit_ext_mat_len_2b:
+; on entry: ax=0 + token, bp=ax
+        lodsb                   ;grab extra literal length byte
+        add     al,litrunlen    ;add 7h literal run length
+;       jz      @@val249_7      ;if zf & cf, 249: get 16-bit literal length
+        jc      @@val250_7      ;if cf,      250: get extra literal length byte
+        xchg    cx,ax           ;otherwise, we have our literal length
+        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        get_word_match_offset
+        copy_small_match_len
+@@val250_7:
+jz @@val249_7
+        lodsb                   ;ah=0; grab single extra length byte
+        inc     ah              ;ax=256+length byte
+        xchg    cx,ax
+        do_literal_copy
+        get_word_match_offset
+        copy_small_match_len
+@@val249_7:
+        lodsw                   ;grab 16-bit length
+        xchg    cx,ax
+        do_literal_copy
+        get_word_match_offset
+        copy_small_match_len
+
+
+; Path #8: LLL=7,   MMMM=Fh,   O=1 (2-byte match offset)
+lit_ext_mat_ext_2b:
+; on entry: ax=0 + token, bp=ax
+        lodsb                   ;grab extra literal length byte
+        add     al,litrunlen    ;add 7h literal run length
+;       jz      @@val249_8      ;if zf & cf, 249: get 16-bit literal length
+        jc      @@val250_8      ;if cf,      250: get extra literal length byte
+        xchg    cx,ax           ;otherwise, we have our literal length
+        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        get_word_match_offset
+        copy_large_match_len
+@@val250_8:
+jz @@val249_8
+        lodsb                   ;ah=0; grab single extra length byte
+        inc     ah              ;ax=256+length byte
+        xchg    cx,ax
+        do_literal_copy
+        get_word_match_offset
+        copy_large_match_len
+@@val249_8:
+        lodsw                   ;grab 16-bit length
+        xchg    cx,ax
+        do_literal_copy
+        get_word_match_offset
+        copy_large_match_len
+
+
+done_decompressing:
+;return # of decompressed bytes in ax
         pop     ax              ;retrieve the original decompression offset
-        xchg    di,ax           ;compute decompressed size
-        sub     ax,di
+        sub     di,ax           ;adjust for original offset
+        xchg    di,ax           ;return adjusted value in ax
         ret                     ;done decompressing, exit to caller
-
-;These are called less often; moved here to optimize the fall-through case
-@@get_long_offset:
-        lodsw                   ;Get 2-byte match offset
-        jmp     @@get_match_length
-
-;With a confirmed longer match length, we have an opportunity to optimize for
-;the case where a single byte is repeated long enough that we can benefit
-;from rep movsw to perform the run (instead of rep movsb).
-@@mid_matchlen:
-        lodsb                   ;grab single extra length byte
-        inc     ah              ;add 256
-@@do_long_copy:
-        xchg    cx,ax           ;copy match length into cx
-@@copy_len_preset:
-        push    ds              ;save ds
-        mov     bp,es
-        mov     ds,bp           ;ds=es
-        mov     bp,si           ;save si
-        mov     si,di           ;ds:si now points at back reference in output data
-        add     si,dx
-        cmp     dx,-2           ;do we have a byte/word run to optimize?
-        jae     @@do_run        ;perform a run
-;You may be tempted to change "jae" to "jge" because DX is a signed number.
-;Don't!  The total window is 64k, so if you treat this as a signed comparison,
-;you will get incorrect results for offsets over 32K.
-
-;If we're here, we have a long copy and it isn't byte-overlapping (if it
-;overlapped, we'd be in @@do_run_1)  So, let's copy faster with REP MOVSW.
-;This won't affect 8088 that much, but it speeds up 8086 and higher.
-        shr     cx,1
-        rep     movsw
-        adc     cx,0
-        rep     movsb
-        mov     si,bp           ;restore si
-        pop     ds
-        jmp     @@decode_token  ;go decode another token
-
-@@do_run:
-        je      @@do_run_2      ;fall through to byte (common) if not word run
-
-@@do_run_1:
-        lodsb                   ;load first byte of run into al
-        mov     ah,al
-        shr     cx,1
-        rep     stosw           ;perform word run
-        adc     cx,0
-        rep     stosb           ;finish word run
-        mov     si,bp           ;restore si
-        pop     ds
-        jmp     @@decode_token  ;go decode another token
-
-@@do_run_2:
-        lodsw                   ;load first word of run
-        shr     cx,1
-        rep     stosw           ;perform word run
-        adc     cx,0            ;despite 2-byte offset, compressor might
-        rep     stosb           ;output odd length. better safe than sorry.
-        mov     si,bp           ;restore si
-        pop     ds
-        jmp     @@decode_token  ;go decode another token
 
 ENDP    lzsa1_decompress_speed_jumptable
 
@@ -237,38 +553,29 @@ ENDS    CODE
 
 END
 
+
+
 ;Speed optimization history (decompression times in microseconds @ 4.77 MHz):
-; original E. Marty code    shuttle 123208 alice 65660 robotron 407338 ***
-; table for shr al,4        shuttle 120964 alice 63230 robotron 394733 +++
-; push/pop to mov/mov       shuttle 118176 alice 61835 robotron 386762 +++
-; movsw for literalcpys     shuttle 124102 alice 64908 robotron 400220 --- rb
-; stosw for byte runs       shuttle 118897 alice 65040 robotron 403518 --- rb
-; better stosw for runs     shuttle 117712 alice 65040 robotron 403343 +--
-; disable RLE by default    shuttle 116924 alice 60783 robotron 381226 +++
-; optimize got_matchlen     shuttle 115294 alice 59588 robotron 374330 +++
-; fall through to getML     shuttle 113258 alice 59572 robotron 372004 +++
-; fall through to midLI     shuttle 113258 alice 59572 robotron 375060 ..- rb
-; fall through midMaLen     shuttle 113247 alice 59572 robotron 372004 +.+
-; movsw for litlen > 255    shuttle 113247 alice 59572 robotron 371612 ..+
-; rep stosw for long runs   shuttle 113247 alice 59572 robotron 371612 ...
-; rep movsw for long cpys   shuttle 113247 alice 59572 robotron 371035 ..+
-; xchg/dec ah -> mov ah,val shuttle 112575 alice 59272 robotron 369198 +++
-; force >12h len.to longcpy shuttle 101998 alice 59266 robotron 364459 +.+
-; more efficient run branch shuttle 102239 alice 59297 robotron 364716 --- rb
-; even more eff. run branch shuttle 101998 alice 59266 robotron 364459 ***
-; BUGFIX - bad sign compare shuttle 101955 alice 59225 robotron 364117 +++
-; reverse 16-bit len compar shuttle 102000 alice 59263 robotron 364460 --- rb
-; jcxz for EOD detection    no change to speed, but is 1 byte shorter  +++
-; force movsw for literals  shuttle 107183 alice 62555 robotron 379524 --- rb
-; defer shr4 until necessry shuttle 102069 alice 60236 robotron 364096 ---
-; skip literals if LLL=0    shuttle  98655 alice 57849 robotron 363358 ---
-; fall through to mid_liter shuttle  98595 alice 57789 robotron 361998 +++
-; == jumptable experiments begin ==
-; jumptable for small copys shuttle 101594 alice 61078 robotron 386018 ---
-; start:xchg instead of mov shuttle 100948 alice 60467 robotron 381112 +++
-; use table for LLL=0 check shuttle 106972 alice 63333 robotron 388304 --- rb
-; jmptbl to fallthrough mov shuttle 102532 alice 60760 robotron 383070 ---
-; cpy fallthrough check_ofs shuttle  98939 alice 58917 robotron 371019 +**
-; single jumptable jump     shuttle  97528 alice 57264 robotron 362194 ++*
-; conditional check for L=7 shuttle  98610 alice 58521 robotron 368153 --- rb
 ; defer add MIN_MATCH_SIZE  shuttle  97207 alice 57200 robotron 362884 ++*
+; jumptable rewrite, no RLE shuttle  97744 alice 46905 robotron 309032 -++
+; adc cx,0 -> adc cl,0      shuttle  97744 alice 46893 robotron 309032 .+.!
+; jumptable rewrite w/RLE   shuttle  88776 alice 50433 robotron 319222 +--
+; short match copies movsb  shuttle  97298 alice 49769 robotron 326282 ---rb
+; long match copy #1 16-bit shuttle  92490 alice 46905 robotron 308722 +*+
+; long match copy #2 extraB shuttle  92464 alice 46905 robotron 308371 +.+
+; long match copy #3 0f->ed shuttle  86765 alice 46864 robotron 303895 +++!
+; baseline new test harness shuttle  83925 alice 37948 robotron 269002 ***
+; Pavel optimizations       shuttle  82225 alice 36798 robotron 261226 +++
+; OPTIMIZE_LONG_RLE 1       shuttle  82242 alice 36787 robotron 261392 **-
+;
+;------
+;
+;Pavel's optimization history:
+;                        shuttle   alice   robotron  time in 1.193 MHz timer clocks
+;baseline                  19109    D9A6      570F6
+;adc cl,0->adc cl,cl       19035    D9A6      56FAB
+;rep movsb->shr cx,1;jnc   18FD4    D998      56F14
+;cmp bp,-2->inc bp;inc bp  18F07    D999      56EA3
+;jz;jc->jc                 18D81    D973      56B2F
+;add al,3->movsb x3        18B1E    D777      56197
+;more lit_len_mat tables   18A83    D341      54ACC
