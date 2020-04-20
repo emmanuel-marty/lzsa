@@ -76,6 +76,7 @@ External links:
 * [i8080 decompressors](https://gitlab.com/ivagor/lzsa8080/tree/master) by Ivan Gorodetsky
 * [PDP-11 decompressors](https://gitlab.com/ivagor/lzsa8080/tree/master/PDP11) also by Ivan Gorodetsky
 * [MC68000 decompressors](https://github.com/tattlemuss/lz4-m68k/blob/master/src/lzsa.s) by Steven Tattersall
+* [Gameboy decompressors](https://github.com/meltycode) by Meltycode, based on the Z80 code by introspec
 * LZSA's page on [Pouet](https://www.pouet.net/prod.php?which=81573)
 
 # Compressed format
