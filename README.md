@@ -9,6 +9,8 @@ Check out [The Hollow](https://www.pouet.net/prod.php?which=81909) by Darklite a
 
 [Myst Demake](http://www.deater.net/weave/vmwprod/mist/) for the Apple II by Vince Weaver, uses LZSA on 6502.
 
+The 8 bit guy's [Commander X16 ROM](https://github.com/commanderx16/x16-rom) uses LZSA on 6502 as well.
+
 The LZSA compression tool uses an aggressive optimal packing strategy to try to find the sequence of commands that gives the smallest packed file that decompresses to the original while maintaining the maximum possible decompression speed.
 
 The compression formats give the user choices that range from decompressing faster than LZ4 on 8-bit systems with better compression, to compressing as well as ZX7 with much better decompression speed. LZSA1 is designed to replace LZ4 and LZSA2 to replace ZX7, in 8-bit scenarios.
