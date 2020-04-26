@@ -441,7 +441,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
 
                         if (!exists) {
-                           for (int nn = n;
+                           int nn;
+
+                           for (nn = n;
                               nn < nMatchesPerArrival && pDestSlots[nn].cost == nCodingChoiceCost;
                               nn++) {
                               if (pDestSlots[nn].rep_offset == nMatchOffset &&
@@ -806,7 +808,6 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
 static int lzsa_get_compressed_size_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
-   int nOutOffset = 0;
    int nRepMatchOffset = 0;
    int nCompressedSize = 0;
 
@@ -851,7 +852,6 @@ static int lzsa_get_compressed_size_v2(lzsa_compressor *pCompressor, lzsa_match 
    }
 
    {
-      int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V2) ? LITERALS_RUN_LEN_V2 : nNumLiterals;
       int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + (nNumLiterals << 3);
 
       nCompressedSize += nCommandSize;

@@ -413,8 +413,6 @@ static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, lzsa_match 
          int nMatchOffset = pMatch->offset;
          int nMatchLen = pMatch->length;
          int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V1;
-         int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V1) ? LITERALS_RUN_LEN_V1 : nNumLiterals;
-         int nTokenMatchLen = (nEncodedMatchLen >= MATCH_RUN_LEN_V1) ? MATCH_RUN_LEN_V1 : nEncodedMatchLen;
          int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
          int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3) + (nTokenLongOffset ? 16 : 8) /* match offset */ + lzsa_get_match_varlen_size_v1(nEncodedMatchLen);
 
@@ -429,7 +427,6 @@ static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, lzsa_match 
    }
 
    {
-      int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V1) ? LITERALS_RUN_LEN_V1 : nNumLiterals;
       int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3);
 
       nCompressedSize += nCommandSize;

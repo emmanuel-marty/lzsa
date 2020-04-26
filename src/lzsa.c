@@ -295,7 +295,7 @@ int comparestream_open(lzsa_stream_t *stream, const char *pszCompareFilename, co
 
    pCompareStream->pCompareDataBuf = NULL;
    pCompareStream->nCompareDataSize = 0;
-   pCompareStream->f = (void*)fopen(pszCompareFilename, pszMode);
+   pCompareStream->f = (FILE*)fopen(pszCompareFilename, pszMode);
 
    if (pCompareStream->f) {
       stream->obj = pCompareStream;
