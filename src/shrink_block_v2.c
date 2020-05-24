@@ -426,7 +426,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      if (!nFavorRatio && !arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].num_literals)
                         nCodingChoiceCost += MODESWITCH_PENALTY;
 
-                     if (nCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 1].cost) {
+                     if (nCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 2].cost) {
                         int exists = 0;
                         int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 3 + nScorePenalty;
 
