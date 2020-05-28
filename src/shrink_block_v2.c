@@ -428,7 +428,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
                      if (nCodingChoiceCost <= pDestSlots[nMatchesPerArrival - 2].cost) {
                         int exists = 0;
-                        int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 3 + nScorePenalty;
 
                         for (n = 0;
                            n < nMatchesPerArrival && pDestSlots[n].cost < nCodingChoiceCost;
@@ -441,6 +440,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
 
                         if (!exists) {
+                           int nScore = arrival[(i << MATCHES_PER_ARRIVAL_SHIFT) + j].score + 3 + nScorePenalty;
                            int nn;
 
                            for (nn = n;
@@ -459,8 +459,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               for (; n < nMatchesPerArrival - 1; n++) {
                                  lzsa_arrival *pDestArrival = &pDestSlots[n];
 
-                                 if (nCodingChoiceCost < pDestArrival->cost ||
-                                    (nCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
+                                 if (nCodingChoiceCost < pDestArrival->cost || nScore < (pDestArrival->score + nDisableScore)) {
                                     if (pDestArrival->from_slot) {
                                        int z;
 
