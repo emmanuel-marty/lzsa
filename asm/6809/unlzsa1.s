@@ -1,4 +1,4 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 125 bytes
+;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 121 bytes
 ;  compress with lzsa -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -40,11 +40,11 @@ lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
 
          ldb ,x+           ; load low 8 bits of little-endian literals count
          lda ,x+           ; load high 8 bits of literal count
-         jmp lz1gotlt      ; we now have the complete count, go copy
+         bra lz1gotlt      ; we now have the complete count, go copy
 
 lz1midlt tfr b,a           ; copy high part of literals count into A
          ldb ,x+           ; load low 8 bits of literals count
-         jmp lz1gotlt      ; we now have the complete count, go copy
+         bra lz1gotlt      ; we now have the complete count, go copy
 
 lz1declt lsrb              ; shift literals count into place
          lsrb
@@ -67,7 +67,7 @@ lz1nolt  puls b            ; restore token
 
          ldb ,x+           ; O clear: load 8 bit (negative, signed) offset
          lda #$ff          ; set high 8 bits
-         jmp lz1gotof
+         bra lz1gotof
 
 lz1bigof ldb ,x+           ; O set: load long 16 bit (negative, signed) offset
          lda ,x+           ; (little endian)
@@ -106,4 +106,4 @@ lz1cpymt lda ,u+           ; copy matched byte
          bne lz1cpymt      ; loop until all matched bytes are copied
 
          puls x            ; restore source compressed data pointer
-         jmp lz1token      ; go decode next token
+         bra lz1token      ; go decode next token
