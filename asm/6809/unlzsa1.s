@@ -1,4 +1,4 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 121 bytes
+;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 119 bytes
 ;  compress with lzsa -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -59,9 +59,8 @@ lz1cpylt lda ,u+           ; copy literal byte
          bne lz1cpylt      ; loop until all literal bytes are copied
          tfr u,x
 
-lz1nolt  puls b            ; restore token
-         pshs b            ; save it again
-      
+lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
+         
          tstb              ; test O bit (small or large offset)
          bmi lz1bigof
 
