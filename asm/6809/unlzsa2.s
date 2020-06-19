@@ -1,4 +1,4 @@
-;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 198 bytes
+;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 197 bytes
 ;  compress with lzsa -f2 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -84,7 +84,7 @@ lz2val5  orb #$aa          ; merge offset bit 0 from A
 
 lz2offs9 lslb              ; push token's Z flag bit into carry         
          rola              ; shift Z flag from carry into bit 0 of A
-         eora #$ff         ; set bits 9-15 of offset, reverse bit 8
+         coma              ; set bits 9-15 of offset, reverse bit 8
 
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
@@ -161,7 +161,7 @@ lz2cpymt lda ,u+           ; copy matched byte
          bne lz2cpymt      ; loop until all matched bytes are copied
 
          puls x            ; restore source compressed data pointer
-         jmp lz2token      ; go decode next token
+         lbra lz2token     ; go decode next token
 
 lz2nibct rmb 1             ; nibble ready flag
 
