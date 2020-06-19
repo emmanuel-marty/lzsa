@@ -1,4 +1,4 @@
-;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 192 bytes
+;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 190 bytes
 ;  compress with lzsa -f2 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -24,8 +24,7 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 
 decompress_lzsa2
-         ldb #$00
-         stb lz2nibct,pcr  ; clear nibble available flag
+         lsr <lz2nibct,pcr ; reset nibble available flag
 
 lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          pshs b            ; save it
@@ -87,7 +86,7 @@ lz2offs9 lda #$00          ; clear A (to prepare for high 8 bits of offset)
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
 
-lz2nibct rmb 1             ; nibble ready flag
+lz2nibct fcb $00           ; nibble ready flag
 
 lz2nibl  ldb #$aa
          lsr lz2nibct,pcr  ; nibble ready?
@@ -125,7 +124,7 @@ lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
          
          ldd ,x++          ; load high then low 8 bits of offset
 
-lz2gotof std lz2repof+1,pcr ; store match offset
+lz2gotof std <lz2repof+1,pcr ; store match offset
 
 lz2repof ldd #$aaaa        ; load match offset
          leau d,y          ; put backreference start address in U (dst+offset)
