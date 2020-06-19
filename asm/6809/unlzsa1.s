@@ -1,4 +1,4 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 119 bytes
+;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 117 bytes
 ;  compress with lzsa -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -27,7 +27,7 @@ decompress_lzsa1
 lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
 
-         lda #$00          ; clear A (high part of literals count)
+         clra              ; clear A (high part of literals count)
          andb #$70         ; isolate LLL (embedded literals count) in B
          beq lz1nolt       ; skip if no literals
          cmpb #$70         ; LITERALS_RUN_LEN?
@@ -74,7 +74,7 @@ lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
          
          puls b            ; restore token
          
-         lda #$00          ; clear A (high part of match length)
+         clra              ; clear A (high part of match length)
          andb #$0F         ; isolate MMMM (embedded match length)
          addb #$03         ; add MIN_MATCH_SIZE
          cmpb #$12         ; MATCH_RUN_LEN?
