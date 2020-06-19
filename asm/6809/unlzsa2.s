@@ -1,4 +1,4 @@
-;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 190 bytes
+;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 187 bytes
 ;  compress with lzsa -f2 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -29,7 +29,7 @@ decompress_lzsa2
 lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          pshs b            ; save it
 
-         lda #$00          ; clear A (high part of literals count)
+         clra              ; clear A (high part of literals count)
          andb #$18         ; isolate LLL (embedded literals count) in B
          beq lz2nolt       ; skip if no literals
          cmpb #$18         ; LITERALS_RUN_LEN_V2?
@@ -78,7 +78,7 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          lda #$ff          ; set bits 8-15 of offset
          bra lz2gotof
 
-lz2offs9 lda #$00          ; clear A (to prepare for high 8 bits of offset)
+lz2offs9 clra              ; clear A (to prepare for high 8 bits of offset)
          lslb              ; push token's Z flag bit into carry         
          rola              ; shift Z flag from carry into bit 0 of A
          coma              ; set bits 9-15 of offset, reverse bit 8
@@ -89,12 +89,12 @@ lz2offs9 lda #$00          ; clear A (to prepare for high 8 bits of offset)
 lz2nibct fcb $00           ; nibble ready flag
 
 lz2nibl  ldb #$aa
-         lsr lz2nibct,pcr  ; nibble ready?
+         lsr <lz2nibct,pcr  ; nibble ready?
          bcs lz2gotnb
 
-         inc lz2nibct,pcr  ; flag nibble as ready for next time
+         inc <lz2nibct,pcr  ; flag nibble as ready for next time
          ldb ,x+           ; load two nibbles
-         stb lz2nibl+1,pcr ; store nibble for next time (low 4 bits)
+         stb <lz2nibl+1,pcr ; store nibble for next time (low 4 bits)
 
          lsrb              ; shift 4 high bits of nibble down
          lsrb
@@ -131,7 +131,7 @@ lz2repof ldd #$aaaa        ; load match offset
          
          puls b            ; restore token
          
-         lda #$00          ; clear A (high part of match length)
+         clra              ; clear A (high part of match length)
          andb #$07         ; isolate MMM (embedded match length)
          addb #$02         ; add MIN_MATCH_SIZE_V2
          cmpb #$09         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
