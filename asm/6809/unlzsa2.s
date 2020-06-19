@@ -1,4 +1,4 @@
-;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 197 bytes
+;  unlzsa2.s - 6809 decompression routine for raw LZSA2 - 192 bytes
 ;  compress with lzsa -f2 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -25,7 +25,7 @@
 
 decompress_lzsa2
          ldb #$00
-         stb lz2nibct      ; clear nibble available flag
+         stb lz2nibct,pcr  ; clear nibble available flag
 
 lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          pshs b            ; save it
@@ -36,7 +36,7 @@ lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          cmpb #$18         ; LITERALS_RUN_LEN_V2?
          bne lz2declt      ; if not, we have the complete count, go unshift
 
-         bsr lz2nibbl      ; get extra literals length nibble in B
+         bsr lz2nibl       ; get extra literals length nibble in B
          addb #$03         ; add LITERALS_RUN_LEN_V2
          cmpb #$12         ; LITERALS_RUN_LEN_V2 + 15 ?
          bne lz2gotlt      ; if not, we have the full literals count, go copy
@@ -61,41 +61,41 @@ lz2cpylt lda ,u+           ; copy literal byte
          bne lz2cpylt      ; loop until all literal bytes are copied
          tfr u,x
 
-lz2nolt  puls b            ; restore token
-         pshs b            ; save it again
+lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
 
          lslb              ; push token's X flag bit into carry
          bcs lz2replg      ; if token's X bit is set, rep or large offset
-
-         lda #$00          ; clear A (to prepare for high 8 bits of offset)
 
          lslb              ; push token's Y flag bit into carry
          bcs lz2offs9      ; if token's Y bit is set, 9 bits offset
 
          lslb              ; push token's Z flag bit into carry
-         rola              ; shift Z flag from carry into bit 0 of A
-         eora #$e1         ; set bits 5-7 of offset, reverse bit 0
-         sta lz2val5+1
-         bsr lz2nibbl      ; get offset nibble in B
-         lslb              ; nibble represents offset bits 1..4
-lz2val5  orb #$aa          ; merge offset bit 0 from A
+         tfr cc,a          ; preserve cpu flags (to preserve carry)
+         bsr lz2nibl       ; get offset nibble in B
+         tfr a,cc          ; restore cpu flags
+
+         rolb              ; shift Z flag from carry into bit 0 of B
+         eorb #$e1         ; set bits 5-7 of offset, reverse bit 0
          lda #$ff          ; set bits 8-15 of offset
          bra lz2gotof
 
-lz2offs9 lslb              ; push token's Z flag bit into carry         
+lz2offs9 lda #$00          ; clear A (to prepare for high 8 bits of offset)
+         lslb              ; push token's Z flag bit into carry         
          rola              ; shift Z flag from carry into bit 0 of A
          coma              ; set bits 9-15 of offset, reverse bit 8
 
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
 
-lz2nibbl ldb #$aa
-         lsr lz2nibct      ; nibble ready?
+lz2nibct rmb 1             ; nibble ready flag
+
+lz2nibl  ldb #$aa
+         lsr lz2nibct,pcr  ; nibble ready?
          bcs lz2gotnb
 
-         inc lz2nibct      ; flag nibble as ready for next time
+         inc lz2nibct,pcr  ; flag nibble as ready for next time
          ldb ,x+           ; load two nibbles
-         stb lz2nibbl+1    ; store nibble for next time (low 4 bits)
+         stb lz2nibl+1,pcr ; store nibble for next time (low 4 bits)
 
          lsrb              ; shift 4 high bits of nibble down
          lsrb
@@ -108,15 +108,14 @@ lz2done  rts
 lz2replg lslb              ; push token's Y flag bit into carry
          bcs lz2rep16      ; if token's Y bit is set, rep or 16 bit offset
 
-         lda #$00          ; clear A
          lslb              ; push token's Z flag bit into carry
-         rola              ; shift Z flag from carry into bit 0 of A
-         eora #$e1         ; set bits 13-15 of offset, reverse bit 8
+         tfr cc,a          ; preserve cpu flags (to preserve carry)
+         bsr lz2nibl       ; get offset nibble in B
+         tfr a,cc          ; restore cpu flags
 
-         bsr lz2nibbl      ; get offset nibble in B
-         lslb              ; nibble represents offset bits 9..12
-         stb lz2val13+1
-lz2val13 ora #$aa          ; merge offset bits 9..12 from B
+         rolb              ; shift Z flag from carry into bit 0 of B
+         eorb #$e1         ; set bits 13-15 of offset, reverse bit 8
+         tfr b,a           ; copy bits 8-15 of offset into A
          suba #$02         ; substract 512 from offset
 
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
@@ -126,7 +125,7 @@ lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
          
          ldd ,x++          ; load high then low 8 bits of offset
 
-lz2gotof std lz2repof+1    ; store match offset
+lz2gotof std lz2repof+1,pcr ; store match offset
 
 lz2repof ldd #$aaaa        ; load match offset
          leau d,y          ; put backreference start address in U (dst+offset)
@@ -139,7 +138,7 @@ lz2repof ldd #$aaaa        ; load match offset
          cmpb #$09         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
          bne lz2gotln      ; no, we have the full match length, go copy
 
-         bsr lz2nibbl      ; get offset nibble in B
+         bsr lz2nibl       ; get offset nibble in B
          addb #$09         ; add MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2
          cmpb #$18         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
          bne lz2gotln      ; if not, we have the full match length, go copy
@@ -162,6 +161,4 @@ lz2cpymt lda ,u+           ; copy matched byte
 
          puls x            ; restore source compressed data pointer
          lbra lz2token     ; go decode next token
-
-lz2nibct rmb 1             ; nibble ready flag
 
