@@ -1,4 +1,4 @@
-;  unlzsa2.s - 6809 backward decompression routine for raw LZSA2 - 189 bytes
+;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 187 bytes
 ;  compress with lzsa -f2 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
