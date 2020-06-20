@@ -73,8 +73,9 @@ License:
 
 * Z80 decompressors (size- and speed-optimized) written by [introspec](https://github.com/specke) with optimizations by [uniabis](https://github.com/uniabis)
 * 6502 and 8088 size-optimized improvements by [Peter Ferrie](https://github.com/peterferrie)
+* 6502 speed-optimized decompressor by [John Brandwood](https://github.com/jbrandwood)
 * 8088 speed-optimized decompressor by [Jim Leonard](https://github.com/mobygamer)
-* 6809 decompressors (Tandy Coco, Thomson MO/TO, Dragon 32/64..) optimized by [Doug Masten](https://github.com/dougmasten)
+* 6809 decompressors (Tandy CoCo, Thomson MO/TO, Dragon 32/64..) optimized by [Doug Masten](https://github.com/dougmasten)
 
 External links:
 
