@@ -42,8 +42,7 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          cmpb #$12         ; LITERALS_RUN_LEN_V2 + 15 ?
          bne lz2gotlt      ; if not, we have the full literals count, go copy
 
-         ldb ,-x           ; load extra literals count byte
-         addb #$12         ; add LITERALS_RUN_LEN + 15
+         addb ,-x         ; add extra literals count byte + LITERALS_RUN_LEN + 15
          bcc lz2gotlt      ; if no overflow, we got the complete count, copy
 
          ldd ,--x          ; load 16 bit count in D (low part in B, high in A)

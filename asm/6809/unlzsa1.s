@@ -78,8 +78,7 @@ lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
          cmpb #$12         ; MATCH_RUN_LEN?
          bne lz1gotln      ; no, we have the full match length, go copy
 
-         ldb ,x+           ; grab extra match length byte
-         addb #$12         ; add MIN_MATCH_SIZE + MATCH_RUN_LEN
+         addb ,x+          ; add extra match length byte + MIN_MATCH_SIZE + MATCH_RUN_LEN
          bcc lz1gotln      ; if no overflow, we have the full length
          bne lz1midln
 
