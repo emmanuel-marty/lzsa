@@ -23,7 +23,45 @@
 ;     misrepresented as being the original software.
 ;  3. This notice may not be removed or altered from any source distribution.
 
-decompress_lzsa1
+decompress_lzsa1 equ lz1token
+
+lz1bigof ldb ,x+           ; O set: load long 16 bit (negative, signed) offset
+         lda ,x+           ; (little endian)
+lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
+
+         puls b            ; restore token
+
+         clra              ; clear A (high part of match length)
+         andb #$0F         ; isolate MMMM (embedded match length)
+         addb #$03         ; add MIN_MATCH_SIZE
+         cmpb #$12         ; MATCH_RUN_LEN?
+         bne lz1gotln      ; no, we have the full match length, go copy
+
+         addb ,x+          ; add extra match length byte + MIN_MATCH_SIZE + MATCH_RUN_LEN
+         bcc lz1gotln      ; if no overflow, we have the full length
+         bne lz1midln
+
+         ldb ,x+           ; load 16-bit len in D (low part in B, high in A)
+         lda ,x+           ; (little endian)
+         bne lz1gotln      ; check if we hit EOD (16-bit length = 0)
+         tstb
+         bne lz1gotln      ; go copy matched bytes if not
+
+         rts               ; done, bail
+
+lz1midln tfr b,a           ; copy high part of len into A
+         ldb ,x+           ; grab low 8 bits of len in B
+
+lz1gotln pshs x            ; save source compressed data pointer
+         tfr d,x           ; copy match length to X
+
+lz1cpymt lda ,u+           ; copy matched byte
+         sta ,y+
+         leax -1,x         ; decrement X
+         bne lz1cpymt      ; loop until all matched bytes are copied
+
+         puls x            ; restore source compressed data pointer
+
 lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
 
@@ -50,11 +88,11 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
          lsrb
          lsrb
- 
+
 lz1gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz1cpylt lda ,u+           ; copy literal byte
-         sta ,y+ 
+         sta ,y+
          leax -1,x         ; decrement X and update Z flag
          bne lz1cpylt      ; loop until all literal bytes are copied
          tfr u,x
@@ -65,41 +103,3 @@ lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
          ldb ,x+           ; O clear: load 8 bit (negative, signed) offset
          lda #$ff          ; set high 8 bits
          bra lz1gotof
-
-lz1bigof ldb ,x+           ; O set: load long 16 bit (negative, signed) offset
-         lda ,x+           ; (little endian)
-lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
-         
-         puls b            ; restore token
-         
-         clra              ; clear A (high part of match length)
-         andb #$0F         ; isolate MMMM (embedded match length)
-         addb #$03         ; add MIN_MATCH_SIZE
-         cmpb #$12         ; MATCH_RUN_LEN?
-         bne lz1gotln      ; no, we have the full match length, go copy
-
-         addb ,x+          ; add extra match length byte + MIN_MATCH_SIZE + MATCH_RUN_LEN
-         bcc lz1gotln      ; if no overflow, we have the full length
-         bne lz1midln
-
-         ldb ,x+           ; load 16-bit len in D (low part in B, high in A)
-         lda ,x+           ; (little endian)
-         bne lz1gotln      ; check if we hit EOD (16-bit length = 0)
-         tstb
-         bne lz1gotln      ; go copy matched bytes if not
-      
-         rts               ; done, bail
-
-lz1midln tfr b,a           ; copy high part of len into A
-         ldb ,x+           ; grab low 8 bits of len in B
-
-lz1gotln pshs x            ; save source compressed data pointer
-         tfr d,x           ; copy match length to X
-
-lz1cpymt lda ,u+           ; copy matched byte
-         sta ,y+ 
-         leax -1,x         ; decrement X
-         bne lz1cpymt      ; loop until all matched bytes are copied
-
-         puls x            ; restore source compressed data pointer
-         bra lz1token      ; go decode next token
