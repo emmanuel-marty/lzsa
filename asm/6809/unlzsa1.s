@@ -1,4 +1,4 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 111 bytes
+;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 109 bytes
 ;  compress with lzsa -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
@@ -25,8 +25,7 @@
 
 decompress_lzsa1 equ lz1token
 
-lz1bigof ldb ,x+           ; O set: load long 16 bit (negative, signed) offset
-         lda ,x+           ; (little endian)
+lz1bigof lda ,x+           ; O set: load MSB 16-bit (negative, signed) offest
 lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
 
          puls b            ; restore token
@@ -97,9 +96,9 @@ lz1cpylt lda ,u+           ; copy literal byte
          bne lz1cpylt      ; loop until all literal bytes are copied
          tfr u,x
 
-lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
+lz1nolt  ldb ,x+           ; load either 8-bit or LSB 16-bit offset (negative, signed)
+         lda ,s            ; get token again, don't pop it from the stack
          bmi lz1bigof      ; test O bit (small or large offset)
 
-         ldb ,x+           ; O clear: load 8 bit (negative, signed) offset
          lda #$ff          ; set high 8 bits
          bra lz1gotof
