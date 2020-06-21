@@ -1048,7 +1048,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          return -1;
 
       if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK)
-         pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0x47;
+         pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0xe7;
       else
          pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0x00;
       nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
@@ -1081,7 +1081,6 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
 
       if (nOutOffset >= nMaxOutDataSize)
          return -1;
-      pOutData[nOutOffset++] = 0;      /* Match offset */
 
       nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 15);   /* Extended match length nibble */
       if (nOutOffset < 0) return -1;
@@ -1119,12 +1118,12 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
    int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V2) ? LITERALS_RUN_LEN_V2 : nNumLiterals;
    int nOutOffset = 0;
 
-   int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + (nNumLiterals << 3) + 8 + 4 + 8;
+   int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals) + (nNumLiterals << 3) + 4 + 8;
    if ((nOutOffset + ((nCommandSize + 7) >> 3)) > nMaxOutDataSize)
       return -1;
 
    pCompressor->num_commands = 0;
-   pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0x47;
+   pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0xe7;
 
    nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
    if (nOutOffset < 0) return -1;
@@ -1136,8 +1135,6 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
    }
 
    /* Emit EOD marker for raw block */
-
-   pOutData[nOutOffset++] = 0;      /* Match offset */
 
    nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 15);   /* Extended match length nibble */
    if (nOutOffset < 0) return -1;
