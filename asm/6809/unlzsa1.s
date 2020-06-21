@@ -64,9 +64,9 @@ lz1cpymt lda ,u+           ; copy matched byte
 lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
 
-         clra              ; clear A (high part of literals count)
          andb #$70         ; isolate LLL (embedded literals count) in B
          beq lz1nolt       ; skip if no literals
+         clra              ; clear A (high part of literals count)
          cmpb #$70         ; LITERALS_RUN_LEN?
          bne lz1declt      ; if not, we have the complete count, go unshift
 
