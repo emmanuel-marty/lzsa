@@ -141,8 +141,7 @@ lz2repof ldd #$aaaa        ; load match offset
          cmpb #$18         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
          bne lz2gotln      ; if not, we have the full match length, go copy
 
-         ldb ,x+           ; load extra length byte
-         addb #$18         ; add MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15
+         addb ,x+          ; add extra length byte + MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15
          bcc lz2gotln      ; if no overflow, we have the full length
          beq lz2done       ; detect EOD code
 
