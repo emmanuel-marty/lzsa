@@ -76,10 +76,8 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          lda #$ff          ; set bits 8-15 of offset
          bra lz2gotof
 
-lz2offs9 clra              ; clear A (to prepare for high 8 bits of offset)
-         lslb              ; push token's Z flag bit into carry         
-         rola              ; shift Z flag from carry into bit 0 of A
-         coma              ; set bits 9-15 of offset, reverse bit 8
+lz2offs9 sex               ; extend token's Z flag bit into reg A
+         deca              ; set bits 9-15 of offset, reverse bit 8
 
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
