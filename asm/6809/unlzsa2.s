@@ -29,8 +29,7 @@ decompress_lzsa2
 lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          pshs b            ; save it
 
-         clra              ; clear A (high part of literals count)
-         andb #$18         ; isolate LLL (embedded literals count) in B
+         andb #$18         ; isolate LL (embedded literals count) in B
          beq lz2nolt       ; skip if no literals
          cmpb #$18         ; LITERALS_RUN_LEN_V2?
          bne lz2declt      ; if not, we have the complete count, go unshift
@@ -38,10 +37,10 @@ lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
          bsr lz2nibl       ; get extra literals length nibble in B
          addb #$03         ; add LITERALS_RUN_LEN_V2
          cmpb #$12         ; LITERALS_RUN_LEN_V2 + 15 ?
-         bne lz2gotlt      ; if not, we have the full literals count, go copy
+         bne lz2gotla      ; if not, we have the full literals count, go copy
 
          addb ,x+          ; add extra literals count byte + LITERALS_RUN_LEN + 15
-         bcc lz2gotlt      ; if no overflow, we got the complete count, copy
+         bcc lz2gotla      ; if no overflow, we got the complete count, copy
 
          ldb ,x+           ; load low 8 bits of little-endian literals count
          lda ,x+           ; load high 8 bits of literal count
@@ -50,7 +49,8 @@ lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
 lz2declt lsrb              ; shift literals count into place
          lsrb
          lsrb
- 
+
+lz2gotla clra              ; clear A (high part of literals count)
 lz2gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz2cpylt lda ,u+           ; copy literal byte
