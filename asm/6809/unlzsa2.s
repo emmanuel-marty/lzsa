@@ -65,9 +65,9 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          bcs lz2replg      ; if token's X bit is set, rep or large offset
 
          lslb              ; push token's Y flag bit into carry
+         sex               ; push token's Z flag bit into reg A (carry flag is not effected)
          bcs lz2offs9      ; if token's Y bit is set, 9 bits offset
 
-         sex               ; push token's Z flag bit into reg A
          bsr lz2nibl       ; get offset nibble in B
          lsla              ; retrieve token's Z flag bit and push into carry
 
@@ -76,9 +76,7 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          sex               ; set bits 8-15 of offset to $FF
          bra lz2gotof
 
-lz2offs9 sex               ; extend token's Z flag bit into reg A
-         deca              ; set bits 9-15 of offset, reverse bit 8
-
+lz2offs9 deca              ; set bits 9-15 of offset, reverse bit 8
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
 
