@@ -123,10 +123,9 @@ lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
          
          ldd ,x++          ; load high then low 8 bits of offset
 
-lz2gotof std <lz2repof+1,pcr ; store match offset
+lz2gotof std <lz2repof+2,pcr ; store match offset
+lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
 
-lz2repof ldd #$aaaa        ; load match offset
-         leau d,y          ; put backreference start address in U (dst+offset)
          
          puls b            ; restore token
          
