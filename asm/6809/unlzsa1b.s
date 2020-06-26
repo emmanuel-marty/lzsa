@@ -1,4 +1,4 @@
-;  unlzsa1b.s - 6809 backward decompression routine for raw LZSA1 - 116 bytes
+;  unlzsa1b.s - 6809 backward decompression routine for raw LZSA1 - 112 bytes
 ;  compress with lzsa -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -62,9 +62,7 @@ lz1cpylt lda ,-u           ; copy literal byte
          tfr u,x
 
 lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
-         
-         tstb              ; test O bit (small or large offset)
-         bmi lz1bigof
+         bmi lz1bigof      ; test O bit (small or large offset)
 
          ldb ,-x           ; O clear: load 8 bit (negative, signed) offset
          lda #$ff          ; set high 8 bits
@@ -84,8 +82,7 @@ lz1gotof nega              ; reverse sign of offset in D
          cmpb #$12         ; MATCH_RUN_LEN?
          bne lz1gotln      ; no, we have the full match length, go copy
 
-         ldb ,-x           ; grab extra match length byte
-         addb #$12         ; add MIN_MATCH_SIZE + MATCH_RUN_LEN
+         addb ,-x          ; add extra match length byte + MIN_MATCH_SIZE + MATCH_RUN_LEN
          bcc lz1gotln      ; if no overflow, we have the full length
          bne lz1midln
 
