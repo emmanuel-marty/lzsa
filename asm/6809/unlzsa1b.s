@@ -67,7 +67,6 @@ lz1cpymt lda ,-u           ; copy matched byte
 lz1token ldb ,-x           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
 
-         clra              ; clear A (high part of literals count)
          andb #$70         ; isolate LLL (embedded literals count) in B
          beq lz1nolt       ; skip if no literals
          cmpb #$70         ; LITERALS_RUN_LEN?
@@ -75,7 +74,7 @@ lz1token ldb ,-x           ; load next token into B: O|LLL|MMMM
 
          ldb ,-x           ; load extra literals count byte
          addb #$07         ; add LITERALS_RUN_LEN
-         bcc lz1gotlt      ; if no overflow, we got the complete count, copy
+         bcc lz1gotla      ; if no overflow, we got the complete count, copy
          bne lz1midlt
 
          ldd ,--x          ; load 16 bit count in D (low part in B, high in A)
@@ -90,6 +89,7 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
          lsrb
 
+lz1gotla clra              ; clear A (high part of literals count)
 lz1gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz1cpylt lda ,-u           ; copy literal byte
