@@ -1,4 +1,4 @@
-;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 175 bytes
+;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 174 bytes
 ;  compress with lzsa -f2 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -119,10 +119,9 @@ lz2lowof ldb ,-x           ; load low 8 bits of offset
 lz2gotof nega              ; reverse sign of offset in D
          negb
          sbca #0
-         std <lz2repof+1,pcr ; store match offset
+         std <lz2repof+2,pcr ; store match offset
 
-lz2repof ldd #$aaaa        ; load match offset
-         leau d,y          ; put backreference start address in U (dst+offset)
+lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
 
          puls b            ; restore token
 
