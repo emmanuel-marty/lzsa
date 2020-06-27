@@ -66,13 +66,12 @@ lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
 
          andb #$70         ; isolate LLL (embedded literals count) in B
          beq lz1nolt       ; skip if no literals
-         clra              ; clear A (high part of literals count)
          cmpb #$70         ; LITERALS_RUN_LEN?
          bne lz1declt      ; if not, we have the complete count, go unshift
 
          ldb ,x+           ; load extra literals count byte
          addb #$07         ; add LITERALS_RUN_LEN
-         bcc lz1gotlt      ; if no overflow, we got the complete count, copy
+         bcc lz1gotla      ; if no overflow, we got the complete count, copy
          bne lz1midlt
 
          ldb ,x+           ; load low 8 bits of little-endian literals count
@@ -87,6 +86,7 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
          lsrb
          lsrb
+lz1gotla clra              ; clear A (high part of literals count)
 
 lz1gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
