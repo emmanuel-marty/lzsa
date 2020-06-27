@@ -1,4 +1,4 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 109 bytes
+;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 110 bytes
 ;  compress with lzsa -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
