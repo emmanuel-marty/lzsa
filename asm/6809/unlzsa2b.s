@@ -68,10 +68,9 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          lslb              ; push token's Y flag bit into carry
          bcs lz2offs9      ; if token's Y bit is set, 9 bits offset
 
-         lslb              ; push token's Z flag bit into carry
-         tfr cc,a          ; preserve cpu flags (to preserve carry)
+         sex               ; push token's Z flag bit into reg A
          bsr lz2nibl       ; get offset nibble in B
-         tfr a,cc          ; restore cpu flags
+         lsla              ; retrieve token's Z flag bit and push into carry
 
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 5-7 of offset, reverse bit 0
@@ -105,10 +104,9 @@ lz2done  rts
 lz2replg lslb              ; push token's Y flag bit into carry
          bcs lz2rep16      ; if token's Y bit is set, rep or 16 bit offset
 
-         lslb              ; push token's Z flag bit into carry
-         tfr cc,a          ; preserve cpu flags (to preserve carry)
+         sex               ; push token's Z flag bit into reg A
          bsr lz2nibl       ; get offset nibble in B
-         tfr a,cc          ; restore cpu flags
+         lsla              ; retrieve token's Z flag bit and push into carry
 
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 13-15 of offset, reverse bit 8
