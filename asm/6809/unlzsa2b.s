@@ -74,7 +74,7 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
 
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 5-7 of offset, reverse bit 0
-         lda #$ff          ; set bits 8-15 of offset
+         sex               ; set bits 8-15 of offset to $FF
          bra lz2gotof
 
 lz2offs9 clra              ; clear A (to prepare for high 8 bits of offset)
