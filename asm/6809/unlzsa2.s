@@ -54,7 +54,7 @@ lz2gotla clra              ; clear A (high part of literals count)
 lz2gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz2cpylt lda ,u+           ; copy literal byte
-         sta ,y+ 
+         sta ,y+
          leax -1,x         ; decrement X and update Z flag
          bne lz2cpylt      ; loop until all literal bytes are copied
          tfr u,x
@@ -104,25 +104,21 @@ lz2replg lslb              ; push token's Y flag bit into carry
          sex               ; push token's Z flag bit into reg A
          bsr lz2nibl       ; get offset nibble in B
          lsla              ; push token's Z flag bit into carry
-
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 13-15 of offset, reverse bit 8
          tfr b,a           ; copy bits 8-15 of offset into A
          suba #$02         ; substract 512 from offset
-
          ldb ,x+           ; load low 8 bits of (negative, signed) offset
          bra lz2gotof
 
 lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
-         
          ldd ,x++          ; load high then low 8 bits of offset
 
 lz2gotof std <lz2repof+2,pcr ; store match offset
 lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
 
-         
          puls b            ; restore token
-         
+
          clra              ; clear A (high part of match length)
          andb #$07         ; isolate MMM (embedded match length)
          addb #$02         ; add MIN_MATCH_SIZE_V2
@@ -145,10 +141,9 @@ lz2gotln pshs x            ; save source compressed data pointer
          tfr d,x           ; copy match length to X
 
 lz2cpymt lda ,u+           ; copy matched byte
-         sta ,y+ 
+         sta ,y+
          leax -1,x         ; decrement X
          bne lz2cpymt      ; loop until all matched bytes are copied
 
          puls x            ; restore source compressed data pointer
          lbra lz2token     ; go decode next token
-

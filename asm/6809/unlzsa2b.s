@@ -51,11 +51,11 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
 lz2declt lsrb              ; shift literals count into place
          lsrb
          lsrb
- 
+
 lz2gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz2cpylt lda ,-u           ; copy literal byte
-         sta ,-y 
+         sta ,-y
          leax -1,x         ; decrement X and update Z flag
          bne lz2cpylt      ; loop until all literal bytes are copied
          tfr u,x
@@ -78,7 +78,7 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          bra lz2gotof
 
 lz2offs9 clra              ; clear A (to prepare for high 8 bits of offset)
-         lslb              ; push token's Z flag bit into carry         
+         lslb              ; push token's Z flag bit into carry
          rola              ; shift Z flag from carry into bit 0 of A
          coma              ; set bits 9-15 of offset, reverse bit 8
          bra lz2lowof
@@ -115,7 +115,7 @@ lz2replg lslb              ; push token's Y flag bit into carry
          bra lz2lowof
 
 lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
-         
+
          lda ,-x           ; load high 8 bits of (negative, signed) offset
 lz2lowof ldb ,-x           ; load low 8 bits of offset
 
@@ -126,9 +126,9 @@ lz2gotof nega              ; reverse sign of offset in D
 
 lz2repof ldd #$aaaa        ; load match offset
          leau d,y          ; put backreference start address in U (dst+offset)
-         
+
          puls b            ; restore token
-         
+
          clra              ; clear A (high part of match length)
          andb #$07         ; isolate MMM (embedded match length)
          addb #$02         ; add MIN_MATCH_SIZE_V2
@@ -150,10 +150,9 @@ lz2gotln pshs x            ; save source compressed data pointer
          tfr d,x           ; copy match length to X
 
 lz2cpymt lda ,-u           ; copy matched byte
-         sta ,-y 
+         sta ,-y
          leax -1,x         ; decrement X
          bne lz2cpymt      ; loop until all matched bytes are copied
 
          puls x            ; restore source compressed data pointer
          lbra lz2token     ; go decode next token
-
