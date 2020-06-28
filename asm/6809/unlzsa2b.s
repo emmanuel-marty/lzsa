@@ -1,4 +1,4 @@
-;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 187 bytes
+;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 174 bytes
 ;  compress with lzsa -f2 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -31,7 +31,6 @@ decompress_lzsa2
 lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          pshs b            ; save it
 
-         clra              ; clear A (high part of literals count)
          andb #$18         ; isolate LLL (embedded literals count) in B
          beq lz2nolt       ; skip if no literals
          cmpb #$18         ; LITERALS_RUN_LEN_V2?
@@ -40,10 +39,10 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          bsr lz2nibl       ; get extra literals length nibble in B
          addb #$03         ; add LITERALS_RUN_LEN_V2
          cmpb #$12         ; LITERALS_RUN_LEN_V2 + 15 ?
-         bne lz2gotlt      ; if not, we have the full literals count, go copy
+         bne lz2gotla      ; if not, we have the full literals count, go copy
 
          addb ,-x         ; add extra literals count byte + LITERALS_RUN_LEN + 15
-         bcc lz2gotlt      ; if no overflow, we got the complete count, copy
+         bcc lz2gotla      ; if no overflow, we got the complete count, copy
 
          ldd ,--x          ; load 16 bit count in D (low part in B, high in A)
          bra lz2gotlt      ; we now have the complete count, go copy
@@ -51,11 +50,12 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
 lz2declt lsrb              ; shift literals count into place
          lsrb
          lsrb
- 
+lz2gotla clra              ; clear A (high part of literals count)
+
 lz2gotlt tfr x,u
          tfr d,x           ; transfer 16-bit count into X
 lz2cpylt lda ,-u           ; copy literal byte
-         sta ,-y 
+         sta ,-y
          leax -1,x         ; decrement X and update Z flag
          bne lz2cpylt      ; loop until all literal bytes are copied
          tfr u,x
@@ -66,22 +66,18 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          bcs lz2replg      ; if token's X bit is set, rep or large offset
 
          lslb              ; push token's Y flag bit into carry
+         sex               ; push token's Z flag bit into reg A (carry flag is not effected)
          bcs lz2offs9      ; if token's Y bit is set, 9 bits offset
 
-         lslb              ; push token's Z flag bit into carry
-         tfr cc,a          ; preserve cpu flags (to preserve carry)
          bsr lz2nibl       ; get offset nibble in B
-         tfr a,cc          ; restore cpu flags
+         lsla              ; retrieve token's Z flag bit and push into carry
 
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 5-7 of offset, reverse bit 0
-         lda #$ff          ; set bits 8-15 of offset
+         sex               ; set bits 8-15 of offset to $FF
          bra lz2gotof
 
-lz2offs9 clra              ; clear A (to prepare for high 8 bits of offset)
-         lslb              ; push token's Z flag bit into carry         
-         rola              ; shift Z flag from carry into bit 0 of A
-         coma              ; set bits 9-15 of offset, reverse bit 8
+lz2offs9 deca               ; set bits 9-15 of offset, reverse bit 8
          bra lz2lowof
 
 lz2nibct fcb $00           ; nibble ready flag
@@ -105,10 +101,9 @@ lz2done  rts
 lz2replg lslb              ; push token's Y flag bit into carry
          bcs lz2rep16      ; if token's Y bit is set, rep or 16 bit offset
 
-         lslb              ; push token's Z flag bit into carry
-         tfr cc,a          ; preserve cpu flags (to preserve carry)
+         sex               ; push token's Z flag bit into reg A
          bsr lz2nibl       ; get offset nibble in B
-         tfr a,cc          ; restore cpu flags
+         lsla              ; retrieve token's Z flag bit and push into carry
 
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 13-15 of offset, reverse bit 8
@@ -117,20 +112,19 @@ lz2replg lslb              ; push token's Y flag bit into carry
          bra lz2lowof
 
 lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
-         
+
          lda ,-x           ; load high 8 bits of (negative, signed) offset
 lz2lowof ldb ,-x           ; load low 8 bits of offset
 
 lz2gotof nega              ; reverse sign of offset in D
          negb
          sbca #0
-         std <lz2repof+1,pcr ; store match offset
+         std <lz2repof+2,pcr ; store match offset
 
-lz2repof ldd #$aaaa        ; load match offset
-         leau d,y          ; put backreference start address in U (dst+offset)
-         
+lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
+
          puls b            ; restore token
-         
+
          clra              ; clear A (high part of match length)
          andb #$07         ; isolate MMM (embedded match length)
          addb #$02         ; add MIN_MATCH_SIZE_V2
@@ -142,8 +136,7 @@ lz2repof ldd #$aaaa        ; load match offset
          cmpb #$18         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
          bne lz2gotln      ; if not, we have the full match length, go copy
 
-         ldb ,-x           ; load extra length byte
-         addb #$18         ; add MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15
+         addb ,-x          ; add extra length byte + MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15
          bcc lz2gotln      ; if no overflow, we have the full length
          beq lz2done       ; detect EOD code
 
@@ -153,10 +146,9 @@ lz2gotln pshs x            ; save source compressed data pointer
          tfr d,x           ; copy match length to X
 
 lz2cpymt lda ,-u           ; copy matched byte
-         sta ,-y 
+         sta ,-y
          leax -1,x         ; decrement X
          bne lz2cpymt      ; loop until all matched bytes are copied
 
          puls x            ; restore source compressed data pointer
          lbra lz2token     ; go decode next token
-
