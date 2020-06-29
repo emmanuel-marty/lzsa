@@ -90,13 +90,13 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
 
 lz1gotla clra              ; clear A (high part of literals count)
-lz1gotlt tfr x,u
+lz1gotlt leau ,x
          tfr d,x           ; transfer 16-bit count into X
 lz1cpylt lda ,-u           ; copy literal byte
          sta ,-y
          leax -1,x         ; decrement X and update Z flag
          bne lz1cpylt      ; loop until all literal bytes are copied
-         tfr u,x
+         leax ,u
 
 lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
          bmi lz1bigof      ; test O bit (small or large offset)
