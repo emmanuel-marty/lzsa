@@ -1,4 +1,4 @@
-;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 174 bytes
+;  unlzsa2b.s - 6809 backward decompression routine for raw LZSA2 - 171 bytes
 ;  compress with lzsa -f2 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -24,7 +24,7 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 
 decompress_lzsa2
-         lsr <lz2nibct,pcr ; reset nibble available flag
+         clr <lz2nibct,pcr ; reset nibble available flag
          leax 1,x
          leay 1,y
 
@@ -41,7 +41,7 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          cmpb #$12         ; LITERALS_RUN_LEN_V2 + 15 ?
          bne lz2gotla      ; if not, we have the full literals count, go copy
 
-         addb ,-x         ; add extra literals count byte + LITERALS_RUN_LEN + 15
+         addb ,-x          ; add extra literals count byte + LITERALS_RUN_LEN + 15
          bcc lz2gotla      ; if no overflow, we got the complete count, copy
 
          ldd ,--x          ; load 16 bit count in D (low part in B, high in A)
@@ -77,16 +77,15 @@ lz2nolt  ldb ,s            ; get token again, don't pop it from the stack
          sex               ; set bits 8-15 of offset to $FF
          bra lz2gotof
 
-lz2offs9 deca               ; set bits 9-15 of offset, reverse bit 8
+lz2offs9 deca              ; set bits 9-15 of offset, reverse bit 8
          bra lz2lowof
 
 lz2nibct fcb $00           ; nibble ready flag
 
 lz2nibl  ldb #$aa
-         lsr <lz2nibct,pcr  ; nibble ready?
-         bcs lz2gotnb
+         com <lz2nibct,pcr ; toggle nibble ready flag and check
+         bpl lz2gotnb
 
-         inc <lz2nibct,pcr  ; flag nibble as ready for next time
          ldb ,-x           ; load two nibbles
          stb <lz2nibl+1,pcr ; store nibble for next time (low 4 bits)
 
