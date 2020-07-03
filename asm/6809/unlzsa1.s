@@ -28,10 +28,8 @@ decompress_lzsa1 equ lz1token
 lz1bigof lda ,x+           ; O set: load MSB 16-bit (negative, signed) offest
 lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
 
-         puls b            ; restore token
-
-         clra              ; clear A (high part of match length)
-         andb #$0F         ; isolate MMMM (embedded match length)
+         ldd #$000f        ; clear MSB match length and set mask for MMMM
+         andb ,s+          ; isolate MMMM (embedded match length) in token
          addb #$03         ; add MIN_MATCH_SIZE
          cmpb #$12         ; MATCH_RUN_LEN?
          bne lz1gotln      ; no, we have the full match length, go copy

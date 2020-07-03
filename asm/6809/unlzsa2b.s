@@ -122,10 +122,9 @@ lz2gotof nega              ; reverse sign of offset in D
 
 lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
 
-         puls b            ; restore token
+         ldd #$0007        ; clear MSB match length and set mask for MMM
+         andb ,s+          ; isolate MMM (embedded match length) in token
 
-         clra              ; clear A (high part of match length)
-         andb #$07         ; isolate MMM (embedded match length)
          addb #$02         ; add MIN_MATCH_SIZE_V2
          cmpb #$09         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
          bne lz2gotln      ; no, we have the full match length, go copy

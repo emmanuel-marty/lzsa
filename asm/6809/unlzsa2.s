@@ -49,8 +49,8 @@ lz2token ldb ,x+           ; load next token into B: XYZ|LL|MMM
 lz2declt lsrb              ; shift literals count into place
          lsrb
          lsrb
-
 lz2gotla clra              ; clear A (high part of literals count)
+
 lz2gotlt leau ,x
          tfr d,x           ; transfer 16-bit count into X
 lz2cpylt lda ,u+           ; copy literal byte
@@ -116,10 +116,8 @@ lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
 lz2gotof std <lz2repof+2,pcr ; store match offset
 lz2repof leau $aaaa,y      ; put backreference start address in U (dst+offset)
 
-         puls b            ; restore token
-
-         clra              ; clear A (high part of match length)
-         andb #$07         ; isolate MMM (embedded match length)
+         ldd #$0007        ; clear MSB match length and set mask for MMM
+         andb ,s+          ; isolate MMM (embedded match length) in token
          addb #$02         ; add MIN_MATCH_SIZE_V2
          cmpb #$09         ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2?
          bne lz2gotln      ; no, we have the full match length, go copy
