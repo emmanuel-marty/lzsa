@@ -1,4 +1,4 @@
-;  unlzsa2-6309.s - Hitachi 6309 decompression routine for raw LZSA2 - 154 bytes
+;  unlzsa2-6309.s - Hitachi 6309 decompression routine for raw LZSA2 - 150 bytes
 ;  compress with lzsa -f2 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
