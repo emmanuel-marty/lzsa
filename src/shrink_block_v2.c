@@ -96,6 +96,9 @@ static inline int lzsa_get_literals_varlen_size_v2(const int nLength) {
  *
  * @param pOutData pointer to output buffer
  * @param nOutOffset current write index into output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ * @param nCurNibbleOffset write index into output buffer, of current byte being filled with nibbles
+ * @param nCurFreeNibbles current number of free nibbles in byte
  * @param nLength literals length
  */
 static inline int lzsa_write_literals_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int *nCurFreeNibbles, int nLength) {
@@ -150,6 +153,9 @@ static inline int lzsa_get_match_varlen_size_v2(const int nLength) {
  *
  * @param pOutData pointer to output buffer
  * @param nOutOffset current write index into output buffer
+ * @param nMaxOutDataSize maximum size of output buffer, in bytes
+ * @param nCurNibbleOffset write index into output buffer, of current byte being filled with nibbles
+ * @param nCurFreeNibbles current number of free nibbles in byte
  * @param nLength encoded match length (actual match length - MIN_MATCH_SIZE_V2)
  */
 static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int *nCurFreeNibbles, int nLength) {
@@ -189,7 +195,7 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
 static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nStartOffset, const int nEndOffset, const int nMatchesPerArrival, int nDepth) {
    lzsa_arrival *arrival = pCompressor->arrival + ((i - nStartOffset) << MATCHES_PER_ARRIVAL_SHIFT);
    int j;
-   int nPrevRepPos = -1, nPrevRepLen = -1, nPrevPrevRepPos = -1, nPrevPrevRepLen = -1;
+   int nPrevRepPos = -1, nPrevPrevRepPos = -1;
 
    for (j = 0; j < nMatchesPerArrival && arrival[j].from_slot; j++) {
       int nRepOffset = arrival[j].rep_offset;
@@ -202,14 +208,12 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
             (nRepPos - nMatchOffset + nRepLen) <= (nEndOffset - LAST_LITERALS) &&
             pCompressor->match[((nRepPos - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2) + NMATCHES_PER_INDEX_V2 - 1].length == 0) {
 
-            if ((nPrevRepPos != nRepPos || nPrevRepLen != nRepLen) && (nPrevPrevRepPos != nRepPos || nPrevPrevRepLen != nRepLen)) {
-               nPrevPrevRepPos = nPrevRepPos;
-               nPrevPrevRepLen = nPrevRepLen;
-               nPrevRepPos = nRepPos;
-               nPrevRepLen = nRepLen;
-
+            if (nPrevRepPos != nRepPos && nPrevPrevRepPos != nRepPos) {
                if (!memcmp(pInWindow + nRepPos, pInWindow + nRepPos - nMatchOffset, nRepLen)) {
                   int nCurRepLen = nRepLen;
+
+                  nPrevPrevRepPos = nPrevRepPos;
+                  nPrevRepPos = nRepPos;
 
                   int nMaxRepLen = nEndOffset - nRepPos;
                   if (nMaxRepLen > LCP_MAX)
@@ -262,8 +266,7 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
  */
 static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps, const int nMatchesPerArrival) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << MATCHES_PER_ARRIVAL_SHIFT);
-   const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
-   const int nModeSwitchPenalty = nFavorRatio ? 0 : MODESWITCH_PENALTY;
+   const int nModeSwitchPenalty = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 0 : MODESWITCH_PENALTY;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
    const int nLeaveAloneMatchSize = (nMatchesPerArrival == NMATCHES_PER_ARRIVAL_V2_SMALL) ? LEAVE_ALONE_MATCH_SIZE_SMALL : LEAVE_ALONE_MATCH_SIZE;
