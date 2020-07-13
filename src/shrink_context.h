@@ -63,8 +63,6 @@ extern "C" {
 #define LEAVE_ALONE_MATCH_SIZE 300
 #define LEAVE_ALONE_MATCH_SIZE_SMALL 1000
 
-#define LAST_LITERALS 0
-
 #define MODESWITCH_PENALTY 3
 
 /** One match */

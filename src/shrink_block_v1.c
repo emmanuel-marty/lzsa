@@ -217,8 +217,8 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          int nMatchOffsetCost = lzsa_get_offset_cost_v1(match[m].offset);
          int nStartingMatchLen, k;
 
-         if ((i + nMatchLen) > (nEndOffset - LAST_LITERALS))
-            nMatchLen = nEndOffset - LAST_LITERALS - i;
+         if ((i + nMatchLen) > nEndOffset)
+            nMatchLen = nEndOffset - i;
 
          if (nMatchLen >= LEAVE_ALONE_MATCH_SIZE)
             nStartingMatchLen = nMatchLen;
@@ -308,12 +308,12 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const un
       lzsa_match *pMatch = pBestMatch + i;
 
       if (pMatch->length == 0 &&
-         (i + 1) < (nEndOffset - LAST_LITERALS) &&
+         (i + 1) < nEndOffset &&
          pBestMatch[i + 1].length >= MIN_MATCH_SIZE_V1 &&
          pBestMatch[i + 1].length < MAX_VARLEN &&
          pBestMatch[i + 1].offset &&
          i >= pBestMatch[i + 1].offset &&
-         (i + pBestMatch[i + 1].length + 1) <= (nEndOffset - LAST_LITERALS) &&
+         (i + pBestMatch[i + 1].length + 1) <= nEndOffset &&
          !memcmp(pInWindow + i - (pBestMatch[i + 1].offset), pInWindow + i, pBestMatch[i + 1].length + 1)) {
          int nCurLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length - MIN_MATCH_SIZE_V1);
          int nReducedLenSize = lzsa_get_match_varlen_size_v1(pBestMatch[i + 1].length + 1 - MIN_MATCH_SIZE_V1);
