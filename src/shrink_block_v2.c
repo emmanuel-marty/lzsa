@@ -558,7 +558,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         int exists = 0;
 
                         for (n = 0;
-                           n < nMatchesPerArrival && pDestSlots[n].cost <= nRepCodingChoiceCost;
+                           n < nMatchesPerArrival && pDestSlots[n].cost < nRepCodingChoiceCost;
                            n++) {
                            if (pDestSlots[n].rep_offset == nRepOffset) {
                               exists = 1;
@@ -569,35 +569,58 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         if (!exists) {
                            int nScore = cur_arrival[j].score + 2;
 
-                           for (n = 0; n < nMatchesPerArrival; n++) {
-                              lzsa_arrival* pDestArrival = &pDestSlots[n];
-
-                              if (nRepCodingChoiceCost < pDestArrival->cost ||
-                                 (nRepCodingChoiceCost == pDestArrival->cost && nScore < (pDestArrival->score + nDisableScore))) {
-                                 if (pDestArrival->from_slot) {
-                                    int z;
-
-                                    for (z = n; z < nMatchesPerArrival - 1; z++) {
-                                       if (pDestSlots[z].rep_offset == nRepOffset)
-                                          break;
-                                    }
-
-                                    memmove(&pDestSlots[n + 1],
-                                       &pDestSlots[n],
-                                       sizeof(lzsa_arrival) * (z - n));
-                                 }
-
-                                 pDestArrival->cost = nRepCodingChoiceCost;
-                                 pDestArrival->from_pos = i;
-                                 pDestArrival->from_slot = j + 1;
-                                 pDestArrival->match_offset = nRepOffset;
-                                 pDestArrival->match_len = k;
-                                 pDestArrival->num_literals = 0;
-                                 pDestArrival->score = nScore;
-                                 pDestArrival->rep_offset = nRepOffset;
-                                 pDestArrival->rep_pos = i;
-                                 pDestArrival->rep_len = k;
+                           for (;
+                              n < nMatchesPerArrival && pDestSlots[n].cost == nRepCodingChoiceCost && nScore >= (pDestSlots[n].score + nDisableScore);
+                              n++) {
+                              if (pDestSlots[n].rep_offset == nRepOffset) {
+                                 exists = 1;
                                  break;
+                              }
+                           }
+
+                           if (!exists) {
+                              int nn;
+
+                              for (nn = n;
+                                 nn < nMatchesPerArrival && pDestSlots[nn].cost == nRepCodingChoiceCost;
+                                 nn++) {
+                                 if (pDestSlots[nn].rep_offset == nRepOffset) {
+                                    exists = 1;
+                                    break;
+                                 }
+                              }
+
+                              if (!exists) {
+                                 for (; n < nMatchesPerArrival; n++) {
+                                    lzsa_arrival* pDestArrival = &pDestSlots[n];
+
+                                    if (nRepCodingChoiceCost < pDestArrival->cost || nScore < (pDestArrival->score + nDisableScore)) {
+                                       if (pDestArrival->from_slot) {
+                                          int z;
+
+                                          for (z = n; z < nMatchesPerArrival - 1; z++) {
+                                             if (pDestSlots[z].rep_offset == nRepOffset)
+                                                break;
+                                          }
+
+                                          memmove(&pDestSlots[n + 1],
+                                             &pDestSlots[n],
+                                             sizeof(lzsa_arrival) * (z - n));
+                                       }
+
+                                       pDestArrival->cost = nRepCodingChoiceCost;
+                                       pDestArrival->from_pos = i;
+                                       pDestArrival->from_slot = j + 1;
+                                       pDestArrival->match_offset = nRepOffset;
+                                       pDestArrival->match_len = k;
+                                       pDestArrival->num_literals = 0;
+                                       pDestArrival->score = nScore;
+                                       pDestArrival->rep_offset = nRepOffset;
+                                       pDestArrival->rep_pos = i;
+                                       pDestArrival->rep_len = k;
+                                       break;
+                                    }
+                                 }
                               }
                            }
                         }
