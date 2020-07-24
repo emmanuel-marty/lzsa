@@ -43,22 +43,18 @@
  * @param nOutOffset current write index into output buffer
  * @param nMaxOutDataSize maximum size of output buffer, in bytes
  * @param nCurNibbleOffset write index into output buffer, of current byte being filled with nibbles
- * @param nCurFreeNibbles current number of free nibbles in byte
  * @param nNibbleValue value to write (0..15)
  */
-static int lzsa_write_nibble_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int *nCurFreeNibbles, int nNibbleValue) {
+static int lzsa_write_nibble_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int nNibbleValue) {
    if (nOutOffset < 0) return -1;
 
    if ((*nCurNibbleOffset) == -1) {
       if (nOutOffset >= nMaxOutDataSize) return -1;
       (*nCurNibbleOffset) = nOutOffset;
-      (*nCurFreeNibbles) = 2;
-      pOutData[nOutOffset++] = 0;
+      pOutData[nOutOffset++] = nNibbleValue << 4;
    }
-
-   pOutData[*nCurNibbleOffset] = (pOutData[*nCurNibbleOffset] << 4) | (nNibbleValue & 0x0f);
-   (*nCurFreeNibbles)--;
-   if ((*nCurFreeNibbles) == 0) {
+   else {
+      pOutData[*nCurNibbleOffset] = (pOutData[*nCurNibbleOffset]) | (nNibbleValue & 0x0f);
       (*nCurNibbleOffset) = -1;
    }
 
@@ -98,16 +94,15 @@ static inline int lzsa_get_literals_varlen_size_v2(const int nLength) {
  * @param nOutOffset current write index into output buffer
  * @param nMaxOutDataSize maximum size of output buffer, in bytes
  * @param nCurNibbleOffset write index into output buffer, of current byte being filled with nibbles
- * @param nCurFreeNibbles current number of free nibbles in byte
  * @param nLength literals length
  */
-static inline int lzsa_write_literals_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int *nCurFreeNibbles, int nLength) {
+static inline int lzsa_write_literals_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int nLength) {
    if (nLength >= LITERALS_RUN_LEN_V2) {
       if (nLength < (LITERALS_RUN_LEN_V2 + 15)) {
-         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nCurFreeNibbles, nLength - LITERALS_RUN_LEN_V2);
+         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nLength - LITERALS_RUN_LEN_V2);
       }
       else {
-         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nCurFreeNibbles, 15);
+         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, 15);
          if (nOutOffset < 0) return -1;
 
          if (nLength < 256)
@@ -155,16 +150,15 @@ static inline int lzsa_get_match_varlen_size_v2(const int nLength) {
  * @param nOutOffset current write index into output buffer
  * @param nMaxOutDataSize maximum size of output buffer, in bytes
  * @param nCurNibbleOffset write index into output buffer, of current byte being filled with nibbles
- * @param nCurFreeNibbles current number of free nibbles in byte
  * @param nLength encoded match length (actual match length - MIN_MATCH_SIZE_V2)
  */
-static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int *nCurFreeNibbles, int nLength) {
+static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOffset, const int nMaxOutDataSize, int *nCurNibbleOffset, int nLength) {
    if (nLength >= MATCH_RUN_LEN_V2) {
       if (nLength < (MATCH_RUN_LEN_V2 + 15)) {
-         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nCurFreeNibbles, nLength - MATCH_RUN_LEN_V2);
+         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nLength - MATCH_RUN_LEN_V2);
       }
       else {
-         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, nCurFreeNibbles, 15);
+         nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, nCurNibbleOffset, 15);
          if (nOutOffset < 0) return -1;
 
          if ((nLength + MIN_MATCH_SIZE_V2) < 256)
@@ -189,16 +183,15 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
  * @param nMatchOffset match offset to use as rep candidate
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
- * @param nArrivalsPerPosition number of arrivals to record per input buffer position
  * @param nDepth current insertion depth
  */
-static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nStartOffset, const int nEndOffset, const int nArrivalsPerPosition, int nDepth) {
+static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nStartOffset, const int nEndOffset, int nDepth) {
    lzsa_arrival *arrival = pCompressor->arrival + ((i - nStartOffset) << ARRIVALS_PER_POSITION_SHIFT);
    const int *rle_end = (int*)pCompressor->intervals /* reuse */;
    int j;
    int nPrevRepPos = -1, nPrevPrevRepPos = -1;
 
-   for (j = 0; j < nArrivalsPerPosition && arrival[j].from_slot; j++) {
+   for (j = 0; j < NARRIVALS_PER_POSITION_V2_BIG && arrival[j].from_slot; j++) {
       int nRepOffset = arrival[j].rep_offset;
 
       if (nMatchOffset != nRepOffset && nRepOffset && arrival[j].rep_len >= MIN_MATCH_SIZE_V2) {
@@ -253,7 +246,7 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
                         fwd_match[r].length = nCurRepLen;
 
                         if (nDepth < 9)
-                           lzsa_insert_forward_match_v2(pCompressor, pInWindow, nRepPos, nMatchOffset, nStartOffset, nEndOffset, nArrivalsPerPosition, nDepth + 1);
+                           lzsa_insert_forward_match_v2(pCompressor, pInWindow, nRepPos, nMatchOffset, nStartOffset, nEndOffset, nDepth + 1);
                      }
                   }
                }
@@ -330,48 +323,52 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             }
 
             if (!exists) {
-               int nn;
+               int nScore = cur_arrival[j].score + 1;
 
-               for (nn = n;
-                  nn < nArrivalsPerPosition && pDestSlots[nn].cost == nCodingChoiceCost;
-                  nn++) {
-                  if (pDestSlots[nn].rep_offset == nRepOffset) {
+               for (;
+                  n < nArrivalsPerPosition && pDestSlots[n].cost == nCodingChoiceCost && nScore >= (pDestSlots[n].score + nDisableScore);
+                  n++) {
+                  if (pDestSlots[n].rep_offset == nRepOffset) {
                      exists = 1;
                      break;
                   }
                }
 
                if (!exists) {
-                  int nScore = cur_arrival[j].score + 1;
-                  
-                  for (; n < nArrivalsPerPosition; n++) {
-                     lzsa_arrival* pDestArrival = &pDestSlots[n];
-                     if (nCodingChoiceCost < pDestArrival->cost || nScore < (pDestArrival->score + nDisableScore)) {
+                  if (n < nArrivalsPerPosition) {
+                     int nn;
 
-                        if (pDestArrival->from_slot) {
-                           int z;
+                     for (nn = n;
+                        nn < nArrivalsPerPosition && pDestSlots[nn].cost == nCodingChoiceCost;
+                        nn++) {
+                        if (pDestSlots[nn].rep_offset == nRepOffset) {
+                           exists = 1;
+                           break;
+                        }
+                     }
 
-                           for (z = n; z < nArrivalsPerPosition - 1; z++) {
-                              if (pDestSlots[z].rep_offset == nRepOffset)
-                                 break;
-                           }
+                     if (!exists) {
+                        int z;
 
-                           memmove(&pDestSlots[n + 1],
-                              &pDestSlots[n],
-                              sizeof(lzsa_arrival) * (z - n));
+                        for (z = n; z < nArrivalsPerPosition - 1 && pDestSlots[z].from_slot; z++) {
+                           if (pDestSlots[z].rep_offset == nRepOffset)
+                              break;
                         }
 
+                        memmove(&pDestSlots[n + 1],
+                           &pDestSlots[n],
+                           sizeof(lzsa_arrival) * (z - n));
+
+                        lzsa_arrival* pDestArrival = &pDestSlots[n];
                         pDestArrival->cost = nCodingChoiceCost;
                         pDestArrival->from_pos = i;
                         pDestArrival->from_slot = j + 1;
-                        pDestArrival->match_offset = 0;
                         pDestArrival->match_len = 0;
                         pDestArrival->num_literals = nNumLiterals;
                         pDestArrival->score = nScore;
                         pDestArrival->rep_offset = nRepOffset;
                         pDestArrival->rep_pos = cur_arrival[j].rep_pos;
                         pDestArrival->rep_len = cur_arrival[j].rep_len;
-                        break;
                      }
                   }
                }
@@ -380,6 +377,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       }
 
       lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
+      int nNumArrivalsForThisPos = j;
 
       int nMinRepLen[NARRIVALS_PER_POSITION_V2_BIG];
       memset(nMinRepLen, 0, nArrivalsPerPosition * sizeof(int));
@@ -387,7 +385,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
          int nMatchLen = match[m].length & 0x7fff;
          int nMatchOffset = match[m].offset;
-         int nScorePenalty = ((match[m].length & 0x8000) >> 15);
+         int nScorePenalty = 3 + ((match[m].length & 0x8000) >> 15);
          int nNoRepmatchOffsetCost = (nMatchOffset <= 32) ? 4 : ((nMatchOffset <= 512) ? 8 : ((nMatchOffset <= (8192 + 512)) ? 12 : 16));
          int nStartingMatchLen, nMaxOverallRepLen = 0, k;
          int nMaxRepLen[NARRIVALS_PER_POSITION_V2_BIG];
@@ -395,7 +393,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          if ((i + nMatchLen) > nEndOffset)
             nMatchLen = nEndOffset - i;
 
-         for (j = 0; j < nArrivalsPerPosition && cur_arrival[j].from_slot; j++) {
+         for (j = 0; j < nNumArrivalsForThisPos; j++) {
             int nRepOffset = cur_arrival[j].rep_offset;
             int nCurMaxRepLen = 0;
 
@@ -429,28 +427,28 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             nMaxRepLen[j++] = 0;
 
          if (nInsertForwardReps)
-            lzsa_insert_forward_match_v2(pCompressor, pInWindow, i, nMatchOffset, nStartOffset, nEndOffset, nArrivalsPerPosition, 0);
+            lzsa_insert_forward_match_v2(pCompressor, pInWindow, i, nMatchOffset, nStartOffset, nEndOffset, 0);
 
          int nMatchLenCost;
          if (nMatchLen >= nLeaveAloneMatchSize) {
             nStartingMatchLen = nMatchLen;
-            nMatchLenCost = 4 + 24;
+            nMatchLenCost = 4 + 24 + 8 /* token */;
          }
          else {
             nStartingMatchLen = nMinMatchSize;
-            nMatchLenCost = 0;
+            nMatchLenCost = 0 + 8 /* token */;
          }
 
          for (k = nStartingMatchLen; k <= nMatchLen; k++) {
             if (k == (MATCH_RUN_LEN_V2 + MIN_MATCH_SIZE_V2)) {
-               nMatchLenCost = 4;
+               nMatchLenCost = 4 + 8 /* token */;
             }
             else {
                if (k == (MATCH_RUN_LEN_V2 + 15 + MIN_MATCH_SIZE_V2))
-                  nMatchLenCost = 4 + 8;
+                  nMatchLenCost = 4 + 8 + 8 /* token */;
                else {
                   if (k == 256)
-                     nMatchLenCost = 4 + 24;
+                     nMatchLenCost = 4 + 24 + 8 /* token */;
                }
             }
 
@@ -458,12 +456,12 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             /* Insert non-repmatch candidates */
 
-            for (j = 0; j < nArrivalsPerPosition && cur_arrival[j].from_slot; j++) {
+            for (j = 0; j < nNumArrivalsForThisPos; j++) {
                int nRepOffset = cur_arrival[j].rep_offset;
 
                if (nMatchOffset != nRepOffset) {
                   const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
-                  int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost + nNoRepmatchOffsetCost;
+                  int nCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost + nNoRepmatchOffsetCost;
 
                   if (!cur_arrival[j].num_literals)
                      nCodingChoiceCost += nModeSwitchPenalty;
@@ -481,80 +479,78 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      }
 
                      if (!exists) {
-                        int nn;
+                        int nScore = cur_arrival[j].score + nScorePenalty;
 
-                        for (nn = n;
-                           nn < nArrivalsPerPosition && pDestSlots[nn].cost == nCodingChoiceCost;
-                           nn++) {
-                           if (pDestSlots[nn].rep_offset == nMatchOffset &&
-                              (!nInsertForwardReps || pDestSlots[nn].rep_pos >= i ||
-                                 pDestSlots[nArrivalsPerPosition - 1].from_slot)) {
+                        for (;
+                           n < nArrivalsPerPosition && pDestSlots[n].cost == nCodingChoiceCost && nScore >= (pDestSlots[n].score + nDisableScore);
+                           n++) {
+                           if (pDestSlots[n].rep_offset == nMatchOffset) {
                               exists = 1;
                               break;
                            }
                         }
 
                         if (!exists) {
-                           int nScore = cur_arrival[j].score + 3 + nScorePenalty;
+                           if (n < nArrivalsPerPosition - 1) {
+                              int nn;
 
-                           for (; n < nArrivalsPerPosition - 1; n++) {
-                              lzsa_arrival* pDestArrival = &pDestSlots[n];
+                              for (nn = n;
+                                 nn < nArrivalsPerPosition && pDestSlots[nn].cost == nCodingChoiceCost;
+                                 nn++) {
+                                 if (pDestSlots[nn].rep_offset == nMatchOffset &&
+                                    (!nInsertForwardReps || pDestSlots[nn].rep_pos >= i ||
+                                       pDestSlots[nArrivalsPerPosition - 1].from_slot)) {
+                                    exists = 1;
+                                    break;
+                                 }
+                              }
 
-                              if (nCodingChoiceCost < pDestArrival->cost || nScore < (pDestArrival->score + nDisableScore)) {
-                                 if (pDestArrival->from_slot) {
-                                    int z;
+                              if (!exists) {
+                                 int z;
 
-                                    for (z = n; z < nArrivalsPerPosition - 1; z++) {
-                                       if (pDestSlots[z].rep_offset == nMatchOffset)
-                                          break;
-                                    }
-
-                                    if (z == (nArrivalsPerPosition - 1) && pDestSlots[z].from_slot && pDestSlots[z].match_len < MIN_MATCH_SIZE_V2)
-                                       z--;
-
-                                    memmove(&pDestSlots[n + 1],
-                                       &pDestSlots[n],
-                                       sizeof(lzsa_arrival) * (z - n));
+                                 for (z = n; z < nArrivalsPerPosition - 1 && pDestSlots[z].from_slot; z++) {
+                                    if (pDestSlots[z].rep_offset == nMatchOffset)
+                                       break;
                                  }
 
+                                 if (z == (nArrivalsPerPosition - 1) && pDestSlots[z].from_slot && pDestSlots[z].match_len < MIN_MATCH_SIZE_V2)
+                                    z--;
+
+                                 memmove(&pDestSlots[n + 1],
+                                    &pDestSlots[n],
+                                    sizeof(lzsa_arrival) * (z - n));
+
+                                 lzsa_arrival* pDestArrival = &pDestSlots[n];
                                  pDestArrival->cost = nCodingChoiceCost;
                                  pDestArrival->from_pos = i;
                                  pDestArrival->from_slot = j + 1;
-                                 pDestArrival->match_offset = nMatchOffset;
                                  pDestArrival->match_len = k;
                                  pDestArrival->num_literals = 0;
                                  pDestArrival->score = nScore;
                                  pDestArrival->rep_offset = nMatchOffset;
                                  pDestArrival->rep_pos = i;
                                  pDestArrival->rep_len = k;
-                                 j = nArrivalsPerPosition;
-                                 break;
                               }
                            }
                         }
-                        else {
-                           break;
-                        }
-                     }
-                     else {
-                        break;
                      }
                   }
-                  else {
-                     break;
-                  }
+
+                  break;
                }
             }
 
             /* Insert repmatch candidates */
 
             if (k <= nMaxOverallRepLen) {
-               for (j = 0; j < nArrivalsPerPosition && cur_arrival[j].from_slot; j++) {
+               for (j = 0; j < nNumArrivalsForThisPos; j++) {
                   if (nMaxRepLen[j] >= k) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
-                     int nRepCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
+                     int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
+                     int nScore = cur_arrival[j].score + 2;
 
-                     if (nRepCodingChoiceCost <= pDestSlots[nArrivalsPerPosition - 1].cost) {
+                     if (nRepCodingChoiceCost < pDestSlots[nArrivalsPerPosition - 1].cost ||
+                        (nRepCodingChoiceCost == pDestSlots[nArrivalsPerPosition - 1].cost && nScore < (pDestSlots[nArrivalsPerPosition - 1].score + nDisableScore))) {
                         int nRepOffset = cur_arrival[j].rep_offset;
                         int exists = 0;
 
@@ -568,8 +564,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                         }
 
                         if (!exists) {
-                           int nScore = cur_arrival[j].score + 2;
-
                            for (;
                               n < nArrivalsPerPosition && pDestSlots[n].cost == nRepCodingChoiceCost && nScore >= (pDestSlots[n].score + nDisableScore);
                               n++) {
@@ -580,47 +574,40 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                            }
 
                            if (!exists) {
-                              int nn;
+                              if (n < nArrivalsPerPosition) {
+                                 int nn;
 
-                              for (nn = n;
-                                 nn < nArrivalsPerPosition && pDestSlots[nn].cost == nRepCodingChoiceCost;
-                                 nn++) {
-                                 if (pDestSlots[nn].rep_offset == nRepOffset) {
-                                    exists = 1;
-                                    break;
-                                 }
-                              }
-
-                              if (!exists) {
-                                 for (; n < nArrivalsPerPosition; n++) {
-                                    lzsa_arrival* pDestArrival = &pDestSlots[n];
-
-                                    if (nRepCodingChoiceCost < pDestArrival->cost || nScore < (pDestArrival->score + nDisableScore)) {
-                                       if (pDestArrival->from_slot) {
-                                          int z;
-
-                                          for (z = n; z < nArrivalsPerPosition - 1; z++) {
-                                             if (pDestSlots[z].rep_offset == nRepOffset)
-                                                break;
-                                          }
-
-                                          memmove(&pDestSlots[n + 1],
-                                             &pDestSlots[n],
-                                             sizeof(lzsa_arrival) * (z - n));
-                                       }
-
-                                       pDestArrival->cost = nRepCodingChoiceCost;
-                                       pDestArrival->from_pos = i;
-                                       pDestArrival->from_slot = j + 1;
-                                       pDestArrival->match_offset = nRepOffset;
-                                       pDestArrival->match_len = k;
-                                       pDestArrival->num_literals = 0;
-                                       pDestArrival->score = nScore;
-                                       pDestArrival->rep_offset = nRepOffset;
-                                       pDestArrival->rep_pos = i;
-                                       pDestArrival->rep_len = k;
+                                 for (nn = n;
+                                    nn < nArrivalsPerPosition && pDestSlots[nn].cost == nRepCodingChoiceCost;
+                                    nn++) {
+                                    if (pDestSlots[nn].rep_offset == nRepOffset) {
+                                       exists = 1;
                                        break;
                                     }
+                                 }
+
+                                 if (!exists) {
+                                    int z;
+
+                                    for (z = n; z < nArrivalsPerPosition - 1 && pDestSlots[z].from_slot; z++) {
+                                       if (pDestSlots[z].rep_offset == nRepOffset)
+                                          break;
+                                    }
+
+                                    memmove(&pDestSlots[n + 1],
+                                       &pDestSlots[n],
+                                       sizeof(lzsa_arrival) * (z - n));
+
+                                    lzsa_arrival* pDestArrival = &pDestSlots[n];
+                                    pDestArrival->cost = nRepCodingChoiceCost;
+                                    pDestArrival->from_pos = i;
+                                    pDestArrival->from_slot = j + 1;
+                                    pDestArrival->match_len = k;
+                                    pDestArrival->num_literals = 0;
+                                    pDestArrival->score = nScore;
+                                    pDestArrival->rep_offset = nRepOffset;
+                                    pDestArrival->rep_pos = i;
+                                    pDestArrival->rep_len = k;
                                  }
                               }
                            }
@@ -644,7 +631,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0) {
       if (end_arrival->from_pos >= nEndOffset) return;
       pBestMatch[end_arrival->from_pos].length = end_arrival->match_len;
-      pBestMatch[end_arrival->from_pos].offset = end_arrival->match_offset;
+      if (end_arrival->match_len)
+         pBestMatch[end_arrival->from_pos].offset = end_arrival->rep_offset;
+      else
+         pBestMatch[end_arrival->from_pos].offset = 0;
       end_arrival = &arrival[(end_arrival->from_pos << ARRIVALS_PER_POSITION_SHIFT) + (end_arrival->from_slot - 1)];
    }
 }
@@ -964,7 +954,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
    int nNumLiterals = 0;
    int nInFirstLiteralOffset = 0;
    int nOutOffset = 0;
-   int nCurNibbleOffset = -1, nCurFreeNibbles = 0;
+   int nCurNibbleOffset = -1;
    int nRepMatchOffset = 0;
 
    for (i = nStartOffset; i < nEndOffset; ) {
@@ -1010,7 +1000,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
             return -1;
 
          pOutData[nOutOffset++] = nTokenOffsetMode | (nTokenLiteralsLen << 3) | nTokenMatchLen;
-         nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
+         nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, nNumLiterals);
          if (nOutOffset < 0) return -1;
 
          if (nNumLiterals < pCompressor->stats.min_literals || pCompressor->stats.min_literals == -1)
@@ -1027,14 +1017,14 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          }
 
          if (nTokenOffsetMode == 0x00 || nTokenOffsetMode == 0x20) {
-            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, ((-nMatchOffset) & 0x1e) >> 1);
+            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, ((-nMatchOffset) & 0x1e) >> 1);
             if (nOutOffset < 0) return -1;
          }
          else if (nTokenOffsetMode == 0x40 || nTokenOffsetMode == 0x60) {
             pOutData[nOutOffset++] = (-nMatchOffset) & 0xff;
          }
          else if (nTokenOffsetMode == 0x80 || nTokenOffsetMode == 0xa0) {
-            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, ((-(nMatchOffset - 512)) >> 9) & 0x0f);
+            nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, ((-(nMatchOffset - 512)) >> 9) & 0x0f);
             if (nOutOffset < 0) return -1;
             pOutData[nOutOffset++] = (-(nMatchOffset - 512)) & 0xff;
          }
@@ -1048,7 +1038,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
 
          nRepMatchOffset = nMatchOffset;
 
-         nOutOffset = lzsa_write_match_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nEncodedMatchLen);
+         nOutOffset = lzsa_write_match_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, nEncodedMatchLen);
          if (nOutOffset < 0) return -1;
 
          if (nMatchOffset < pCompressor->stats.min_offset || pCompressor->stats.min_offset == -1)
@@ -1110,7 +1100,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0xe7;
       else
          pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0x00;
-      nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
+      nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, nNumLiterals);
       if (nOutOffset < 0) return -1;
 
       if (nNumLiterals < pCompressor->stats.min_literals || pCompressor->stats.min_literals == -1)
@@ -1141,7 +1131,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
       if (nOutOffset >= nMaxOutDataSize)
          return -1;
 
-      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 15);   /* Extended match length nibble */
+      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, 15);   /* Extended match length nibble */
       if (nOutOffset < 0) return -1;
 
       if ((nOutOffset + 1) > nMaxOutDataSize)
@@ -1151,7 +1141,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
    }
 
    if (nCurNibbleOffset != -1) {
-      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 0);
+      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, 0);
       if (nOutOffset < 0 || nCurNibbleOffset != -1)
          return -1;
    }
@@ -1172,7 +1162,7 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, lzsa_match *pBestMa
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
-   int nCurNibbleOffset = -1, nCurFreeNibbles = 0;
+   int nCurNibbleOffset = -1;
    int nNumLiterals = nEndOffset - nStartOffset;
    int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V2) ? LITERALS_RUN_LEN_V2 : nNumLiterals;
    int nOutOffset = 0;
@@ -1184,7 +1174,7 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
    pCompressor->num_commands = 0;
    pOutData[nOutOffset++] = (nTokenLiteralsLen << 3) | 0xe7;
 
-   nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, nNumLiterals);
+   nOutOffset = lzsa_write_literals_varlen_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, nNumLiterals);
    if (nOutOffset < 0) return -1;
 
    if (nNumLiterals != 0) {
@@ -1195,7 +1185,7 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
 
    /* Emit EOD marker for raw block */
 
-   nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 15);   /* Extended match length nibble */
+   nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, 15);   /* Extended match length nibble */
    if (nOutOffset < 0) return -1;
 
    if ((nOutOffset + 1) > nMaxOutDataSize)
@@ -1206,7 +1196,7 @@ static int lzsa_write_raw_uncompressed_block_v2(lzsa_compressor *pCompressor, co
    pCompressor->num_commands++;
 
    if (nCurNibbleOffset != -1) {
-      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, &nCurFreeNibbles, 0);
+      nOutOffset = lzsa_write_nibble_v2(pOutData, nOutOffset, nMaxOutDataSize, &nCurNibbleOffset, 0);
       if (nOutOffset < 0 || nCurNibbleOffset != -1)
          return -1;
    }

@@ -79,12 +79,10 @@ typedef struct {
 
    int from_pos;
    unsigned short rep_len;
+   unsigned short match_len;
    int rep_pos;
    int num_literals;
    int score;
-
-   unsigned short match_offset;
-   unsigned short match_len;
 } lzsa_arrival;
 
 /** Compression statistics */
