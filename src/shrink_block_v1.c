@@ -265,6 +265,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
                         pDestArrival->num_literals = 0;
                         pDestArrival->score = nScore;
                         pDestArrival->rep_offset = match[m].offset;
+                        j = NARRIVALS_PER_POSITION_V1;
                         break;
                      }
                   }
