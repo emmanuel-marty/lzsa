@@ -309,7 +309,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          if (nNumLiterals == 1)
             nCodingChoiceCost += nModeSwitchPenalty;
 
-         lzsa_arrival *pDestSlots = &arrival[(i + 1) << ARRIVALS_PER_POSITION_SHIFT];
+         lzsa_arrival *pDestSlots = &cur_arrival[1 << ARRIVALS_PER_POSITION_SHIFT];
          if (nCodingChoiceCost <= pDestSlots[nArrivalsPerPosition - 1].cost) {
             int nRepOffset = cur_arrival[j].rep_offset;
             int exists = 0;
@@ -400,7 +400,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                   int nLen0 = rle_end[i - nRepOffset] - (i - nRepOffset);
                   int nLen1 = rle_end[i] - (i);
                   int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
-                  int nCurMaxRepLen;
 
                   if (nMinLen > nMaxRepLen)
                      nMinLen = nMaxRepLen;
@@ -412,11 +411,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      pInWindowAtPos += 4;
                   while (pInWindowAtPos < pInWindowMax && pInWindowAtPos[-nRepOffset] == pInWindowAtPos[0])
                      pInWindowAtPos++;
-                  nCurMaxRepLen = (int)(pInWindowAtPos - (pInWindow + i));
-                  nMinRepLen[j] = nCurMaxRepLen;
+                  nMinRepLen[j] = (int)(pInWindowAtPos - (pInWindow + i));
 
-                  if (nMaxOverallRepLen < nCurMaxRepLen)
-                     nMaxOverallRepLen = nCurMaxRepLen;
+                  if (nMaxOverallRepLen < nMinRepLen[j])
+                     nMaxOverallRepLen = nMinRepLen[j];
                }
             }
          }
@@ -458,7 +456,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                }
             }
 
-            lzsa_arrival *pDestSlots = &arrival[(i + k) << ARRIVALS_PER_POSITION_SHIFT];
+            lzsa_arrival *pDestSlots = &cur_arrival[k << ARRIVALS_PER_POSITION_SHIFT];
 
             /* Insert non-repmatch candidates */
 
