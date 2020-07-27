@@ -129,6 +129,7 @@ typedef struct _lzsa_compressor {
    int flags;
    int safe_dist;
    int num_commands;
+   char rep_inserted[NARRIVALS_PER_POSITION_V2_BIG * (64 / 8)];
    lzsa_stats stats;
 } lzsa_compressor;
 

@@ -271,9 +271,11 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
 static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps, const int nArrivalsPerPosition) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT);
    const int* rle_end = (int*)pCompressor->intervals /* reuse */;
+   char* rep_inserted = pCompressor->rep_inserted;
    const int nModeSwitchPenalty = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 0 : MODESWITCH_PENALTY;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
+   const int nMaxRepInsertedLen = nReduce ? 64 : 0;
    const int nLeaveAloneMatchSize = (nArrivalsPerPosition == NARRIVALS_PER_POSITION_V2_SMALL) ? LEAVE_ALONE_MATCH_SIZE_SMALL : LEAVE_ALONE_MATCH_SIZE;
    int i, j, n;
 
@@ -382,6 +384,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
       int nMinRepLen[NARRIVALS_PER_POSITION_V2_BIG];
       memset(nMinRepLen, 0, nArrivalsPerPosition * sizeof(int));
+      memset(rep_inserted, 0, NARRIVALS_PER_POSITION_V2_BIG * (64 / 8) * sizeof(char));
 
       for (j = 0; j < nNumArrivalsForThisPos; j++) {
          int nRepOffset = cur_arrival[j].rep_offset;
@@ -548,7 +551,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             if (k <= nMaxOverallRepLen) {
                for (j = 0; j < nNumArrivalsForThisPos; j++) {
-                  if (nMinRepLen[j] >= k) {
+                  if (nMinRepLen[j] >= k && (k >= 64 || (rep_inserted[(j << 3) + (k >> 3)] & (1 << (k & 7))) == 0)) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
                      int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                      int nScore = cur_arrival[j].score + 2;
@@ -616,6 +619,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               }
                            }
                         }
+
+                        if (k < nMaxRepInsertedLen)
+                           rep_inserted[(j << 3) + (k >> 3)] |= (1 << (k & 7));
                      }
                      else {
                         break;
