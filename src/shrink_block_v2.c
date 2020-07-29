@@ -762,14 +762,14 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                      nCurCommandSize += (pMatch->offset <= 32) ? 4 : ((pMatch->offset <= 512) ? 8 : ((pMatch->offset <= (8192 + 512)) ? 12 : 16));
 
                   /* Calculate the next command's current cost */
-                  int nNextCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+                  int nNextCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNextLiterals) + /* (nNextLiterals << 3) + */ lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
                   if (pBestMatch[nNextIndex].offset != pMatch->offset)
                      nNextCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
                   int nOriginalCombinedCommandSize = nCurCommandSize + nNextCommandSize;
 
                   /* Calculate the cost of replacing this match command by literals + the next command with the cost of encoding these literals (excluding 'nNumLiterals' bytes) */
-                  int nReducedCommandSize = (pMatch->length << 3) + 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals + pMatch->length + nNextLiterals) + (nNextLiterals << 3) + lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
+                  int nReducedCommandSize = (pMatch->length << 3) + 8 /* token */ + lzsa_get_literals_varlen_size_v2(nNumLiterals + pMatch->length + nNextLiterals) + /* (nNextLiterals << 3) + */ lzsa_get_match_varlen_size_v2(pBestMatch[nNextIndex].length - MIN_MATCH_SIZE_V2);
                   if (pBestMatch[nNextIndex].offset != nRepMatchOffset)
                      nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
@@ -829,7 +829,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
 
             int nCurPartialSize = lzsa_get_match_varlen_size_v2(pMatch->length - MIN_MATCH_SIZE_V2);
 
-            nCurPartialSize += 8 /* token */ + lzsa_get_literals_varlen_size_v2(0) + lzsa_get_match_varlen_size_v2(pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V2);
+            nCurPartialSize += 8 /* token */ + /* lzsa_get_literals_varlen_size_v2(0) + */ lzsa_get_match_varlen_size_v2(pBestMatch[i + pMatch->length].length - MIN_MATCH_SIZE_V2);
             if (pBestMatch[i + pMatch->length].offset != pMatch->offset)
                nCurPartialSize += (pBestMatch[i + pMatch->length].offset <= 32) ? 4 : ((pBestMatch[i + pMatch->length].offset <= 512) ? 8 : ((pBestMatch[i + pMatch->length].offset <= (8192 + 512)) ? 12 : 16));
 
