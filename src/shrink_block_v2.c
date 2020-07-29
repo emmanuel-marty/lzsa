@@ -212,36 +212,33 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
                      nPrevPrevRepPos = nPrevRepPos;
                      nPrevRepPos = nRepPos;
 
-                     int nMaxRepLen = nEndOffset - nRepPos;
-                     if (nMaxRepLen > LCP_MAX)
-                        nMaxRepLen = LCP_MAX;
-                     int nCurRepLen = (nMinLen > nRepLen) ? nMinLen : nRepLen;
-                     if (nCurRepLen > nMaxRepLen)
-                        nCurRepLen = nMaxRepLen;
-                     const unsigned char *pInWindowMax = pInWindow + nRepPos + nMaxRepLen;
-                     const unsigned char *pInWindowAtRepPos = pInWindow + nRepPos + nCurRepLen;
-                     while ((pInWindowAtRepPos + 8) < pInWindowMax && !memcmp(pInWindowAtRepPos, pInWindowAtRepPos - nMatchOffset, 8))
-                        pInWindowAtRepPos += 8;
-                     while ((pInWindowAtRepPos + 4) < pInWindowMax && !memcmp(pInWindowAtRepPos, pInWindowAtRepPos - nMatchOffset, 4))
-                        pInWindowAtRepPos += 4;
-                     while (pInWindowAtRepPos < pInWindowMax && pInWindowAtRepPos[0] == pInWindowAtRepPos[-nMatchOffset])
-                        pInWindowAtRepPos++;
-
-                     nCurRepLen = (int)(pInWindowAtRepPos - (pInWindow + nRepPos));
                      lzsa_match* fwd_match = pCompressor->match + ((nRepPos - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
                      int r;
 
                      for (r = 0; r < NMATCHES_PER_INDEX_V2 && fwd_match[r].length >= MIN_MATCH_SIZE_V2; r++) {
                         if (fwd_match[r].offset == nMatchOffset) {
-                           if (fwd_match[r].length < nCurRepLen)
-                              fwd_match[r].length = nCurRepLen;
-
                            r = NMATCHES_PER_INDEX_V2;
                            break;
                         }
                      }
 
                      if (r < NMATCHES_PER_INDEX_V2) {
+                        int nMaxRepLen = nEndOffset - nRepPos;
+                        if (nMaxRepLen > LCP_MAX)
+                           nMaxRepLen = LCP_MAX;
+                        int nCurRepLen = (nMinLen > nRepLen) ? nMinLen : nRepLen;
+                        if (nCurRepLen > nMaxRepLen)
+                           nCurRepLen = nMaxRepLen;
+                        const unsigned char* pInWindowMax = pInWindow + nRepPos + nMaxRepLen;
+                        const unsigned char* pInWindowAtRepPos = pInWindow + nRepPos + nCurRepLen;
+                        while ((pInWindowAtRepPos + 8) < pInWindowMax && !memcmp(pInWindowAtRepPos, pInWindowAtRepPos - nMatchOffset, 8))
+                           pInWindowAtRepPos += 8;
+                        while ((pInWindowAtRepPos + 4) < pInWindowMax && !memcmp(pInWindowAtRepPos, pInWindowAtRepPos - nMatchOffset, 4))
+                           pInWindowAtRepPos += 4;
+                        while (pInWindowAtRepPos < pInWindowMax && pInWindowAtRepPos[0] == pInWindowAtRepPos[-nMatchOffset])
+                           pInWindowAtRepPos++;
+
+                        nCurRepLen = (int)(pInWindowAtRepPos - (pInWindow + nRepPos));
                         fwd_match[r].offset = nMatchOffset;
                         fwd_match[r].length = nCurRepLen;
 
@@ -271,11 +268,10 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
 static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps, const int nArrivalsPerPosition) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT);
    const int* rle_end = (int*)pCompressor->intervals /* reuse */;
-   char* rep_inserted = pCompressor->rep_inserted;
    const int nModeSwitchPenalty = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 0 : MODESWITCH_PENALTY;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
-   const int nMaxRepInsertedLen = nReduce ? 64 : 0;
+   const int nMaxRepInsertedLen = nReduce ? LEAVE_ALONE_MATCH_SIZE : 0;
    const int nLeaveAloneMatchSize = (nArrivalsPerPosition == NARRIVALS_PER_POSITION_V2_SMALL) ? LEAVE_ALONE_MATCH_SIZE_SMALL : LEAVE_ALONE_MATCH_SIZE;
    int i, j, n;
 
@@ -380,11 +376,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       }
 
       lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
-      int nNumArrivalsForThisPos = j, nMaxOverallRepLen = 0;
+      int nNumArrivalsForThisPos = j, nMinOverallRepLen = 0, nMaxOverallRepLen = 0;
 
-      int nMinRepLen[NARRIVALS_PER_POSITION_V2_BIG];
-      memset(nMinRepLen, 0, nArrivalsPerPosition * sizeof(int));
-      memset(rep_inserted, 0, NARRIVALS_PER_POSITION_V2_BIG * (64 / 8) * sizeof(char));
+      int nRepLenForArrival[NARRIVALS_PER_POSITION_V2_BIG];
+      memset(nRepLenForArrival, 0, nArrivalsPerPosition * sizeof(int));
 
       for (j = 0; j < nNumArrivalsForThisPos; j++) {
          int nRepOffset = cur_arrival[j].rep_offset;
@@ -393,19 +388,19 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             if (i > nRepOffset &&
                (i + MIN_MATCH_SIZE_V2) <= nEndOffset) {
                if (pInWindow[i] == pInWindow[i - nRepOffset]) {
-                  int nMaxRepLen = nEndOffset - i;
-                  if (nMaxRepLen > LCP_MAX)
-                     nMaxRepLen = LCP_MAX;
+                  int nMaxRepLenForPos = nEndOffset - i;
+                  if (nMaxRepLenForPos > LCP_MAX)
+                     nMaxRepLenForPos = LCP_MAX;
 
                   const unsigned char* pInWindowAtPos = pInWindow + i;
-                  const unsigned char* pInWindowMax = pInWindow + i + nMaxRepLen;
+                  const unsigned char* pInWindowMax = pInWindow + i + nMaxRepLenForPos;
 
                   int nLen0 = rle_end[i - nRepOffset] - (i - nRepOffset);
                   int nLen1 = rle_end[i] - (i);
                   int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
 
-                  if (nMinLen > nMaxRepLen)
-                     nMinLen = nMaxRepLen;
+                  if (nMinLen > nMaxRepLenForPos)
+                     nMinLen = nMaxRepLenForPos;
                   pInWindowAtPos += nMinLen;
 
                   while ((pInWindowAtPos + 8) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 8))
@@ -414,10 +409,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      pInWindowAtPos += 4;
                   while (pInWindowAtPos < pInWindowMax && pInWindowAtPos[-nRepOffset] == pInWindowAtPos[0])
                      pInWindowAtPos++;
-                  nMinRepLen[j] = (int)(pInWindowAtPos - (pInWindow + i));
+                  nRepLenForArrival[j] = (int)(pInWindowAtPos - (pInWindow + i));
 
-                  if (nMaxOverallRepLen < nMinRepLen[j])
-                     nMaxOverallRepLen = nMinRepLen[j];
+                  if (nMaxOverallRepLen < nRepLenForArrival[j])
+                     nMaxOverallRepLen = nRepLenForArrival[j];
                }
             }
          }
@@ -549,9 +544,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             /* Insert repmatch candidates */
 
-            if (k <= nMaxOverallRepLen) {
+            if (k > nMinOverallRepLen && k <= nMaxOverallRepLen) {
                for (j = 0; j < nNumArrivalsForThisPos; j++) {
-                  if (nMinRepLen[j] >= k && (k >= 64 || (rep_inserted[(j << 3) + (k >> 3)] & (1 << (k & 7))) == 0)) {
+                  if (nRepLenForArrival[j] >= k) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
                      int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                      int nScore = cur_arrival[j].score + 2;
@@ -619,15 +614,15 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               }
                            }
                         }
-
-                        if (k < nMaxRepInsertedLen)
-                           rep_inserted[(j << 3) + (k >> 3)] |= (1 << (k & 7));
                      }
                      else {
                         break;
                      }
                   }
                }
+
+               if (k < nMaxRepInsertedLen)
+                  nMinOverallRepLen = k;
             }
          }
 
