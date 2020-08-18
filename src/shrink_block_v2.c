@@ -188,8 +188,8 @@ static inline int lzsa_write_match_varlen_v2(unsigned char *pOutData, int nOutOf
 static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int i, const int nMatchOffset, const int nStartOffset, const int nEndOffset, int nDepth) {
    lzsa_arrival *arrival = pCompressor->arrival + ((i - nStartOffset) << ARRIVALS_PER_POSITION_SHIFT);
    const int *rle_end = (int*)pCompressor->intervals /* reuse */;
+   lzsa_match* visited = ((lzsa_match*)pCompressor->pos_data) - nStartOffset /* reuse */;
    int j;
-   int nPrevRepPos = -1, nPrevPrevRepPos = -1;
 
    for (j = 0; j < NARRIVALS_PER_POSITION_V2_BIG && arrival[j].from_slot; j++) {
       int nRepOffset = arrival[j].rep_offset;
@@ -202,15 +202,17 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
             (nRepPos + nRepLen) <= nEndOffset &&
             pCompressor->match[((nRepPos - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2) + NMATCHES_PER_INDEX_V2 - 1].length == 0) {
 
-            if (nPrevRepPos != nRepPos && nPrevPrevRepPos != nRepPos) {
+            if (visited[nRepPos].offset != nMatchOffset || visited[nRepPos].length > nRepLen) {
+               visited[nRepPos].offset = nMatchOffset;
+               visited[nRepPos].length = nRepLen;
+
                if (pInWindow[nRepPos] == pInWindow[nRepPos - nMatchOffset]) {
                   int nLen0 = rle_end[nRepPos - nMatchOffset] - (nRepPos - nMatchOffset);
                   int nLen1 = rle_end[nRepPos] - (nRepPos);
                   int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
 
                   if (nMinLen >= nRepLen || !memcmp(pInWindow + nRepPos + nMinLen, pInWindow + nRepPos + nMinLen - nMatchOffset, nRepLen - nMinLen)) {
-                     nPrevPrevRepPos = nPrevRepPos;
-                     nPrevRepPos = nRepPos;
+                     visited[nRepPos].length = 0;
 
                      lzsa_match* fwd_match = pCompressor->match + ((nRepPos - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V2);
                      int r;
@@ -267,7 +269,9 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
  */
 static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce, const int nInsertForwardReps, const int nArrivalsPerPosition) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT);
-   const int* rle_end = (int*)pCompressor->intervals /* reuse */;
+   const int *rle_end = (int*)pCompressor->intervals /* reuse */;
+   lzsa_match *visited = ((lzsa_match*)pCompressor->pos_data) - nStartOffset /* reuse */;
+   char *nRepLenHandledMask = pCompressor->rep_handled_mask;
    const int nModeSwitchPenalty = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 0 : MODESWITCH_PENALTY;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
@@ -284,6 +288,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
    }
 
    arrival[nStartOffset << ARRIVALS_PER_POSITION_SHIFT].from_slot = -1;
+
+   if (nInsertForwardReps) {
+      memset(visited + nStartOffset, 0, (nEndOffset - nStartOffset) * sizeof(lzsa_match));
+   }
 
    for (i = nStartOffset; i != nEndOffset; i++) {
       lzsa_arrival *cur_arrival = &arrival[i << ARRIVALS_PER_POSITION_SHIFT];
@@ -418,6 +426,10 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          }
       }
 
+      if (!nReduce) {
+         memset(nRepLenHandledMask, 0, nArrivalsPerPosition * ((LCP_MAX + 1) / 8) * sizeof(char));
+      }
+
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
          int nMatchLen = match[m].length & 0x7fff;
          int nMatchOffset = match[m].offset;
@@ -546,7 +558,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             if (k > nMinOverallRepLen && k <= nMaxOverallRepLen) {
                for (j = 0; j < nNumArrivalsForThisPos; j++) {
-                  if (nRepLenForArrival[j] >= k) {
+                  int nMaskOffset = (j << 7) + (k >> 3);
+                  if (nRepLenForArrival[j] >= k && (nReduce || !(nRepLenHandledMask[nMaskOffset] & (1 << (k & 7))))) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
                      int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                      int nScore = cur_arrival[j].score + 2;
@@ -561,6 +574,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                            n++) {
                            if (pDestSlots[n].rep_offset == nRepOffset) {
                               exists = 1;
+                              if (!nReduce)
+                                 nRepLenHandledMask[nMaskOffset] |= 1 << (k & 7);
                               break;
                            }
                         }
@@ -1269,8 +1284,77 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
 
       nReducedCompressedSize = lzsa_get_compressed_size_v2(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
       if (nReducedCompressedSize > 0 && nReducedCompressedSize <= nBaseCompressedSize) {
+         const int nEndOffset = nPreviousBlockSize + nInDataSize;
+         int nSupplementedCompressedSize;
+
          /* Pick the parse with the reduced number of tokens as it didn't negatively affect the size */
          pBestMatch = pCompressor->improved_match - nPreviousBlockSize;
+
+         int* first_offset_for_byte = pCompressor->first_offset_for_byte;
+         int* next_offset_for_pos = pCompressor->next_offset_for_pos;
+         int nPosition;
+
+         /* Supplement small matches */
+
+         memset(first_offset_for_byte, 0xff, sizeof(int) * 65536);
+         memset(next_offset_for_pos, 0xff, sizeof(int) * nInDataSize);
+
+         for (nPosition = nPreviousBlockSize; nPosition < nEndOffset - 1; nPosition++) {
+            next_offset_for_pos[nPosition - nPreviousBlockSize] = first_offset_for_byte[((unsigned int)pInWindow[nPosition]) | (((unsigned int)pInWindow[nPosition + 1]) << 8)];
+            first_offset_for_byte[((unsigned int)pInWindow[nPosition]) | (((unsigned int)pInWindow[nPosition + 1]) << 8)] = nPosition;
+         }
+
+         for (nPosition = nPreviousBlockSize + 1; nPosition < (nEndOffset - 1); nPosition++) {
+            lzsa_match* match = pCompressor->match + ((nPosition - nPreviousBlockSize) << MATCHES_PER_INDEX_SHIFT_V2);
+            int m = 0, nInserted = 0;
+            int nMatchPos;
+
+            while (m < 15 && match[m].length)
+               m++;
+
+            for (nMatchPos = next_offset_for_pos[nPosition - nPreviousBlockSize]; m < 15 && nMatchPos >= 0; nMatchPos = next_offset_for_pos[nMatchPos - nPreviousBlockSize]) {
+               int nMatchOffset = nPosition - nMatchPos;
+               int nExistingMatchIdx;
+               int nAlreadyExists = 0;
+
+               for (nExistingMatchIdx = 0; nExistingMatchIdx < m; nExistingMatchIdx++) {
+                  if (match[nExistingMatchIdx].offset == nMatchOffset) {
+                     nAlreadyExists = 1;
+                     break;
+                  }
+               }
+
+               if (!nAlreadyExists) {
+                  int nMatchLen = 2;
+                  while (nMatchLen < 16 && (nPosition + nMatchLen + 4) < nEndOffset && !memcmp(pInWindow + nMatchPos + nMatchLen, pInWindow + nPosition + nMatchLen, 4))
+                     nMatchLen += 4;
+                  while (nMatchLen < 16 && (nPosition + nMatchLen) < nEndOffset && pInWindow[nMatchPos + nMatchLen] == pInWindow[nPosition + nMatchLen])
+                     nMatchLen++;
+                  match[m].length = nMatchLen;
+                  match[m].offset = nMatchOffset;
+                  m++;
+                  nInserted++;
+                  if (nInserted >= 15)
+                     break;
+               }
+            }
+         }
+
+         /* Compress optimally with the extra matches */
+         memset(pCompressor->best_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
+         lzsa_optimize_forward_v2(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */, 0 /* use forward reps */, nArrivalsPerPosition);
+
+         nPasses = 0;
+         do {
+            nDidReduce = lzsa_optimize_command_count_v2(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+            nPasses++;
+         } while (nDidReduce && nPasses < 20);
+
+         nSupplementedCompressedSize = lzsa_get_compressed_size_v2(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+         if (nSupplementedCompressedSize > 0 && nSupplementedCompressedSize < nReducedCompressedSize) {
+            /* Pick the parse with the extra matches as it didn't negatively affect the size */
+            pBestMatch = pCompressor->best_match - nPreviousBlockSize;
+         }
       }
    }
 
