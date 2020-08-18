@@ -187,8 +187,9 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
          if (nNumLiterals == 1)
             nCodingChoiceCost += nModeSwitchPenalty;
 
+         lzsa_arrival *pDestSlots = &arrival[(i + 1) << ARRIVALS_PER_POSITION_SHIFT];
          for (n = 0; n < NARRIVALS_PER_POSITION_V1 /* we only need the literals + short match cost + long match cost cases */; n++) {
-            lzsa_arrival *pDestArrival = &arrival[((i + 1) << ARRIVALS_PER_POSITION_SHIFT) + n];
+            lzsa_arrival *pDestArrival = &pDestSlots[n];
 
             if (pDestArrival->from_slot == 0 ||
                nCodingChoiceCost < pDestArrival->cost ||
@@ -210,6 +211,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
       }
 
       const lzsa_match *match = pCompressor->match + ((i - nStartOffset) << MATCHES_PER_INDEX_SHIFT_V1);
+      int nNumArrivalsForThisPos = j;
 
       for (m = 0; m < NMATCHES_PER_INDEX_V1 && match[m].length; m++) {
          int nMatchLen = match[m].length;
@@ -228,7 +230,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
 
             lzsa_arrival *pDestSlots = &arrival[(i + k) << ARRIVALS_PER_POSITION_SHIFT];
 
-            for (j = 0; j < NARRIVALS_PER_POSITION_V1 && cur_arrival[j].from_slot; j++) {
+            for (j = 0; j < nNumArrivalsForThisPos; j++) {
                int nPrevCost = cur_arrival[j].cost;
                int nCodingChoiceCost = nPrevCost + 8 /* token */ /* the actual cost of the literals themselves accumulates up the chain */ + nMatchOffsetCost + nMatchLenCost;
                int exists = 0;
@@ -239,7 +241,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
                for (n = 0;
                   n < NARRIVALS_PER_POSITION_V1 && pDestSlots[n].from_slot && pDestSlots[n].cost <= nCodingChoiceCost;
                   n++) {
-                  if (lzsa_get_offset_cost_v1(pDestSlots[n].rep_offset) == lzsa_get_offset_cost_v1(match[m].offset)) {
+                  if (lzsa_get_offset_cost_v1(pDestSlots[n].rep_offset) == nMatchOffsetCost) {
                      exists = 1;
                      break;
                   }
