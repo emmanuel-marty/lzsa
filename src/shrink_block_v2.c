@@ -430,15 +430,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          memset(nRepLenHandledMask, 0, nArrivalsPerPosition * ((LCP_MAX + 1) / 8) * sizeof(char));
       }
 
-      int nRepMatchArrivalIdx[NARRIVALS_PER_POSITION_V2_BIG + 1];
-      int nNumRepMatches = 0;
-      for (j = 0; j < nNumArrivalsForThisPos; j++) {
-         if (nRepLenForArrival[j] >= MIN_MATCH_SIZE_V2) {
-            nRepMatchArrivalIdx[nNumRepMatches++] = j;
-         }
-      }
-      nRepMatchArrivalIdx[nNumRepMatches++] = -1;
-
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
          int nMatchLen = match[m].length & 0x7fff;
          int nMatchOffset = match[m].offset;
@@ -573,9 +564,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             /* Insert repmatch candidates */
 
             if (k > nMinOverallRepLen && k <= nMaxOverallRepLen) {
-               int nCurRepMatchArrival;
-
-               for (nCurRepMatchArrival = 0; (j = nRepMatchArrivalIdx[nCurRepMatchArrival]) >= 0; nCurRepMatchArrival++) {
+               for (j = 0; j < nNumArrivalsForThisPos; j++) {
                   int nMaskOffset = (j << 7) + (k >> 3);
                   if (nRepLenForArrival[j] >= k && (nReduce || !(nRepLenHandledMask[nMaskOffset] & (1 << (k & 7))))) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
