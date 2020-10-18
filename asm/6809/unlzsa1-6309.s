@@ -1,11 +1,11 @@
-;  unlzsa1.s - 6809 decompression routine for raw LZSA1 - 110 bytes
-;  compress with lzsa -r <original_file> <compressed_file>
+;  unlzsa1-6309.s - Hitachi 6309 decompression routine for raw LZSA1 - 92 bytes
+;  compress with lzsa -f1 -r <original_file> <compressed_file>
 ;
 ;  in:  x = start of compressed data
 ;       y = start of decompression buffer
 ;  out: y = end of decompression buffer + 1
 ;
-;  Copyright (C) 2020 Emmanuel Marty
+;  Copyright (C) 2020 Emmanuel Marty, Doug Masten
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -49,15 +49,8 @@ lz1gotof leau d,y          ; put backreference start address in U (dst+offset)
 lz1midln tfr b,a           ; copy high part of len into A
          ldb ,x+           ; grab low 8 bits of len in B
 
-lz1gotln pshs x            ; save source compressed data pointer
-         tfr d,x           ; copy match length to X
-
-lz1cpymt lda ,u+           ; copy matched byte
-         sta ,y+
-         leax -1,x         ; decrement X
-         bne lz1cpymt      ; loop until all matched bytes are copied
-
-         puls x            ; restore source compressed data pointer
+lz1gotln tfr d,w           ; set W with match length for TFM instruction
+         tfm u+,y+         ; copy match bytes
 
 lz1token ldb ,x+           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
@@ -84,15 +77,10 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
          lsrb
          lsrb
-lz1gotla clra              ; clear A (high part of literals count)
 
-lz1gotlt leau ,x
-         tfr d,x           ; transfer 16-bit count into X
-lz1cpylt lda ,u+           ; copy literal byte
-         sta ,y+
-         leax -1,x         ; decrement X and update Z flag
-         bne lz1cpylt      ; loop until all literal bytes are copied
-         leax ,u
+lz1gotla clra              ; clear A (high part of literals count)
+lz1gotlt tfr d,w           ; set W with literals count for TFM instruction
+         tfm x+,y+         ; copy literal bytes
 
 lz1nolt  ldb ,x+           ; load either 8-bit or LSB 16-bit offset (negative, signed)
          lda ,s            ; get token again, don't pop it from the stack

@@ -34,10 +34,9 @@ lz1gotof nega              ; reverse sign of offset in D
          sbca #0
          leau d,y          ; put backreference start address in U (dst+offset)
 
-         puls b            ; restore token
+         ldd #$000f        ; clear MSB match length and set mask for MMMM
+         andb ,s+          ; isolate MMMM (embedded match length) in token
 
-         clra              ; clear A (high part of match length)
-         andb #$0F         ; isolate MMMM (embedded match length)
          addb #$03         ; add MIN_MATCH_SIZE
          cmpb #$12         ; MATCH_RUN_LEN?
          bne lz1gotln      ; no, we have the full match length, go copy
@@ -90,13 +89,13 @@ lz1declt lsrb              ; shift literals count into place
          lsrb
 
 lz1gotla clra              ; clear A (high part of literals count)
-lz1gotlt tfr x,u
+lz1gotlt leau ,x
          tfr d,x           ; transfer 16-bit count into X
 lz1cpylt lda ,-u           ; copy literal byte
          sta ,-y
          leax -1,x         ; decrement X and update Z flag
          bne lz1cpylt      ; loop until all literal bytes are copied
-         tfr u,x
+         leax ,u
 
 lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
          bmi lz1bigof      ; test O bit (small or large offset)
