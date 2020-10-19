@@ -76,6 +76,7 @@ License:
 * 6502 speed-optimized decompressor by [John Brandwood](https://github.com/jbrandwood)
 * 8088 speed-optimized decompressor by [Jim Leonard](https://github.com/mobygamer)
 * 6809 decompressors (Tandy CoCo, Thomson MO/TO, Dragon 32/64..) optimized by [Doug Masten](https://github.com/dougmasten)
+* Hitachi 6309 decompressors (Tandy CoCo 3) also contributed by [Doug Masten](https://github.com/dougmasten)
 
 External links:
 
