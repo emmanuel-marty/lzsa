@@ -389,19 +389,19 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       int nRepLenForArrival[NARRIVALS_PER_POSITION_V2_BIG];
       memset(nRepLenForArrival, 0, nArrivalsPerPosition * sizeof(int));
 
-      for (j = 0; j < nNumArrivalsForThisPos; j++) {
+      int nMaxRepLenForPos = nEndOffset - i;
+      if (nMaxRepLenForPos > LCP_MAX)
+         nMaxRepLenForPos = LCP_MAX;
+      const unsigned char* pInWindowStart = pInWindow + i;
+      const unsigned char* pInWindowMax = pInWindowStart + nMaxRepLenForPos;
+
+      for (j = 0; j < nNumArrivalsForThisPos && (i + MIN_MATCH_SIZE_V2) <= nEndOffset; j++) {
          int nRepOffset = cur_arrival[j].rep_offset;
 
          if (nRepOffset) {
-            if (i > nRepOffset &&
-               (i + MIN_MATCH_SIZE_V2) <= nEndOffset) {
+            if (i > nRepOffset) {
                if (pInWindow[i] == pInWindow[i - nRepOffset]) {
-                  int nMaxRepLenForPos = nEndOffset - i;
-                  if (nMaxRepLenForPos > LCP_MAX)
-                     nMaxRepLenForPos = LCP_MAX;
-
-                  const unsigned char* pInWindowAtPos = pInWindow + i;
-                  const unsigned char* pInWindowMax = pInWindow + i + nMaxRepLenForPos;
+                  const unsigned char* pInWindowAtPos;
 
                   int nLen0 = rle_end[i - nRepOffset] - (i - nRepOffset);
                   int nLen1 = rle_end[i] - (i);
@@ -409,7 +409,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
                   if (nMinLen > nMaxRepLenForPos)
                      nMinLen = nMaxRepLenForPos;
-                  pInWindowAtPos += nMinLen;
+                  pInWindowAtPos = pInWindowStart + nMinLen;
 
                   while ((pInWindowAtPos + 8) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 8))
                      pInWindowAtPos += 8;
@@ -417,7 +417,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      pInWindowAtPos += 4;
                   while (pInWindowAtPos < pInWindowMax && pInWindowAtPos[-nRepOffset] == pInWindowAtPos[0])
                      pInWindowAtPos++;
-                  nRepLenForArrival[j] = (int)(pInWindowAtPos - (pInWindow + i));
+                  nRepLenForArrival[j] = (int)(pInWindowAtPos - pInWindowStart);
 
                   if (nMaxOverallRepLen < nRepLenForArrival[j])
                      nMaxOverallRepLen = nRepLenForArrival[j];
@@ -482,15 +482,13 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             if (nNonRepMatchArrivalIdx >= 0) {
                int nRepOffset = cur_arrival[nNonRepMatchArrivalIdx].rep_offset;
-               j = nNonRepMatchArrivalIdx;
-
-               const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
+               const int nPrevCost = cur_arrival[nNonRepMatchArrivalIdx].cost & 0x3fffffff;
                int nCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost + nNoRepmatchOffsetCost;
 
-               if (!cur_arrival[j].num_literals)
+               if (!cur_arrival[nNonRepMatchArrivalIdx].num_literals)
                   nCodingChoiceCost += nModeSwitchPenalty;
 
-               int nScore = cur_arrival[j].score + nScorePenalty;
+               int nScore = cur_arrival[nNonRepMatchArrivalIdx].score + nScorePenalty;
                if (nCodingChoiceCost < pDestSlots[nArrivalsPerPosition - 2].cost ||
                   (nCodingChoiceCost == pDestSlots[nArrivalsPerPosition - 2].cost && nScore < (pDestSlots[nArrivalsPerPosition - 2].score + nDisableScore))) {
                   int exists = 0;
@@ -547,7 +545,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               lzsa_arrival* pDestArrival = &pDestSlots[n];
                               pDestArrival->cost = nCodingChoiceCost;
                               pDestArrival->from_pos = i;
-                              pDestArrival->from_slot = j + 1;
+                              pDestArrival->from_slot = nNonRepMatchArrivalIdx + 1;
                               pDestArrival->match_len = k;
                               pDestArrival->num_literals = 0;
                               pDestArrival->score = nScore;
