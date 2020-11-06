@@ -478,10 +478,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             lzsa_arrival *pDestSlots = &cur_arrival[k << ARRIVALS_PER_POSITION_SHIFT];
 
-            /* Insert non-repmatch candidates */
+            /* Insert non-repmatch candidate */
 
             if (nNonRepMatchArrivalIdx >= 0) {
-               int nRepOffset = cur_arrival[nNonRepMatchArrivalIdx].rep_offset;
                const int nPrevCost = cur_arrival[nNonRepMatchArrivalIdx].cost & 0x3fffffff;
                int nCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost + nNoRepmatchOffsetCost;
 
