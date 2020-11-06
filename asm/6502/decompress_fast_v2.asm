@@ -114,7 +114,6 @@ NO_LITERALS
    BNE GOT_OFFSET_LO                    ; go store low byte of match offset and prepare match
    
 OFFSET_9_BIT                            ; 01Z: 9 bit offset
-   ;;ASL                                  ; shift Z (offset bit 8) in place
    ROL
    ROL
    AND #$01
@@ -134,7 +133,6 @@ REPMATCH_OR_LARGE_OFFSET
                                         ; (*same as JMP GOT_OFFSET_HI but shorter)
 
 REPMATCH_OR_16_BIT                      ; rep-match or 16 bit offset
-   ;;ASL                                  ; XYZ=111?
    BMI REP_MATCH                        ; reuse previous offset if so (rep-match)
    
                                         ; 110: handle 16 bit offset
@@ -259,7 +257,6 @@ GETCOMBINEDBITS
 
    JSR GETNIBBLE                        ; get nibble into bits 0-3 (for offset bits 1-4)
    PLP                                  ; merge Z bit as the carry bit (for offset bit 0)
-COMBINEDBITZ
    ROL                                  ; nibble -> bits 1-4; carry(!Z bit) -> bit 0 ; carry cleared
 DECOMPRESSION_DONE
    RTS
