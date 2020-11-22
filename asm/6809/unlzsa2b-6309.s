@@ -1,4 +1,4 @@
-;  unlzsa2b-6309.s - H6309 backward decompressor for raw LZSA2 - 163 bytes
+;  unlzsa2b-6309.s - H6309 backward decompressor for raw LZSA2 - 155 bytes
 ;  compress with lzsa -f2 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -25,8 +25,7 @@
 
 decompress_lzsa2
          clr lz2nibct      ; reset nibble available flag
-         leax 1,x
-         leay 1,y
+         leax 1,x          ; adjust compressed data pointer
          bra lz2token
 
 lz2nibct fcb 0             ; nibble ready flag
@@ -35,7 +34,7 @@ lz2replg lslb              ; push token's Y flag bit into carry
          bcs lz2rep16      ; if token's Y bit is set, rep or 16 bit offset
 
          sex               ; push token's Z flag bit into reg A
-         lbsr lz2nibl      ; get offset nibble in B
+         bsr lz2nibl       ; get offset nibble in B
          lsla              ; push token's Z flag bit into carry
          rolb              ; shift Z flag from carry into bit 0 of B
          eorb #$e1         ; set bits 13-15 of offset, reverse bit 8
@@ -48,7 +47,6 @@ lz2rep16 bmi lz2repof      ; if token's Z flag bit is set, rep match
 lz2lowof ldb ,-x           ; load low 8 bits of offset
 
 lz2gotof negd              ; reverse sign of offset in D
-         decd              ; tfm below is post-decrement, not pre-decrement
          std lz2moff+2     ; store match offset
 
 lz2repof ldd #$0007        ; clear MSB match length and set mask for MMM
@@ -70,9 +68,7 @@ lz2moff  leau $aaaa,y      ; put backreference start address in U (dst+offset)
          ldd ,--x          ; load 16-bit len in D (low part in B, high in A)
 
 lz2gotln tfr d,w           ; set W with match count for TFM instruction
-         leay -1,y         ; tfm is post-decrement
          tfm u-,y-         ; copy match bytes
-         leay 1,y          ; fix destination for pre-decrement again
 
 lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          tfr x,u           ; save token address
@@ -92,6 +88,17 @@ lz2token ldb ,-x           ; load next token into B: XYZ|LL|MMM
          ldd ,--x          ; load 16 bit count in D (low part in B, high in A)
          bra lz2gotlt      ; we now have the complete count, go copy
 
+lz2nibl  com lz2nibct      ; nibble ready?
+         bpl lz2gotnb
+
+         ldb ,-x           ; load two nibbles
+         stb lz2gotnb+1    ; store nibble for next time (low 4 bits)
+         lsrb              ; shift 4 high bits of nibble down
+         lsrb
+         lsrb
+         lsrb
+         rts
+
 lz2declt lsrb              ; shift literals count into place
          lsrb
          lsrb
@@ -99,10 +106,8 @@ lz2gotla clra              ; clear A (high part of literals count)
 
 lz2gotlt tfr d,w           ; set W with literals count for TFM instruction
          leax -1,x         ; tfm is post-decrement
-         leay -1,y
          tfm x-,y-         ; copy literal bytes
          leax 1,x
-         leay 1,y
 
 lz2nolt  ldb ,u            ; get token again
          lslb              ; push token's X flag bit into carry
@@ -122,15 +127,7 @@ lz2nolt  ldb ,u            ; get token again
 lz2offs9 deca              ; set bits 9-15 of offset, reverse bit 8
          bra lz2lowof
 
-lz2nibl  ldb #$aa
-         com lz2nibct      ; nibble ready?
-         bpl lz2gotnb
-
-         ldb ,-x           ; load two nibbles
-         stb lz2nibl+1     ; store nibble for next time (low 4 bits)
-         lsrb              ; shift 4 high bits of nibble down
-         lsrb
-         lsrb
-         lsrb
-lz2gotnb andb #$0f         ; only keep low 4 bits
-lz2done  rts
+lz2done  leay 1,y          ; adjust pointer to first byte of decompressed data and then exit
+lz2gotnb ldb #$aa          ; load nibble
+         andb #$0f         ; only keep low 4 bits
+         rts

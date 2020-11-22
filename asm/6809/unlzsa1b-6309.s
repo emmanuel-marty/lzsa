@@ -1,4 +1,4 @@
-;  unlzsa1-6309.s - H6309 backward decompressor for raw LZSA1 - 105 bytes
+;  unlzsa1-6309.s - H6309 backward decompressor for raw LZSA1 - 97 bytes
 ;  compress with lzsa -f1 -r -b <original_file> <compressed_file>
 ;
 ;  in:  x = last byte of compressed data
@@ -25,11 +25,10 @@
 
 decompress_lzsa1
          leax 1,x
-         bra lz1start
+         bra lz1token
 
 lz1bigof ldd ,--x          ; O set: load long 16-bit (negative, signed) offest
 lz1gotof negd              ; reverse sign of offset in D
-         decd              ; tfm below is post-decrement, not pre-decrement
          leau d,y          ; put backreference start address in U (dst+offset)
 
          ldd #$000f        ; clear MSB match length and set mask for MMMM
@@ -45,15 +44,14 @@ lz1gotof negd              ; reverse sign of offset in D
          ldd ,--x          ; load 16-bit len in D (low part in B, high in A)
          bne lz1gotln      ; check if we hit EOD (16-bit length = 0)
 
+         leay 1,y          ; adjust pointer to first byte of decompressed data
          rts               ; done, bail
 
 lz1midln tfr b,a           ; copy high part of len into A
          ldb ,-x           ; grab low 8 bits of len in B
 
 lz1gotln tfr d,w           ; set W with match length for TFM instruction
-         leay -1,y         ; tfm is post-decrement
          tfm u-,y-         ; copy match bytes
-lz1start leay 1,y          ; fix destination for pre-decrement again
 
 lz1token ldb ,-x           ; load next token into B: O|LLL|MMMM
          pshs b            ; save it
@@ -83,10 +81,8 @@ lz1declt lsrb              ; shift literals count into place
 lz1gotla clra              ; clear A (high part of literals count)
 lz1gotlt tfr d,w           ; set W with literals count for TFM instruction
          leax -1,x         ; tfm is post-decrement
-         leay -1,y
          tfm x-,y-         ; copy literal bytes
          leax 1,x
-         leay 1,y
 
 lz1nolt  ldb ,s            ; get token again, don't pop it from the stack
          bmi lz1bigof      ; test O bit (small or large offset)
