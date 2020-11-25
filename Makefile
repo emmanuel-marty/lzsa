@@ -33,7 +33,6 @@ OBJS += $(OBJDIR)/src/libdivsufsort/lib/trsort.o
 all: $(APP)
 
 $(APP): $(OBJS)
-	@mkdir -p ../../bin/posix
 	$(CC) $^ $(LDFLAGS) -o $(APP)
 	$(STRIP) $(APP)
 
