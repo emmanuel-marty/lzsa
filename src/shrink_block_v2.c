@@ -271,7 +271,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT);
    const int *rle_end = (int*)pCompressor->intervals /* reuse */;
    lzsa_match *visited = ((lzsa_match*)pCompressor->pos_data) - nStartOffset /* reuse */;
-   char *nRepLenHandledMask = pCompressor->rep_handled_mask;
+   char *nRepSlotHandledMask = pCompressor->rep_slot_handled_mask;
+   char *nRepLenHandledMask = pCompressor->rep_len_handled_mask;
    const int nModeSwitchPenalty = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 0 : MODESWITCH_PENALTY;
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nDisableScore = nReduce ? 0 : (2 * BLOCK_SIZE);
@@ -300,6 +301,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       for (j = 0; j < nArrivalsPerPosition && cur_arrival[j].from_slot; j++) {
          const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
          int nCodingChoiceCost = nPrevCost + 8 /* literal */;
+         int nScore = cur_arrival[j].score + 1;
          int nNumLiterals = cur_arrival[j].num_literals + 1;
 
          if (nNumLiterals == LITERALS_RUN_LEN_V2) {
@@ -316,7 +318,8 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             nCodingChoiceCost += nModeSwitchPenalty;
 
          lzsa_arrival *pDestSlots = &cur_arrival[1 << ARRIVALS_PER_POSITION_SHIFT];
-         if (nCodingChoiceCost <= pDestSlots[nArrivalsPerPosition - 1].cost) {
+         if (nCodingChoiceCost < pDestSlots[nArrivalsPerPosition - 1].cost ||
+            (nCodingChoiceCost == pDestSlots[nArrivalsPerPosition - 1].cost && nScore < (pDestSlots[nArrivalsPerPosition - 1].score + nDisableScore))) {
             int nRepOffset = cur_arrival[j].rep_offset;
             int exists = 0;
 
@@ -330,8 +333,6 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             }
 
             if (!exists) {
-               int nScore = cur_arrival[j].score + 1;
-
                for (;
                   n < nArrivalsPerPosition && pDestSlots[n].cost == nCodingChoiceCost && nScore >= (pDestSlots[n].score + nDisableScore);
                   n++) {
@@ -427,8 +428,9 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       }
 
       if (!nReduce) {
-         memset(nRepLenHandledMask, 0, nArrivalsPerPosition * ((LCP_MAX + 1) / 8) * sizeof(char));
+         memset(nRepSlotHandledMask, 0, nArrivalsPerPosition * ((LCP_MAX + 1) / 8) * sizeof(char));
       }
+      memset(nRepLenHandledMask, 0, ((LCP_MAX + 1) / 8) * sizeof(char));
 
       for (m = 0; m < NMATCHES_PER_INDEX_V2 && match[m].length; m++) {
          int nMatchLen = match[m].length & 0x7fff;
@@ -551,6 +553,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                               pDestArrival->rep_offset = nMatchOffset;
                               pDestArrival->rep_pos = i;
                               pDestArrival->rep_len = k;
+                              nRepLenHandledMask[k >> 3] &= ~(1 << (k & 7));
                            }
                         }
                      }
@@ -560,10 +563,12 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
 
             /* Insert repmatch candidates */
 
-            if (k > nMinOverallRepLen && k <= nMaxOverallRepLen) {
+            if (k > nMinOverallRepLen && k <= nMaxOverallRepLen && (nRepLenHandledMask[k >> 3] & (1 << (k & 7))) == 0) {
+               nRepLenHandledMask[k >> 3] |= 1 << (k & 7);
+
                for (j = 0; j < nNumArrivalsForThisPos; j++) {
                   int nMaskOffset = (j << 7) + (k >> 3);
-                  if (nRepLenForArrival[j] >= k && (nReduce || !(nRepLenHandledMask[nMaskOffset] & (1 << (k & 7))))) {
+                  if (nRepLenForArrival[j] >= k && (nReduce || !(nRepSlotHandledMask[nMaskOffset] & (1 << (k & 7))))) {
                      const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
                      int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                      int nScore = cur_arrival[j].score + 2;
@@ -579,7 +584,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                            if (pDestSlots[n].rep_offset == nRepOffset) {
                               exists = 1;
                               if (!nReduce)
-                                 nRepLenHandledMask[nMaskOffset] |= 1 << (k & 7);
+                                 nRepSlotHandledMask[nMaskOffset] |= 1 << (k & 7);
                               break;
                            }
                         }
@@ -629,6 +634,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                                     pDestArrival->rep_offset = nRepOffset;
                                     pDestArrival->rep_pos = i;
                                     pDestArrival->rep_len = k;
+                                    nRepLenHandledMask[k >> 3] &= ~(1 << (k & 7));
                                  }
                               }
                            }

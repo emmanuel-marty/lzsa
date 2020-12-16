@@ -62,7 +62,8 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->best_match = NULL;
    pCompressor->improved_match = NULL;
    pCompressor->arrival = NULL;
-   pCompressor->rep_handled_mask = NULL;
+   pCompressor->rep_slot_handled_mask = NULL;
+   pCompressor->rep_len_handled_mask = NULL;
    pCompressor->first_offset_for_byte = NULL;
    pCompressor->next_offset_for_pos = NULL;
    pCompressor->min_match_size = nMinMatchSize;
@@ -107,13 +108,16 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
                            pCompressor->match = (lzsa_match *)malloc(BLOCK_SIZE * NMATCHES_PER_INDEX_V1 * sizeof(lzsa_match));
                         if (pCompressor->match) {
                            if (pCompressor->format_version == 2) {
-                              pCompressor->rep_handled_mask = (char*)malloc(NARRIVALS_PER_POSITION_V2_BIG * ((LCP_MAX + 1) / 8) * sizeof(char));
-                              if (pCompressor->rep_handled_mask) {
-                                 pCompressor->first_offset_for_byte = (int*)malloc(65536 * sizeof(int));
-                                 if (pCompressor->first_offset_for_byte) {
-                                    pCompressor->next_offset_for_pos = (int*)malloc(BLOCK_SIZE * sizeof(int));
-                                    if (pCompressor->next_offset_for_pos) {
-                                       return 0;
+                              pCompressor->rep_slot_handled_mask = (char*)malloc(NARRIVALS_PER_POSITION_V2_BIG * ((LCP_MAX + 1) / 8) * sizeof(char));
+                              if (pCompressor->rep_slot_handled_mask) {
+                                 pCompressor->rep_len_handled_mask = (char*)malloc(((LCP_MAX + 1) / 8) * sizeof(char));
+                                 if (pCompressor->rep_len_handled_mask) {
+                                    pCompressor->first_offset_for_byte = (int*)malloc(65536 * sizeof(int));
+                                    if (pCompressor->first_offset_for_byte) {
+                                       pCompressor->next_offset_for_pos = (int*)malloc(BLOCK_SIZE * sizeof(int));
+                                       if (pCompressor->next_offset_for_pos) {
+                                          return 0;
+                                       }
                                     }
                                  }
                               }
@@ -152,9 +156,14 @@ void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
       pCompressor->first_offset_for_byte = NULL;
    }
 
-   if (pCompressor->rep_handled_mask) {
-      free(pCompressor->rep_handled_mask);
-      pCompressor->rep_handled_mask = NULL;
+   if (pCompressor->rep_len_handled_mask) {
+      free(pCompressor->rep_len_handled_mask);
+      pCompressor->rep_len_handled_mask = NULL;
+   }
+
+   if (pCompressor->rep_slot_handled_mask) {
+      free(pCompressor->rep_slot_handled_mask);
+      pCompressor->rep_slot_handled_mask = NULL;
    }
 
    if (pCompressor->match) {
