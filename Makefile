@@ -1,8 +1,7 @@
 CC=clang
-CFLAGS=-O3 -fomit-frame-pointer -Isrc/libdivsufsort/include -Isrc
+CFLAGS=-O3 -g -fomit-frame-pointer -Isrc/libdivsufsort/include -Isrc
 OBJDIR=obj
 LDFLAGS=
-STRIP=strip
 
 $(OBJDIR)/%.o: src/../%.c
 	@mkdir -p '$(@D)'
@@ -34,7 +33,6 @@ all: $(APP)
 
 $(APP): $(OBJS)
 	$(CC) $^ $(LDFLAGS) -o $(APP)
-	$(STRIP) $(APP)
 
 clean:
 	@rm -rf $(APP) $(OBJDIR)
