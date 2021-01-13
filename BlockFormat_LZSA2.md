@@ -58,7 +58,7 @@ Note that the match offset is negative: it is added to the current decompressed 
 
 If the encoded match length is 7 or more, the 'M' bits in the token form the value 7, and an extra nibble is read:
 
-* 0-14: the value is added to the 3 stored in the token, and then the minmatch of 2 is added, to compose the final match length.
+* 0-14: the value is added to the 7 stored in the token, and then the minmatch of 2 is added, to compose the final match length.
 * 15: an extra byte follows
 
 If an extra byte follows here, it can have two possible types of value:
