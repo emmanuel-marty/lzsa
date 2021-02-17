@@ -1,4 +1,4 @@
-;  lzsa1fta.asm time-efficient decompressor implementation for 8088
+;  LZSA1FTA.ASM time-efficient decompressor implementation for 8088
 ;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
@@ -8,6 +8,7 @@
 ;  - Trashes all data and segment registers
 ;
 ;  Copyright (C) 2019 Jim Leonard, Emmanuel Marty
+;  Additional optimizations by Krister Nordvall
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -77,29 +78,29 @@ lzsa1_start:
         jnc     @@got_literals_exact ;if no overflow, we have full count
         je      @@big_literals
 
-@@mid_literals:
+;@@mid_literals:
         lodsb                   ;grab single extra length byte
-        inc     ah              ;add 256
+;       inc     ah              ;add 256
         xchg    cx,ax           ;with longer counts, we can save some time
-        shr     cx,1            ;by doing a word copy instead of a byte copy.
+        rcr     cl,1            ;by doing a word copy instead of a byte copy.
         rep     movsw           ;We don't need to account for overlap because
-        adc     cx,0            ;source for literals isn't the output buffer.
-        rep     movsb
-        jmp     @@check_offset_size
+;       adc     cx,0            ;source for literals isn't the output buffer.
+        adc     cx,cx           ; rcl cx,1 might be even faster on 8088
+        jmp     @@copy_odd_byte
 
 @@big_literals:
         lodsw                   ;grab 16-bit extra length
         xchg    cx,ax           ;with longer counts, we can save some time
         shr     cx,1            ;by doing a word copy instead of a byte copy.
         rep     movsw
-        adc     cx,0
-        rep     movsb
-        jmp     @@check_offset_size
+        adc     cx,cx           ; rcl cx,1 might be even faster on 8088
+        jmp     @@copy_odd_byte
 
 @@got_literals:
         segcs   xlat            ;shift literals length into place
 @@got_literals_exact:
         xchg    cx,ax
+@@copy_odd_byte:
         rep     movsb           ;copy cx literals from ds:si to es:di
 
 @@check_offset_size:
@@ -122,8 +123,16 @@ lzsa1_start:
 
         lodsw                   ;grab 16-bit length
         xchg    cx,ax           ;get ready to do a long copy
-        jcxz    @@done_decompressing ;wait, is it the EOD marker? Exit if so
-        jmp     @@copy_len_preset ;otherwise, do the copy
+;       jcxz    @@done_decompressing ;wait, is it the EOD marker? Exit if so
+;       jmp     @@copy_len_preset ;otherwise, do the copy
+        inc     cx
+		loop    @@copy_len_preset
+
+;@@done_decompressing:
+        pop     ax              ;retrieve the original decompression offset
+        xchg    di,ax           ;compute decompressed size
+        sub     ax,di
+        ret                     ;done decompressing, exit to caller
 
 @@get_long_offset:
         lodsw                   ;Get 2-byte match offset
@@ -142,12 +151,6 @@ lzsa1_start:
         xchg    si,ax           ;restore si
         mov     ds,bp           ;restore ds
         jmp     @@decode_token  ;go decode another token
-
-@@done_decompressing:
-        pop     ax              ;retrieve the original decompression offset
-        xchg    di,ax           ;compute decompressed size
-        sub     ax,di
-        ret                     ;done decompressing, exit to caller
 
 ;With a confirmed longer match length, we have an opportunity to optimize for
 ;the case where a single byte is repeated long enough that we can benefit
@@ -175,7 +178,7 @@ lzsa1_start:
 ;This won't affect 8088 that much, but it speeds up 8086 and higher.
         shr     cx,1
         rep     movsw
-        adc     cx,0
+        adc     cx,cx           ; rcl cx,1 might be even faster on 8088
         rep     movsb
         mov     si,bp           ;restore si
         pop     ds
@@ -189,7 +192,7 @@ lzsa1_start:
         mov     ah,al
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0
+        adc     cx,cx           ; rcl cx,1 might be even faster on 8088
         rep     stosb           ;finish word run
         mov     si,bp           ;restore si
         pop     ds
@@ -199,7 +202,8 @@ lzsa1_start:
         lodsw                   ;load first word of run
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0            ;despite 2-byte offset, compressor might
+;       adc     cx,0            ;despite 2-byte offset, compressor might
+        adc     cx,cx           ; rcl cx,1 might be even faster on 8088
         rep     stosb           ;output odd length. better safe than sorry.
         mov     si,bp           ;restore si
         pop     ds

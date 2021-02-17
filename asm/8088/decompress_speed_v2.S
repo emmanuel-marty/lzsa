@@ -8,6 +8,7 @@
 ;  - Trashes all data and segment registers
 ;
 ;  Copyright (C) 2019 Jim Leonard, Emmanuel Marty
+;  Additional optimizations by Krister Nordvall
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -64,17 +65,17 @@ lzsa2_decompress_speed:
         mov     bx,0100H        ;bx used by get_nybble
 
 .decode_token:
-        mov     ax,cx           ;clear ah - cx is zero (and must stay that way)
+        xchg    cx,ax           ;clear ah - cx is zero
         lodsb                   ;read token byte: XYZ|LL|MMMM
         mov     dx,ax           ;keep copy of token in dl
 
         and     al,018H         ;isolate literals length in token (LL)
-        jz      .check_offset  ;no literals? stop decoding, go to matches
+        jz      .check_offset   ;no literals? stop decoding, go to matches
 
 ;At this point, al can be in three (unshifted) states: 1, 2, or 3.
 ;3 = not done yet.
-        cmp     al,(2 << 3)    ;LITERALS_RUN_LEN_V2? (original: cmp al,03h)
-        jb      .lit1b         ;LZSA2 output 1-byte more often, so test first
+        cmp     al,(2 << 3)     ;LITERALS_RUN_LEN_V2? (original: cmp al,03h)
+        jb      .lit1b          ;LZSA2 output 1-byte more often, so test first
         je      .lit2b
 
         mov     cl,3
@@ -82,7 +83,7 @@ lzsa2_decompress_speed:
         get_nybble              ;cl := get extra literals length nybble
         add     al,cl           ;add len from token to nybble
         cmp     al,012H         ;LITERALS_RUN_LEN_V2 + 15 ?
-        jne     .got_literals  ;if not, we have the full literals count
+        jne     .got_literals   ;if not, we have the full literals count
         lodsb                   ;grab extra length byte
         add     al,012H         ;overflow?
         jnc     .got_literals_big ;if not, we have a big full literals count
@@ -93,28 +94,36 @@ lzsa2_decompress_speed:
         xchg    cx,ax
         shr     cx,1
         rep     movsw
-        adc     cx,0
+        adc     cx,cx
         rep     movsb
         jmp     .check_offset
 
 .got_literals:
         xchg    cx,ax
         rep     movsb           ;copy cx literals from ds:si to es:di
-        jmp     .check_offset
+;       jmp     .check_offset
+        db      0B8h            ; Opcode byte for MOV AX, <immed> (faster than jumping)
 
 ;LZSA2 likes to produce tiny literals of 1 or 2 bytes.  Handle them here.
 .lit2b:movsb
 .lit1b:movsb
 
 .check_offset:
+%if 0   ; 9 bytes
         test    dl,dl           ;check match offset mode in token (X bit)
         js      .rep_match_or_large_offset
 
         cmp     dl,040H         ;check if this is a 5 or 9-bit offset (Y bit)
         jnb     .offset_9_bit
+%else   ; 7 bytes
+        ; This is shorter than the above and should be faster overall if
+		; falling through to 5-bit offsets is the most common path.
+        test    dl,0C0h
+        js      .rep_match_or_large_offset
+		jnz     .offset_9_bit
+%endif ; 0
 
         ;5 bit offset:
-        xchg    cx,ax           ;clear ah - cx is zero from prior rep movs
         mov     al,020H         ;shift Z (offset bit 4) in place
         and     al,dl
         shl     al,1
@@ -123,12 +132,12 @@ lzsa2_decompress_speed:
         or      al,cl           ;merge nybble
         rol     al,1
         xor     al,0E1H         ;set offset bits 7-5 to 1
-        dec     ah              ;set offset bits 15-8 to 1
+        cbw                     ;set offset bits 15-8 to 1
         jmp     .get_match_length
 
 .rep_match_or_16_bit:
         test    dl,020H         ;test bit Z (offset bit 8)
-        jne     .repeat_match  ;rep-match
+        jnz     .repeat_match   ;rep-match
 
         ;16 bit offset:
         lodsw                   ;Get 2-byte match offset
@@ -137,18 +146,21 @@ lzsa2_decompress_speed:
 
 .offset_9_bit:
         ;9 bit offset:
-        xchg    cx,ax           ;clear ah - cx is zero from prior rep movs
         lodsb                   ;get 8 bit offset from stream in A
-        dec     ah              ;set offset bits 15-8 to 1
+        mov     ah,0FFh         ;set offset bits 15-8 to 1
         test    dl,020H         ;test bit Z (offset bit 8)
-        je      .get_match_length
+        jz      .get_match_length
         dec     ah              ;clear bit 8 if Z bit is clear
         jmp     .get_match_length
 
 .rep_match_or_large_offset:
+%if 0
         cmp     dl,0c0H         ;check if this is a 13-bit offset
                                 ;or a 16-bit offset/rep match (Y bit)
         jnb     .rep_match_or_16_bit
+%else
+        jpe     .rep_match_or_16_bit
+%endif ; 0
 
         ;13 bit offset:
         mov     ah,020H         ;shift Z (offset bit 12) in place
@@ -180,7 +192,7 @@ lzsa2_decompress_speed:
         lodsb                   ;grab extra length byte
         add     al,018H         ;overflow?
         jnc     .got_matchlen_big  ;if not, we have entire (big) length
-        je      .done_decompressing ; detect EOD code
+        jz      .done_decompressing ; detect EOD code
 
         lodsw                   ;grab 16-bit length
 
@@ -209,7 +221,7 @@ lzsa2_decompress_speed:
 ;This won't affect 8088 that much, but it speeds up 8086 and higher.
         shr     cx,1
         rep     movsw
-        adc     cx,0
+        adc     cx,cx
         rep     movsb
         xchg    si,ax
         mov     ds,dx           ;restore ds:si
@@ -246,7 +258,7 @@ lzsa2_decompress_speed:
         mov     ah,al
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0
+        adc     cx,cx
         rep     stosb           ;finish word run
         pop     si
         mov     ds,dx
@@ -258,7 +270,7 @@ lzsa2_decompress_speed:
         lodsw                   ;load first word of run
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0            ;despite 2-byte offset, compressor might
+        adc     cx,cx           ;despite 2-byte offset, compressor might
         rep     stosb           ;output odd length. better safe than sorry.
         pop     si
         mov     ds,dx

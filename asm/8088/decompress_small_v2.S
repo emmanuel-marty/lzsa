@@ -1,6 +1,7 @@
 ;  decompress_small.S - space-efficient decompressor implementation for 8088
 ;
 ;  Copyright (C) 2019 Emmanuel Marty
+;  Additional optimizations by Krister Nordvall
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -39,10 +40,10 @@ lzsa2_decompress:
    xor bp,bp
 
 .decode_token:
-   mov ax,cx               ; clear ah - cx is zero from above or from after rep movsb in .copy_match
+   xchg cx,ax              ; clear ah - cx is zero from above or from after rep movsb in .copy_match
    lodsb                   ; read token byte: XYZ|LL|MMMM
    mov dx,ax               ; keep token in dl
-   
+
    and al,018H             ; isolate literals length in token (LL)
    mov cl,3
    shr al,cl               ; shift literals length into place
@@ -51,7 +52,7 @@ lzsa2_decompress:
    jne .got_literals       ; no, we have the full literals count from the token, go copy
 
    call .get_nibble        ; get extra literals length nibble
-   add al,cl               ; add len from token to nibble 
+   add al,cl               ; add len from token to nibble
    cmp al,012H             ; LITERALS_RUN_LEN_V2 + 15 ?
    jne .got_literals       ; if not, we have the full literals count, go copy
 
@@ -82,7 +83,7 @@ lzsa2_decompress:
    lodsb                   ; get 8 bit offset from stream in A
    dec ah                  ; set offset bits 15-8 to 1
    test dl,020H            ; test bit Z (offset bit 8)
-   je .get_match_length
+   jz .get_match_length
 .dec_offset_top:
    dec ah                  ; clear bit 8 if Z bit is clear
                            ; or set offset bits 15-8 to 1
@@ -102,7 +103,7 @@ lzsa2_decompress:
 
 .rep_match_or_16_bit:
    test dl,020H            ; test bit Z (offset bit 8)
-   jne .repeat_match       ; rep-match
+   jnz .repeat_match       ; rep-match
 
                            ; 16 bit offset
    lodsb                   ; Get 2-byte match offset
@@ -122,7 +123,7 @@ lzsa2_decompress:
    jne .got_matchlen       ; no, we have the full match length from the token, go copy
 
    call .get_nibble        ; get extra literals length nibble
-   add al,cl               ; add len from token to nibble 
+   add al,cl               ; add len from token to nibble
    cmp al,018H             ; MIN_MATCH_SIZE_V2 + MATCH_RUN_LEN_V2 + 15?
    jne .got_matchlen       ; no, we have the full match length from the token, go copy
 
@@ -136,7 +137,7 @@ lzsa2_decompress:
 .got_matchlen:
    xchg cx,ax              ; copy match length into cx
    push ds                 ; save ds:si (current pointer to compressed data)
-   xchg si,ax          
+   xchg si,ax
    push es
    pop ds
    lea si,[bp+di]          ; ds:si now points at back reference in output data
@@ -163,7 +164,7 @@ lzsa2_decompress:
 .get_nibble:
    neg bh                  ; nibble ready?
    jns .has_nibble
-   
+
    xchg bx,ax
    lodsb                   ; load two nibbles
    xchg bx,ax

@@ -1,4 +1,4 @@
-;  lzsa2fta.asm - LZSA v2 time-efficient decompressor implementation for 8088
+;  LZSA2FTA.ASM - LZSA v2 time-efficient decompressor implementation for 8088
 ;  Turbo Assembler IDEAL mode dialect; can also be assembled with NASM.
 ;
 ;  Usual DOS assembler SMALL model assumptions apply.  This code:
@@ -8,6 +8,7 @@
 ;  - Trashes all data and segment registers
 ;
 ;  Copyright (C) 2019 Jim Leonard, Emmanuel Marty
+;  Additional optimizations by Krister Nordvall
 ;
 ;  This software is provided 'as-is', without any express or implied
 ;  warranty.  In no event will the authors be held liable for any damages
@@ -72,7 +73,7 @@ lzsa2_speed_start:
         mov     bx,0100H        ;bx used by get_nybble
 
 @@decode_token:
-        mov     ax,cx           ;clear ah - cx is zero (and must stay that way)
+        xchg    cx,ax           ;clear ah - cx is zero
         lodsb                   ;read token byte: XYZ|LL|MMMM
         mov     dx,ax           ;keep copy of token in dl
 
@@ -101,28 +102,32 @@ lzsa2_speed_start:
         xchg    cx,ax
         shr     cx,1
         rep     movsw
-        adc     cx,0
+        adc     cx,cx
         rep     movsb
         jmp     @@check_offset
 
 @@got_literals:
         xchg    cx,ax
         rep     movsb           ;copy cx literals from ds:si to es:di
-        jmp     @@check_offset
+;       jmp     @@check_offset
+        db      0B8h            ; Opcode byte for MOV AX, <immed> (faster than jumping)
 
 ;LZSA2 likes to produce tiny literals of 1 or 2 bytes.  Handle them here.
 @@lit2b:movsb
 @@lit1b:movsb
 
 @@check_offset:
-        test    dl,dl           ;check match offset mode in token (X bit)
-        js      @@rep_match_or_large_offset
+;       test    dl,dl           ;check match offset mode in token (X bit)
+;       js      @@rep_match_or_large_offset
 
-        cmp     dl,040H         ;check if this is a 5 or 9-bit offset (Y bit)
-        jnb     @@offset_9_bit
+;       cmp     dl,040H         ;check if this is a 5 or 9-bit offset (Y bit)
+;       jnb     @@offset_9_bit
+
+        test    dl,0C0h
+        js      @@rep_match_or_large_offset
+        jnz     @@offset_9_bit
 
         ;5 bit offset:
-        xchg    cx,ax           ;clear ah - cx is zero from prior rep movs
         mov     al,020H         ;shift Z (offset bit 4) in place
         and     al,dl
         shl     al,1
@@ -131,12 +136,12 @@ lzsa2_speed_start:
         or      al,cl           ;merge nybble
         rol     al,1
         xor     al,0E1H         ;set offset bits 7-5 to 1
-        dec     ah              ;set offset bits 15-8 to 1
+        cbw                     ;set offset bits 15-8 to 1
         jmp     @@get_match_length
 
 @@rep_match_or_16_bit:
         test    dl,020H         ;test bit Z (offset bit 8)
-        jne     @@repeat_match  ;rep-match
+        jnz     @@repeat_match  ;rep-match
 
         ;16 bit offset:
         lodsw                   ;Get 2-byte match offset
@@ -145,18 +150,18 @@ lzsa2_speed_start:
 
 @@offset_9_bit:
         ;9 bit offset:
-        xchg    cx,ax           ;clear ah - cx is zero from prior rep movs
         lodsb                   ;get 8 bit offset from stream in A
-        dec     ah              ;set offset bits 15-8 to 1
+        mov     ah,0FFh         ;set offset bits 15-8 to 1
         test    dl,020H         ;test bit Z (offset bit 8)
-        je      @@get_match_length
+        jz      @@get_match_length
         dec     ah              ;clear bit 8 if Z bit is clear
         jmp     @@get_match_length
 
 @@rep_match_or_large_offset:
-        cmp     dl,0c0H         ;check if this is a 13-bit offset
+;       cmp     dl,0c0H         ;check if this is a 13-bit offset
                                 ;or a 16-bit offset/rep match (Y bit)
-        jnb     @@rep_match_or_16_bit
+;       jnb     @@rep_match_or_16_bit
+        jpe     @@rep_match_or_16_bit
 
         ;13 bit offset:
         mov     ah,020H         ;shift Z (offset bit 12) in place
@@ -188,7 +193,7 @@ lzsa2_speed_start:
         lodsb                   ;grab extra length byte
         add     al,018H         ;overflow?
         jnc     @@got_matchlen_big  ;if not, we have entire (big) length
-        je      @@done_decompressing ; detect EOD code
+        jz      @@done_decompressing ; detect EOD code
 
         lodsw                   ;grab 16-bit length
 
@@ -217,7 +222,7 @@ ENDIF
 ;This won't affect 8088 that much, but it speeds up 8086 and higher.
         shr     cx,1
         rep     movsw
-        adc     cx,0
+        adc     cx,cx
         rep     movsb
         xchg    si,ax
         mov     ds,dx           ;restore ds:si
@@ -254,7 +259,7 @@ ENDIF
         mov     ah,al
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0
+        adc     cx,cx
         rep     stosb           ;finish word run
         pop     si
         mov     ds,dx
@@ -266,7 +271,7 @@ IF HANDLE_WORD_RUN
         lodsw                   ;load first word of run
         shr     cx,1
         rep     stosw           ;perform word run
-        adc     cx,0            ;despite 2-byte offset, compressor might
+        adc     cx,cx           ;despite 2-byte offset, compressor might
         rep     stosb           ;output odd length. better safe than sorry.
         pop     si
         mov     ds,dx

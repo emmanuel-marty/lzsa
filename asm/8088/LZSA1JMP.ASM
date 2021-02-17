@@ -1,6 +1,5 @@
-; lzsa2fta.asm time-efficient decompressor implementation for 808x CPUs.
+; LZSA1JMP.ASM time-efficient decompressor implementation for 808x CPUs.
 ; Turbo Assembler IDEAL mode dialect.
-; (Is supposed to also assemble with NASM's IDEAL mode support, but YMMV.)
 ;
 ; This code assembles to about 3K of lookup tables and unrolled code,
 ; but the tradeoff for that size is the absolute fastest decompressor
@@ -15,7 +14,7 @@
 ; - Trashes all data and segment registers
 ;
 ; Copyright (C) 2019 Jim Leonard, Emmanuel Marty
-; Additional speed optimizations by Pavel Zagrebin
+; Additional speed optimizations by Pavel Zagrebin, Krister Nordvall
 ;
 ; This software is provided 'as-is', without any express or implied
 ; warranty.  In no event will the authors be held liable for any damages
@@ -295,14 +294,27 @@ MACRO do_match_copy
         jmp     decode_token
 ENDM
 
-MACRO do_literal_copy
+MACRO do_literal_copy_shr
 LOCAL even
 ; Copies a literal sequence using words.
 ; Meant for longer lengths; for 128 bytes or less, use REP MOVSB.
 ; requirements: cx=length, ds:si=compdata, es:di=output
 ; must leave cx=0 at exit
         shr     cx,1
-        jnc even
+        jnc     even
+        movsb
+even:
+        rep     movsw
+ENDM
+
+MACRO do_literal_copy_rcr
+LOCAL even
+; Copies a literal sequence using words.
+; Meant for longer lengths; for 128 bytes or less, use REP MOVSB.
+; requirements: (cf << 8 | cl)=length, ds:si=compdata, es:di=output
+; must leave cx=0 at exit
+        rcr     cl,1
+        jnc     even
         movsb
 even:
         rep     movsw
@@ -403,21 +415,22 @@ lit_ext_mat_len_1b:
 ;       jz      @@val249_3      ;if zf & cf, 249: get 16-bit literal length
         jc      @@val250_3      ;if cf,      250: get extra literal length byte
         xchg    cx,ax           ;otherwise, we have our literal length
-        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        do_literal_copy_shr     ;this might be better as rep movsw !!! benchmark
         get_byte_match_offset
         copy_small_match_len
 @@val250_3:
-jz      @@val249_3
+        jz      @@val249_3
         lodsb                   ;ah=0; grab single extra length byte
-        inc     ah              ;ax=256+length byte
+;       inc     ah              ;ax=256+length byte
+;       Instead of 'inc ah' (2 bytes), use the CF in do_literal_copy_rcr
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_rcr
         get_byte_match_offset
         copy_small_match_len
 @@val249_3:
         lodsw                   ;grab 16-bit length
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_shr
         get_byte_match_offset
         copy_small_match_len
 
@@ -430,21 +443,22 @@ lit_ext_mat_ext_1b:
 ;       jz      @@val249_4      ;if zf & cf, 249: get 16-bit literal length
         jc      @@val250_4      ;if cf,      250: get extra literal length byte
         xchg    cx,ax           ;otherwise, we have our literal length
-        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        do_literal_copy_shr     ;this might be better as rep movsw !!! benchmark
         get_byte_match_offset
         copy_large_match_len
 @@val250_4:
-jz @@val249_4
+        jz      @@val249_4
         lodsb                   ;ah=0; grab single extra length byte
-        inc     ah              ;ax=256+length byte
+;       inc     ah              ;ax=256+length byte
+;       Instead of 'inc ah' (2 bytes), use the CF in do_literal_copy_rcr
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_rcr
         get_byte_match_offset
         copy_large_match_len
 @@val249_4:
         lodsw                   ;grab 16-bit length
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_shr
         get_byte_match_offset
         copy_large_match_len
 
@@ -494,21 +508,22 @@ lit_ext_mat_len_2b:
 ;       jz      @@val249_7      ;if zf & cf, 249: get 16-bit literal length
         jc      @@val250_7      ;if cf,      250: get extra literal length byte
         xchg    cx,ax           ;otherwise, we have our literal length
-        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        do_literal_copy_shr     ;this might be better as rep movsw !!! benchmark
         get_word_match_offset
         copy_small_match_len
 @@val250_7:
-jz @@val249_7
+        jz      @@val249_7
         lodsb                   ;ah=0; grab single extra length byte
-        inc     ah              ;ax=256+length byte
+;       inc     ah              ;ax=256+length byte
+;       Instead of 'inc ah' (2 bytes), use the CF in do_literal_copy_rcr
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_rcr
         get_word_match_offset
         copy_small_match_len
 @@val249_7:
         lodsw                   ;grab 16-bit length
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_shr
         get_word_match_offset
         copy_small_match_len
 
@@ -521,21 +536,22 @@ lit_ext_mat_ext_2b:
 ;       jz      @@val249_8      ;if zf & cf, 249: get 16-bit literal length
         jc      @@val250_8      ;if cf,      250: get extra literal length byte
         xchg    cx,ax           ;otherwise, we have our literal length
-        do_literal_copy         ;this might be better as rep movsw !!! benchmark
+        do_literal_copy_shr     ;this might be better as rep movsw !!! benchmark
         get_word_match_offset
         copy_large_match_len
 @@val250_8:
-jz @@val249_8
+        jz      @@val249_8
         lodsb                   ;ah=0; grab single extra length byte
-        inc     ah              ;ax=256+length byte
+;       inc     ah              ;ax=256+length byte
+;       Instead of 'inc ah' (2 bytes), use the CF in do_literal_copy_rcr
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_rcr
         get_word_match_offset
         copy_large_match_len
 @@val249_8:
         lodsw                   ;grab 16-bit length
         xchg    cx,ax
-        do_literal_copy
+        do_literal_copy_shr
         get_word_match_offset
         copy_large_match_len
 
