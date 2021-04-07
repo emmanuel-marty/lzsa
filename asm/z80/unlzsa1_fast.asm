@@ -158,7 +158,7 @@ LongerMatch:	ex (sp),hl : NEXT_HL : add (hl) : jr nc,CopyMatch2
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
 		ld a,b : or c : jr nz,CopyMatch2.UseC
-		pop hl : ret
+		pop bc : ret
 
 	ELSE
 
@@ -190,7 +190,7 @@ VeryLongMatch:	; the codes are designed to overflow;
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
 		ld a,b : or c : jr nz,LongerMatch.UseC
-		pop hl : ret
+		pop bc : ret
 
 	ENDIF
 
