@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA1 decompressor by spke & uniabis (109 bytes)
+;  Speed-optimized LZSA1 decompressor by spke & uniabis (113 bytes)
 ;
 ;  ver.00 by spke for LZSA 0.5.4 (03-24/04/2019, 134 bytes);
 ;  ver.01 by spke for LZSA 0.5.6 (25/04/2019, 110(-24) bytes, +0.2% speed);
@@ -10,7 +10,8 @@
 ;  ver.06 by spke for LZSA 1.0.7 (27/08/2019, 111(+4) bytes, +2.1% speed);
 ;  ver.07 by spke for LZSA 1.1.0 (25/09/2019, added full revision history);
 ;  ver.08 by spke for LZSA 1.1.2 (22/10/2019, re-organized macros and added an option for unrolled copying of long matches);
-;  ver.09 by spke for LZSA 1.2.1 (02/01/2020, 109(-2) bytes, same speed)
+;  ver.09 by spke for LZSA 1.2.1 (02/01/2020, 109(-2) bytes, same speed);
+;  ver.10 by spke (07/04/2021, 113(+4) bytes, +5% speed)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -58,8 +59,8 @@
 ;     misrepresented as being the original software.
 ;  3. This notice may not be removed or altered from any source distribution.
 
-;	DEFINE	UNROLL_LONG_MATCHES						; uncomment for faster decompression of very compressible data (+57 bytes)
-;	DEFINE	BACKWARD_DECOMPRESS
+;	DEFINE	UNROLL_LONG_MATCHES						; uncomment for faster decompression of very compressible data (+51 byte)
+;	DEFINE	BACKWARD_DECOMPRESS						; uncomment to decompress backward compressed data (-3% speed, +5 bytes)
 
 	IFNDEF	BACKWARD_DECOMPRESS
 
@@ -68,7 +69,8 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		ex de,hl : add hl,de
+		; HL = DE+HL
+		add hl,de
 		ENDM
 
 		MACRO COPY1
@@ -86,8 +88,9 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		ex de,hl : ld a,e : sub l : ld l,a
-		ld a,d : sbc h : ld h,a						; 4*4+3*4 = 28t / 7 bytes
+		; HL = DE-HL
+		ld a,e : sub l : ld l,a
+		ld a,d : sbc h : ld h,a						; 6*4 = 24t / 6 bytes
 		ENDM
 
 		MACRO COPY1
@@ -103,19 +106,25 @@
 @DecompressLZSA1:
 		ld b,0 : jr ReadToken
 
+	IFNDEF	UNROLL_LONG_MATCHES
+
+CopyMatch2:	ld c,a
+.UseC		ex (sp),hl : jr CopyMatch.UseC
+
+	ENDIF
+
 NoLiterals:	xor (hl) : NEXT_HL : jp m,LongOffset
 
-ShortOffset:	push de : ld e,(hl) : ld d,#FF
+ShortOffset:	push hl : ld l,(hl) : ld h,#FF
 
  		; short matches have length 0+3..14+3
 		add 3 : cp 15+3 : jr nc,LongerMatch
 
 		; placed here this saves a JP per iteration
-CopyMatch:	ld c,a
-.UseC		NEXT_HL : ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
+CopyMatch:	ld c,a								; BC = len, DE = dest, HL = offset, SP -> [src]
+.UseC		ADD_OFFSET							; BC = len, DE = dest, HL = dest-offset, SP->[src]
 		COPY1 : COPY1 : COPYBC						; BC = 0, DE = dest
-.popSrc		pop hl								; HL = src
+.popSrc		pop hl : NEXT_HL						; HL = src
 	
 ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		; where LLL is the number of literals and MMMM is
@@ -132,32 +141,32 @@ ReadToken:	; first a byte token "O|LLL|MMMM" is read from the stream,
 		and #8F : jp p,ShortOffset
 
 LongOffset:	; read second byte of the offset
-		push de : ld e,(hl) : NEXT_HL : ld d,(hl)
+		ld c,(hl) : NEXT_HL : push hl : ld h,(hl) : ld l,c
 		add -128+3 : cp 15+3 : jp c,CopyMatch
 
 	IFNDEF	UNROLL_LONG_MATCHES
 
 		; MMMM=15 indicates a multi-byte number of literals
-LongerMatch:	NEXT_HL : add (hl) : jr nc,CopyMatch
+LongerMatch:	ex (sp),hl : NEXT_HL : add (hl) : jr nc,CopyMatch2
 
 		; the codes are designed to overflow;
 		; the overflow value 1 means read 1 extra byte
 		; and overflow value 0 means read 2 extra bytes
-.code1		ld b,a : NEXT_HL : ld c,(hl) : jr nz,CopyMatch.UseC
+.code1		ld b,a : NEXT_HL : ld c,(hl) : jr nz,CopyMatch2.UseC
 .code0		NEXT_HL : ld b,(hl)
 
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
-		ld a,b : or c : jr nz,CopyMatch.UseC
-		pop de : ret
+		ld a,b : or c : jr nz,CopyMatch2.UseC
+		pop bc : ret
 
 	ELSE
 
 		; MMMM=15 indicates a multi-byte number of literals
-LongerMatch:	NEXT_HL : add (hl) : jr c,VeryLongMatch
+LongerMatch:	ex (sp),hl : NEXT_HL : add (hl) : jr c,VeryLongMatch
 
 		ld c,a
-.UseC		NEXT_HL : ex (sp),hl
+.UseC		ex (sp),hl
 		ADD_OFFSET
 		COPY1 : COPY1
 
@@ -170,7 +179,7 @@ LongerMatch:	NEXT_HL : add (hl) : jr c,VeryLongMatch
 		COPY1
 		EDUP
 		jp pe,.fastLDIR
-		jp CopyMatch.popSrc
+		jr CopyMatch.popSrc
 
 VeryLongMatch:	; the codes are designed to overflow;
 		; the overflow value 1 means read 1 extra byte
@@ -181,7 +190,7 @@ VeryLongMatch:	; the codes are designed to overflow;
 		; the two-byte match length equal to zero
 		; designates the end-of-data marker
 		ld a,b : or c : jr nz,LongerMatch.UseC
-		pop de : ret
+		pop bc : ret
 
 	ENDIF
 
