@@ -91,6 +91,7 @@ External links:
 * [i8080 and PDP-11 decompressors](https://github.com/ivagorRetrocomp/DeLZSA) by Ivan Gorodetsky
 * [MC68000 decompressors](https://github.com/tattlemuss/lz4-m68k/blob/master/src/lzsa.s) by Steven Tattersall
 * [Gameboy decompressors](https://github.com/meltycode) by Meltycode, based on the Z80 code by introspec
+* [Streamed LZSA2 depacker](https://hg.ulukai.org/ecm/inicomp/file/c1a1f9bd4382/lzsa2.asm) by C. Masloch
 * LZSA's page on [Pouet](https://www.pouet.net/prod.php?which=81573)
 
 # Compressed format
