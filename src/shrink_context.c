@@ -66,6 +66,7 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
    pCompressor->rep_len_handled_mask = NULL;
    pCompressor->first_offset_for_byte = NULL;
    pCompressor->next_offset_for_pos = NULL;
+   pCompressor->offset_cache = NULL;
    pCompressor->min_match_size = nMinMatchSize;
    if (pCompressor->min_match_size < nMinMatchSizeForFormat)
       pCompressor->min_match_size = nMinMatchSizeForFormat;
@@ -116,7 +117,10 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
                                     if (pCompressor->first_offset_for_byte) {
                                        pCompressor->next_offset_for_pos = (int*)malloc(BLOCK_SIZE * sizeof(int));
                                        if (pCompressor->next_offset_for_pos) {
-                                          return 0;
+                                          pCompressor->offset_cache = (int*)malloc(2048 * sizeof(int));
+                                          if (pCompressor->offset_cache) {
+                                             return 0;
+                                          }
                                        }
                                     }
                                  }
@@ -145,6 +149,11 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
  */
 void lzsa_compressor_destroy(lzsa_compressor *pCompressor) {
    divsufsort_destroy(&pCompressor->divsufsort_context);
+
+   if (pCompressor->offset_cache) {
+      free(pCompressor->offset_cache);
+      pCompressor->offset_cache = NULL;
+   }
 
    if (pCompressor->next_offset_for_pos) {
       free(pCompressor->next_offset_for_pos);

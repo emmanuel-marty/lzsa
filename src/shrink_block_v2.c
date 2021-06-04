@@ -1310,6 +1310,7 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
 
          int* first_offset_for_byte = pCompressor->first_offset_for_byte;
          int* next_offset_for_pos = pCompressor->next_offset_for_pos;
+         int* offset_cache = pCompressor->offset_cache;
          int nPosition;
 
          /* Supplement small matches */
@@ -1352,8 +1353,73 @@ int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigne
                   match[m].offset = nMatchOffset;
                   m++;
                   nInserted++;
-                  if (nInserted >= 15)
+                  if (nInserted >= 12)
                      break;
+               }
+            }
+         }
+
+         /* Supplement matches further */
+
+         memset(offset_cache, 0xff, sizeof(int) * 2048);
+
+         for (nPosition = nPreviousBlockSize + 1; nPosition < (nEndOffset - 1); nPosition++) {
+            lzsa_match* match = pCompressor->match + ((nPosition - nPreviousBlockSize) << MATCHES_PER_INDEX_SHIFT_V2);
+
+            if (match[0].length < 5) {
+               int m = 0;
+               int nMatchPos;
+
+               while (m < 46 && match[m].length) {
+                  offset_cache[match[m].offset & 2047] = nPosition;
+                  m++;
+               }
+
+               for (nMatchPos = next_offset_for_pos[nPosition - nPreviousBlockSize]; m < 46 && nMatchPos >= 0; nMatchPos = next_offset_for_pos[nMatchPos - nPreviousBlockSize]) {
+                  int nMatchOffset = nPosition - nMatchPos;
+
+                  if (nMatchOffset <= MAX_OFFSET) {
+                     int nAlreadyExists = 0;
+
+                     if (offset_cache[nMatchOffset & 2047] == nPosition) {
+                        int nExistingMatchIdx;
+
+                        for (nExistingMatchIdx = 0; nExistingMatchIdx < m; nExistingMatchIdx++) {
+                           if (match[nExistingMatchIdx].offset == nMatchOffset) {
+                              nAlreadyExists = 1;
+                              break;
+                           }
+                        }
+                     }
+
+                     if (!nAlreadyExists) {
+                        int nForwardPos = nPosition + 2;
+                        int nGotMatch = 0;
+
+                        while (nForwardPos >= nMatchOffset && (nForwardPos + 2) < nEndOffset && nForwardPos < (nPosition + 2 + 1 + 2)) {
+                           if (!memcmp(pInWindow + nForwardPos, pInWindow + nForwardPos - nMatchOffset, 2)) {
+                              nGotMatch = 1;
+                              break;
+                           }
+                           nForwardPos++;
+                        }
+
+                        if (nGotMatch) {
+                           int nMatchLen = 2;
+                           while (nMatchLen < 16 && nPosition < (nEndOffset - nMatchLen) && pInWindow[nMatchPos + nMatchLen] == pInWindow[nPosition + nMatchLen])
+                              nMatchLen++;
+                           match[m].length = nMatchLen | 0x8000;
+                           match[m].offset = nMatchOffset;
+                           m++;
+
+                           lzsa_insert_forward_match_v2(pCompressor, pInWindow, nPosition, nMatchOffset, nPreviousBlockSize, nEndOffset, 8);
+                           break;
+                        }
+                     }
+                  }
+                  else {
+                     break;
+                  }
                }
             }
          }

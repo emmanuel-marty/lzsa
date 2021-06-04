@@ -128,6 +128,7 @@ typedef struct _lzsa_compressor {
    char *rep_len_handled_mask;
    int *first_offset_for_byte;
    int *next_offset_for_pos;
+   int *offset_cache;
    int min_match_size;
    int format_version;
    int flags;
