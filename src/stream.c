@@ -34,6 +34,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "stream.h"
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 /**
  * Close file stream
@@ -98,7 +102,30 @@ static int lzsa_filestream_eof(lzsa_stream_t *stream) {
  * @return 0 for success, nonzero for failure
  */
 int lzsa_filestream_open(lzsa_stream_t *stream, const char *pszInFilename, const char *pszMode) {
-   stream->obj = (void*)fopen(pszInFilename, pszMode);
+   const char* stdInOutFile = "-";
+   const char* stdInMode = "rb";
+   const char* stdOutMode = "wb";
+   int result;
+
+   if (!strncmp(pszInFilename, stdInOutFile, 1)) {
+       if (!strncmp(pszMode, stdInMode, 2)) {
+#ifdef _WIN32
+           result = _setmode(_fileno(stdin), _O_BINARY);
+#endif   
+           stream->obj = stdin;
+       } else if (!strncmp(pszMode, stdOutMode, 2)) {
+#ifdef _WIN32
+		   result = _setmode(_fileno(stdout), _O_BINARY);
+#endif 
+           stream->obj = stdout;
+       } else {
+           return -1;
+       }
+  
+   } else {
+       stream->obj = (void*)fopen(pszInFilename, pszMode);
+   }
+   
    if (stream->obj) {
       stream->read = lzsa_filestream_read;
       stream->write = lzsa_filestream_write;
