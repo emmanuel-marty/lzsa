@@ -329,7 +329,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             int exists = 0;
 
             for (n = 0;
-               n < nArrivalsPerPosition && pDestLiteralSlots[n].cost < nCodingChoiceCost;
+               pDestLiteralSlots[n].cost < nCodingChoiceCost;
                n++) {
                if (pDestLiteralSlots[n].rep_offset == nRepOffset) {
                   exists = 1;
@@ -396,40 +396,42 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       int nRepMatchArrivalIdxAndLen[(NARRIVALS_PER_POSITION_V2_MAX * 2) + 1];
       int nNumRepMatchArrivals = 0;
 
-      int nMaxRepLenForPos = nEndOffset - i;
-      if (nMaxRepLenForPos > LCP_MAX)
-         nMaxRepLenForPos = LCP_MAX;
-      const unsigned char* pInWindowStart = pInWindow + i;
-      const unsigned char* pInWindowMax = pInWindowStart + nMaxRepLenForPos;
+      if ((i + MIN_MATCH_SIZE_V2) <= nEndOffset) {
+         int nMaxRepLenForPos = nEndOffset - i;
+         if (nMaxRepLenForPos > LCP_MAX)
+            nMaxRepLenForPos = LCP_MAX;
+         const unsigned char* pInWindowStart = pInWindow + i;
+         const unsigned char* pInWindowMax = pInWindowStart + nMaxRepLenForPos;
 
-      for (j = 0; j < nNumArrivalsForThisPos && (i + MIN_MATCH_SIZE_V2) <= nEndOffset; j++) {
-         const int nRepOffset = cur_arrival[j].rep_offset;
+         for (j = 0; j < nNumArrivalsForThisPos; j++) {
+            const int nRepOffset = cur_arrival[j].rep_offset;
 
-         if (nRepOffset) {
-            if (i >= nRepOffset) {
-               if (!memcmp(pInWindow + i, pInWindow + i - nRepOffset, MIN_MATCH_SIZE_V2)) {
-                  const unsigned char* pInWindowAtPos;
+            if (nRepOffset) {
+               if (i >= nRepOffset) {
+                  if (!memcmp(pInWindow + i, pInWindow + i - nRepOffset, MIN_MATCH_SIZE_V2)) {
+                     const unsigned char* pInWindowAtPos;
 
-                  const int nLen0 = rle_len[i - nRepOffset];
-                  const int nLen1 = rle_len[i];
-                  int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
+                     const int nLen0 = rle_len[i - nRepOffset];
+                     const int nLen1 = rle_len[i];
+                     int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
 
-                  if (nMinLen > nMaxRepLenForPos)
-                     nMinLen = nMaxRepLenForPos;
-                  pInWindowAtPos = pInWindowStart + nMinLen;
+                     if (nMinLen > nMaxRepLenForPos)
+                        nMinLen = nMaxRepLenForPos;
+                     pInWindowAtPos = pInWindowStart + nMinLen;
 
-                  while ((pInWindowAtPos + 8) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 8))
-                     pInWindowAtPos += 8;
-                  while ((pInWindowAtPos + 4) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 4))
-                     pInWindowAtPos += 4;
-                  while (pInWindowAtPos < pInWindowMax && pInWindowAtPos[-nRepOffset] == pInWindowAtPos[0])
-                     pInWindowAtPos++;
-                  int nCurRepLen = (int)(pInWindowAtPos - pInWindowStart);
+                     while ((pInWindowAtPos + 8) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 8))
+                        pInWindowAtPos += 8;
+                     while ((pInWindowAtPos + 4) < pInWindowMax && !memcmp(pInWindowAtPos - nRepOffset, pInWindowAtPos, 4))
+                        pInWindowAtPos += 4;
+                     while (pInWindowAtPos < pInWindowMax && pInWindowAtPos[-nRepOffset] == pInWindowAtPos[0])
+                        pInWindowAtPos++;
+                     int nCurRepLen = (int)(pInWindowAtPos - pInWindowStart);
 
-                  if (nMaxOverallRepLen < nCurRepLen)
-                     nMaxOverallRepLen = nCurRepLen;
-                  nRepMatchArrivalIdxAndLen[nNumRepMatchArrivals++] = j;
-                  nRepMatchArrivalIdxAndLen[nNumRepMatchArrivals++] = nCurRepLen;
+                     if (nMaxOverallRepLen < nCurRepLen)
+                        nMaxOverallRepLen = nCurRepLen;
+                     nRepMatchArrivalIdxAndLen[nNumRepMatchArrivals++] = j;
+                     nRepMatchArrivalIdxAndLen[nNumRepMatchArrivals++] = nCurRepLen;
+                  }
                }
             }
          }
@@ -507,7 +509,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                   int exists = 0;
 
                   for (n = 0;
-                     n < nArrivalsPerPosition && pDestSlots[n].cost < nCodingChoiceCost;
+                     pDestSlots[n].cost < nCodingChoiceCost;
                      n++) {
                      if (pDestSlots[n].rep_offset == nMatchOffset) {
                         exists = 1;
@@ -605,7 +607,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                            int exists = 0;
 
                            for (n = 0;
-                              n < nArrivalsPerPosition && pDestSlots[n].cost < nRepCodingChoiceCost;
+                              pDestSlots[n].cost < nRepCodingChoiceCost;
                               n++) {
                               if (pDestSlots[n].rep_offset == nRepOffset) {
                                  exists = 1;
