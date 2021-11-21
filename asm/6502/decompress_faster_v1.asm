@@ -7,7 +7,7 @@
 ;
 ; This code is written for the ACME assembler.
 ;
-; The code is 167 bytes for the small version, and 192 bytes for the normal.
+; The code is 169 bytes for the small version, and 193 bytes for the normal.
 ;
 ; Copyright John Brandwood 2021.
 ;
@@ -37,14 +37,15 @@ LZSA_SMALL_SIZE =       0
 ; ***************************************************************************
 ; ***************************************************************************
 ;
-; Data usage is last 8 bytes of zero-page.
+; Data usage is last 7 bytes of zero-page.
 ;
 
-lzsa_length     =       $F8                     ; 1 byte.
 lzsa_cmdbuf     =       $F9                     ; 1 byte.
 lzsa_winptr     =       $FA                     ; 1 word.
 lzsa_srcptr     =       $FC                     ; 1 word.
 lzsa_dstptr     =       $FE                     ; 1 word.
+
+lzsa_offset     =       lzsa_winptr
 
 LZSA_SRC_LO     =       $FC
 LZSA_SRC_HI     =       $FD
@@ -60,7 +61,6 @@ LZSA_DST_HI     =       $FF
 ;
 ; Args: lzsa_srcptr = ptr to compessed data
 ; Args: lzsa_dstptr = ptr to output buffer
-; Uses: lots!
 ;
 
 DECOMPRESS_LZSA1_FAST:
@@ -95,19 +95,14 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
                 lsr
                 lsr
                 cmp     #$07                    ; Extended length?
-                bcc     .inc_cp_len
+                bcc     .cp_got_len
 
-                jsr     .get_length             ; CS from CMP, X=0.
+                jsr     .get_length             ; X=0, CS from CMP, returns CC.
+                stx     .cp_npages + 1          ; Hi-byte of length.
 
-                ora     #0                      ; Check the lo-byte of length
-                beq     .put_cp_len             ; without effecting CC.
+.cp_got_len:    tax                             ; Lo-byte of length.
 
-.inc_cp_len:    inx                             ; Increment # of pages to copy.
-
-.put_cp_len:    stx     <lzsa_length
-                tax
-
-.cp_page:       lda     (lzsa_srcptr),y         ; CC throughout the execution of
+.cp_byte:       lda     (lzsa_srcptr),y         ; CC throughout the execution of
                 sta     (lzsa_dstptr),y         ; of this .cp_page loop.
                 inc     <lzsa_srcptr + 0
                 bne     .cp_skip1
@@ -116,28 +111,24 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
                 bne     .cp_skip2
                 inc     <lzsa_dstptr + 1
 .cp_skip2:      dex
-                bne     .cp_page
-                dec     <lzsa_length            ; Any full pages left to copy?
-                bne     .cp_page
+                bne     .cp_byte
+.cp_npages:     lda     #0                      ; Any full pages left to copy?
+                beq     .lz_offset
+
+                dec     .cp_npages + 1          ; Unlikely, so can be slow.
+                bcc     .cp_byte                ; Always true!
+
+                !if     LZSA_SMALL_SIZE {
 
                 ;
                 ; Copy bytes from decompressed window.
                 ;
+                ; Shorter but slower version.
+                ;
                 ; N.B. X=0 is expected and guaranteed when we get here.
                 ;
 
-.lz_offset:     !if     LZSA_SMALL_SIZE {
-
-                jsr     .get_byte
-
-                } else {
-
-                lda     (lzsa_srcptr),y
-                inc     <lzsa_srcptr + 0
-                bne     .offset_lo
-                inc     <lzsa_srcptr + 1
-
-                }
+.lz_offset:     jsr     .get_byte               ; Get offset-lo.
 
 .offset_lo:     adc     <lzsa_dstptr + 0        ; Always CC from .cp_page loop.
                 sta     <lzsa_winptr + 0
@@ -146,96 +137,105 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
                 bit     <lzsa_cmdbuf
                 bpl     .offset_hi
 
-                !if     LZSA_SMALL_SIZE {
-                jsr     .get_byte
+                jsr     .get_byte               ; Get offset-hi.
+
+.offset_hi:     adc     <lzsa_dstptr + 1        ; lzsa_winptr < lzsa_dstptr, so
+                sta     <lzsa_winptr + 1        ; always leaves CS.
+
+.lz_length:     lda     <lzsa_cmdbuf            ; X=0 from previous loop.
+                and     #$0F
+                adc     #$03 - 1                ; CS from previous ADC.
+                cmp     #$12                    ; Extended length?
+                bcc     .lz_got_len
+
+                jsr     .get_length             ; CS from CMP, X=0, returns CC.
+                stx     .lz_npages + 1          ; Hi-byte of length.
+
+.lz_got_len:    tax                             ; Lo-byte of length.
+
+.lz_byte:       lda     (lzsa_winptr),y         ; CC throughout the execution of
+                sta     (lzsa_dstptr),y         ; of this .lz_page loop.
+                inc     <lzsa_winptr + 0
+                bne     .lz_skip1
+                inc     <lzsa_winptr + 1
+.lz_skip1:      inc     <lzsa_dstptr + 0
+                bne     .lz_skip2
+                inc     <lzsa_dstptr + 1
+.lz_skip2:      dex
+                bne     .lz_byte
+.lz_npages:     lda     #0                      ; Any full pages left to copy?
+                beq     .cp_length
+
+                dec     .lz_npages + 1          ; Unlikely, so can be slow.
+                bcc     .lz_byte                ; Always true!
 
                 } else {
+
+                ;
+                ; Copy bytes from decompressed window.
+                ;
+                ; Longer but faster.
+                ;
+                ; N.B. X=0 is expected and guaranteed when we get here.
+                ;
+
+.lz_offset:     lda     (lzsa_srcptr),y         ; Get offset-lo.
+                inc     <lzsa_srcptr + 0
+                bne     .offset_lo
+                inc     <lzsa_srcptr + 1
+
+.offset_lo:     sta     <lzsa_offset + 0
+
+                lda     #$FF                    ; Get offset-hi.
+                bit     <lzsa_cmdbuf
+                bpl     .offset_hi
 
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
                 bne     .offset_hi
                 inc     <lzsa_srcptr + 1
 
-                }
-
-.offset_hi:     adc     <lzsa_dstptr + 1        ; lzsa_winptr < lzsa_dstptr, so
-                sta     <lzsa_winptr + 1        ; always leaves CS.
-
-                !if     LZSA_SMALL_SIZE {
+.offset_hi:     sta     <lzsa_offset + 1
 
 .lz_length:     lda     <lzsa_cmdbuf            ; X=0 from previous loop.
                 and     #$0F
-                adc     #$03 - 1                ; CS from previous ADC.
-                cmp     #$12                    ; Extended length?
-                bcc     .inc_lz_len
-
-                jsr     .get_length             ; CS from CMP, X=0, returns CC.
-
-                ora     #0                      ; Check the lo-byte of length
-                beq     .put_lz_len             ; without effecting CC.
-
-.inc_lz_len:    inx                             ; Increment # of pages to copy.
-
-.put_lz_len:    stx     <lzsa_length
-                tax
-
-.lz_page:       lda     (lzsa_winptr),y         ; CC throughout the execution of
-                sta     (lzsa_dstptr),y         ; of this .lz_page loop.
-                inc     <lzsa_winptr + 0
-                bne     .skip3
-                inc     <lzsa_winptr + 1
-.skip3:         inc     <lzsa_dstptr + 0
-                bne     .skip4
-                inc     <lzsa_dstptr + 1
-.skip4:         dex
-                bne     .lz_page
-                dec     <lzsa_length            ; Any full pages left to copy?
-                bne     .lz_page
-
-                jmp     .cp_length              ; Loop around to the beginning.
-
-                } else {
-
-.lz_length:     lda     <lzsa_cmdbuf            ; X=0 from previous loop.
-                and     #$0F
-                adc     #$03 - 1                ; CS from previous ADC.
+                adc     #$03                    ; Always CC from .cp_page loop.
                 cmp     #$12                    ; Extended length?
                 bcc     .got_lz_len
 
-                jsr     .get_length             ; CS from CMP, X=0, returns CC.
+                jsr     .get_length             ; X=0, CS from CMP, returns CC.
 
-.got_lz_len:    tay                             ; Check the lo-byte of length.
-                beq     .lz_page
+.got_lz_len:    inx                             ; Hi-byte of length+256.
 
-                inx                             ; Increment # of pages to copy.
+                eor     #$FF                    ; Negate the lo-byte of length
+                tay                             ; and check for zero.
+                iny
+                eor     #$FF
 
-.get_lz_win:    adc     <lzsa_winptr + 0        ; Calc address of partial page.
-                sta     <lzsa_winptr + 0        ; Always CC from previous CMP.
-                bcs     .get_lz_dst
-                dec     <lzsa_winptr + 1
-
-.get_lz_dst:    tya                             ; Calc address of partial page.
-                clc
-                adc     <lzsa_dstptr + 0
-                sta     <lzsa_dstptr + 0
-                bcs     .get_lz_idx
+.get_lz_dst:    adc     <lzsa_dstptr + 0        ; Calc address of partial page.
+                sta     <lzsa_dstptr + 0        ; Always CC from .cp_page loop.
+                bcs     .get_lz_win
                 dec     <lzsa_dstptr + 1
 
-.get_lz_idx:    tya                             ; Negate the lo-byte of length.
-                eor     #$FF
-                tay
-                iny
+.get_lz_win:    clc                             ; Calc address of match.
+                adc     <lzsa_offset + 0        ; N.B. Offset is negative!
+                sta     <lzsa_winptr + 0
+                lda     <lzsa_dstptr + 1
+                adc     <lzsa_offset + 1
+                sta     <lzsa_winptr + 1
 
-.lz_page:       lda     (lzsa_winptr),y
+.lz_byte:       lda     (lzsa_winptr),y
                 sta     (lzsa_dstptr),y
                 iny
-                bne     .lz_page
-                inc     <lzsa_winptr + 1
+                bne     .lz_byte
                 inc     <lzsa_dstptr + 1
                 dex                             ; Any full pages left to copy?
-                bne     .lz_page
+                bne     .lz_more
 
                 jmp     .cp_length              ; Loop around to the beginning.
+
+.lz_more:       inc     <lzsa_winptr + 1        ; Unlikely, so can be slow.
+                bne     .lz_byte                ; Always true!
 
                 }
 
@@ -252,30 +252,32 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
                 inc     <lzsa_srcptr + 1
 
 .skip_inc:      bcc     .got_length             ; No overflow means done.
-                cmp     #$01                    ; Overflow to 256 or 257?
-                bcc     .extra_word
+                clc                             ; MUST return CC!
+                tax                             ; Overflow to 256 or 257?
+                beq     .extra_word
 
-.extra_byte:    clc                             ; MUST return CC!
-                inx
-                bne     .get_byte               ; Always NZ from previous INX.
+.extra_byte:    jsr     .get_byte               ; So rare, this can be slow!
+                pha
+.check_length:  pla                             ; Length-lo.
+                bne     .got_length             ; Check for zero.
+                dex                             ; Do one less page loop if so.
+.got_length:    rts
 
 .extra_word:    jsr     .get_byte               ; So rare, this can be slow!
                 pha
                 jsr     .get_byte               ; So rare, this can be slow!
                 tax
-                beq     .finished               ; Length-hi == 0 at EOF.
-                pla                             ; Length-lo.
+                bne     .check_length           ; Length-hi == 0 at EOF.
+
+.finished:      pla                             ; Length-lo.
+                pla                             ; Decompression completed, pop
+                pla                             ; return address.
                 rts
 
 .get_byte:      lda     (lzsa_srcptr),y         ; Subroutine version for when
                 inc     <lzsa_srcptr + 0        ; inlining isn't advantageous.
                 beq     .next_page
-.got_length:    rts
-
-.next_page:     inc     <lzsa_srcptr + 1        ; Inc & test for bank overflow.
                 rts
 
-.finished:      pla                             ; Length-lo.
-                pla                             ; Decompression completed, pop
-                pla                             ; return address.
+.next_page:     inc     <lzsa_srcptr + 1        ; Inc & test for bank overflow.
                 rts
