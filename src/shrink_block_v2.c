@@ -200,7 +200,7 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
          if (nRepLen >= MIN_MATCH_SIZE_V2) {
             const int nRepPos = arrival[j].rep_pos;
 
-            if (nRepPos > nMatchOffset &&
+            if (nRepPos >= nMatchOffset &&
                (nRepPos + nRepLen) <= nEndOffset) {
 
                if (visited[nRepPos].offset != nMatchOffset || visited[nRepPos].length > nRepLen) {
@@ -763,7 +763,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                   /* Check if we can change the current match's offset to be the same as the previous match's offset, and get an extra repmatch. This will occur when
                    * matching large regions of identical bytes for instance, where there are too many offsets to be considered by the parser, and when not compressing to favor the
                    * ratio (the forward arrivals parser already has this covered). */
-                  if (i > nRepMatchOffset &&
+                  if (i >= nRepMatchOffset &&
                      (i - nRepMatchOffset + pMatch->length) <= nEndOffset &&
                      !memcmp(pInWindow + i - nRepMatchOffset, pInWindow + i - pMatch->offset, pMatch->length)) {
                      pMatch->offset = nRepMatchOffset;
@@ -773,7 +773,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
 
                if (pBestMatch[nNextIndex].offset && pMatch->offset != pBestMatch[nNextIndex].offset && nRepMatchOffset != pBestMatch[nNextIndex].offset) {
                   /* Otherwise, try to gain a match forward as well */
-                  if (i > pBestMatch[nNextIndex].offset && (i - pBestMatch[nNextIndex].offset + pMatch->length) <= nEndOffset) {
+                  if (i >= pBestMatch[nNextIndex].offset && (i - pBestMatch[nNextIndex].offset + pMatch->length) <= nEndOffset) {
                      int nMaxLen = 0;
                      while (nMaxLen < pMatch->length && pInWindow[i - pBestMatch[nNextIndex].offset + nMaxLen] == pInWindow[i - pMatch->offset + nMaxLen])
                         nMaxLen++;
@@ -828,7 +828,7 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
                      nReducedCommandSize += (pBestMatch[nNextIndex].offset <= 32) ? 4 : ((pBestMatch[nNextIndex].offset <= 512) ? 8 : ((pBestMatch[nNextIndex].offset <= (8192 + 512)) ? 12 : 16));
 
                   int nReplaceRepOffset = 0;
-                  if (nRepMatchOffset && nRepMatchOffset != nPrevRepMatchOffset && nRepMatchLen >= MIN_MATCH_SIZE_V2 && nRepMatchOffset != pBestMatch[nNextIndex].offset && nRepIndex > pBestMatch[nNextIndex].offset &&
+                  if (nRepMatchOffset && nRepMatchOffset != nPrevRepMatchOffset && nRepMatchLen >= MIN_MATCH_SIZE_V2 && nRepMatchOffset != pBestMatch[nNextIndex].offset && nRepIndex >= pBestMatch[nNextIndex].offset &&
                      (nRepIndex - pBestMatch[nNextIndex].offset + nRepMatchLen) <= nEndOffset &&
                      !memcmp(pInWindow + nRepIndex - nRepMatchOffset, pInWindow + nRepIndex - pBestMatch[nNextIndex].offset, nRepMatchLen)) {
                      /* Replacing this match command by literals would let us create a repmatch */
