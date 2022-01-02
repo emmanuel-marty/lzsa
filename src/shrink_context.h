@@ -73,7 +73,7 @@ typedef struct _lzsa_match {
 } lzsa_match;
 
 /** Forward arrival slot */
-typedef struct {
+typedef struct _lzsa_arrival {
    int cost;
    unsigned short rep_offset;
    short from_slot;
