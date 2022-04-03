@@ -218,12 +218,12 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
                      const unsigned char* pInWindowStart = pInWindow + nRepPos;
 
                      if (!memcmp(pInWindowStart, pInWindowStart - nMatchOffset, 2)) {
-                        if (nRepLen >= MIN_MATCH_SIZE_V2) {
-                           const int nLen0 = rle_len[nRepPos - nMatchOffset];
-                           const int nLen1 = rle_len[nRepPos];
-                           const int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
+                        const int nLen0 = rle_len[nRepPos - nMatchOffset];
+                        const int nLen1 = rle_len[nRepPos];
+                        const int nMinLen = (nLen0 < nLen1) ? nLen0 : nLen1;
 
-                           if (nMinLen >= nRepLen || !memcmp(pInWindowStart + nMinLen, pInWindowStart + nMinLen - nMatchOffset, nRepLen - nMinLen)) {
+                        if (nMinLen >= nRepLen || !memcmp(pInWindowStart + nMinLen, pInWindowStart + nMinLen - nMatchOffset, nRepLen - nMinLen)) {
+                           if (nRepLen >= MIN_MATCH_SIZE_V2) {
                               if (nRepOffset) {
                                  int r;
 
@@ -261,9 +261,9 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
                                  }
                               }
                            }
-                           else {
-                              visited[nRepPos].length = nRepLen;
-                           }
+                        }
+                        else {
+                           visited[nRepPos].length = nRepLen;
                         }
                      }
                   }
