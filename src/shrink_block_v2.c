@@ -229,12 +229,11 @@ static void lzsa_insert_forward_match_v2(lzsa_compressor *pCompressor, const uns
 
                                  for (r = 0; fwd_match[r].length; r++) {
                                     if (fwd_match[r].offset == nMatchOffset) {
-                                       r = -1;
                                        break;
                                     }
                                  }
 
-                                 if (r != -1) {
+                                 if (fwd_match[r].length == 0) {
                                     int nMaxRepLen = nEndOffset - nRepPos;
                                     if (nMaxRepLen > LCP_MAX)
                                        nMaxRepLen = LCP_MAX;
