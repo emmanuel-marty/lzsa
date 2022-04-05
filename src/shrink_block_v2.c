@@ -309,6 +309,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          arrival[i + j].cost = 0x40000000;
    }
 
+   arrival[nStartOffset << ARRIVALS_PER_POSITION_SHIFT].cost = 0;
    arrival[nStartOffset << ARRIVALS_PER_POSITION_SHIFT].from_slot = -1;
 
    if (nInsertForwardReps) {
@@ -321,7 +322,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       int j, m;
 
       for (j = 0; j < nArrivalsPerPosition && cur_arrival[j].from_slot; j++) {
-         const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
+         const int nPrevCost = cur_arrival[j].cost;
          int nCodingChoiceCost = nPrevCost + 8 /* literal */;
          const int nScore = cur_arrival[j].score + 1 - nDisableScore;
          const int nNumLiterals = cur_arrival[j].num_literals + 1;
@@ -476,7 +477,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             const int nRepOffset = cur_arrival[j].rep_offset;
 
             if (nMatchOffset != nRepOffset) {
-               const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
+               const int nPrevCost = cur_arrival[j].cost;
                const int nScorePenalty = 3 + ((match[m].length & 0x8000) >> 15);
 
                nNoRepmatchOffsetCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */;
@@ -599,12 +600,13 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
                      const int nMaskOffset = (j << 7) + (k >> 3);
 
                      if (nReduce || !(nRepSlotHandledMask[nMaskOffset] & (1 << (k & 7)))) {
-                        const int nPrevCost = cur_arrival[j].cost & 0x3fffffff;
-                        const int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
                         const int nScore = cur_arrival[j].score + 2 - nDisableScore;
                         const int nRepOffset = cur_arrival[j].rep_offset;
 
                         if (nRepOffset != pDestSlots[nArrivalsPerPosition - 1].rep_offset) {
+                           const int nPrevCost = cur_arrival[j].cost;
+                           const int nRepCodingChoiceCost = nPrevCost /* the actual cost of the literals themselves accumulates up the chain */ + nMatchLenCost;
+
                            if (nRepCodingChoiceCost < pDestSlots[nArrivalsPerPosition - 1].cost ||
                               (nRepCodingChoiceCost == pDestSlots[nArrivalsPerPosition - 1].cost && nScore < (pDestSlots[nArrivalsPerPosition - 1].score))) {
                               int exists = 0, n;
