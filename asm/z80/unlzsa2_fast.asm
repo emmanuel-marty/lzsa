@@ -1,5 +1,5 @@
 ;
-;  Speed-optimized LZSA2 decompressor by spke & uniabis (216 bytes)
+;  Speed-optimized LZSA2 decompressor by spke & uniabis (210 bytes)
 ;
 ;  ver.00 by spke for LZSA 1.0.0 (02-07/06/2019, 218 bytes);
 ;  ver.01 by spke for LZSA 1.0.5 (24/07/2019, added support for backward decompression);
@@ -8,7 +8,8 @@
 ;  ver.04 by spke for LZSA 1.0.7 (01/08/2019, 214(+1) bytes, +0.2% speed and small re-organization of macros);
 ;  ver.05 by spke (27/08/2019, 216(+2) bytes, +1.1% speed);
 ;  ver.06 by spke for LZSA 1.1.0 (26/09/2019, added full revision history);
-;  ver.07 by spke for LZSA 1.1.1 (10/10/2019, +0.2% speed and an option for unrolled copying of long matches)
+;  ver.07 by spke for LZSA 1.1.1 (10/10/2019, +0.2% speed and an option for unrolled copying of long matches);
+;  ver.08 by spke (07-08/04/2022, 210(-6) bytes, +1.7% speed, using self-modifying code by default)
 ;
 ;  The data must be compressed using the command line compressor by Emmanuel Marty
 ;  The compression is done as follows:
@@ -57,8 +58,7 @@
 ;  3. This notice may not be removed or altered from any source distribution.
 
 ;	DEFINE	UNROLL_LONG_MATCHES						; uncomment for faster decompression of very compressible data (+38 bytes)
-;	DEFINE	BACKWARD_DECOMPRESS						; uncomment for data compressed with option -b
-;	DEFINE	HD64180								; uncomment for systems using Hitachi HD64180
+;	DEFINE	BACKWARD_DECOMPRESS						; uncomment for data compressed with option -b (+5 bytes, -3.2% speed)
 
 	IFNDEF	BACKWARD_DECOMPRESS
 
@@ -67,7 +67,7 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		ex de,hl : add hl,de
+		add hl,de
 		ENDM
 
 		MACRO COPY1
@@ -85,8 +85,9 @@
 		ENDM
 
 		MACRO ADD_OFFSET
-		ex de,hl : ld a,e : sub l : ld l,a
-		ld a,d : sbc h : ld h,a						; 4*4+3*4 = 28t / 7 bytes
+		; HL = DE - HL
+		ld a,e : sub l : ld l,a
+		ld a,d : sbc h : ld h,a						; 6*4 = 24t / 6 bytes
 		ENDM
 
 		MACRO COPY1
@@ -99,37 +100,15 @@
 
 	ENDIF
 
-	IFNDEF	HD64180
-
-		MACRO LD_IX_DE
-		ld ixl,e : ld ixh,d
-		ENDM
-
-		MACRO LD_DE_IX
-		ld e,ixl : ld d,ixh
-		ENDM
-
-	ELSE
-
-		MACRO LD_IX_DE
-		push de : pop ix
-		ENDM
-
-		MACRO LD_DE_IX
-		push ix : pop de
-		ENDM
-
-	ENDIF
-
 @DecompressLZSA2:
 		; A' stores next nibble as %1111.... or assumed to contain trash
-		; B is assumed to be 0
+		; B is assumed to be 0 in many places
 		ld b,0 : scf : exa : jr ReadToken
 
 
 
 
-ManyLiterals:	ld a,18 : add (hl) : NEXT_HL : jr nc,CopyLiterals
+ManyLiterals:	ld a,18 : add (hl) : NEXT_HL : jr nc,CopyMoreLiterals
 		ld c,(hl) : NEXT_HL
 		ld a,b : ld b,(hl)
 		jr ReadToken.NEXTHLuseBC
@@ -140,23 +119,31 @@ ManyLiterals:	ld a,18 : add (hl) : NEXT_HL : jr nc,CopyLiterals
 MoreLiterals:	ld b,(hl) : NEXT_HL
 		scf : exa : jr nc,.noUpdate
 
-			ld a,(hl) : or #F0 : exa
-			ld a,(hl) : NEXT_HL : or #0F
+			; nibbles are read left-to-right; spare nibbles are kept in AF'
+			; and flag NC indicates that a nibble is available
+			ld a,(hl) : or a : exa
+			ld a,(hl) : NEXT_HL
 			rrca : rrca : rrca : rrca
 
-.noUpdate	;sub #F0-3 : cp 15+3 : jr z,ManyLiterals
+.noUpdate	or #F0
+		;sub #F0-3 : cp 15+3 : jr z,ManyLiterals
 		inc a : jr z,ManyLiterals : sub #F0-3+1
 
-CopyLiterals:	ld c,a : ld a,b : ld b,0
-		COPYBC
-		push de : or a : jp p,CASE0xx ;: jr CASE1xx
+CopyMoreLiterals:	ld c,a : ld a,b : ld b,0
+			COPY1
+			COPY1
+			COPYBC
+
+		or a : jp p,CASE0xx
 
 		cp %11000000 : jr c,CASE10x
 
-CASE11x		cp %11100000 : jr c,CASE110
-
 		; "111": repeated offset
-CASE111:	LD_DE_IX : jr MatchLen
+CASE11x		cp %11100000 : jr nc,MatchLen
+
+		; "110": 16-bit offset
+CASE110:	ld b,(hl) : NEXT_HL : jr ReadOffsetC
+
 
 
 
@@ -166,69 +153,66 @@ Literals0011:	jr nz,MoreLiterals
 		; if "LL" of the byte token is equal to 0,
 		; there are no literals to copy
 NoLiterals:	or (hl) : NEXT_HL
-		push de : jp m,CASE1xx
+		jp m,CASE1xx
 
 		; short (5 or 9 bit long) offsets
-CASE0xx		ld d,#FF : cp %01000000 : jr c,CASE00x
+CASE0xx		cp %01000000 : jr c,CASE00x
 
-		; "01x": the case of the 9-bit offset
-CASE01x:	cp %01100000 : rl d
+			; "01x": the case of the 9-bit offset
+CASE01x:		dec b : cp %01100000 : rl b
 
-ReadOffsetE	ld e,(hl) : NEXT_HL
+ReadOffsetC		ld c,(hl) : NEXT_HL
 
-SaveOffset:	LD_IX_DE
+SaveOffset		ld (CopyMatch.PrevOffset),bc : ld b,0
 
-MatchLen:	inc a : and %00000111 : jr z,LongerMatch : inc a
+MatchLen		inc a : and %00000111 : jr z,LongerMatch : inc a
 
-CopyMatch:	ld c,a
-.useC		ex (sp),hl						; BC = len, DE = offset, HL = dest, SP ->[dest,src]
-		ADD_OFFSET						; BC = len, DE = dest, HL = dest-offset, SP->[src]
-		COPY1
-		COPYBC
-.popSrc		pop hl
+CopyMatch:		ld c,a
+.useC			push hl
+.PrevOffset		EQU $+1 : ld hl,0
+			ADD_OFFSET
+			COPY1
+			COPYBC
+.popSrc			pop hl
 
 		; compressed data stream contains records
 		; each record begins with the byte token "XYZ|LL|MMM"
 ReadToken:	ld a,(hl) : and %00011000 : jp pe,Literals0011		; process the cases 00 and 11 separately
 
-		rrca : rrca : rrca
+			rrca : rrca : rrca
 
-		ld c,a : ld a,(hl)					; token is re-read for further processing
-.NEXTHLuseBC	NEXT_HL
-		COPYBC
+			ld c,a : ld a,(hl)					; token is re-read for further processing
+.NEXTHLuseBC		NEXT_HL
+			COPYBC
 
 		; the token and literals are followed by the offset
-		push de : or a : jp p,CASE0xx
+		or a : jp p,CASE0xx
 
 CASE1xx		cp %11000000 : jr nc,CASE11x
 
 		; "10x": the case of the 13-bit offset
 CASE10x:	ld c,a : exa : jr nc,.noUpdate
 
-			ld a,(hl) : or #F0 : exa
-			ld a,(hl) : NEXT_HL : or #0F
+			ld a,(hl) : or a : exa
+			ld a,(hl) : NEXT_HL
 			rrca : rrca : rrca : rrca
 
-.noUpdate	ld d,a : ld a,c
-		cp %10100000 : dec d : rl d : jr ReadOffsetE
+.noUpdate	or #F0 : ld b,a : ld a,c
+		cp %10100000 : dec b : rl b : jr ReadOffsetC
 
 
 		
-		; "110": 16-bit offset
-CASE110:	ld d,(hl) : NEXT_HL : jr ReadOffsetE
-
-
-
 
 		; "00x": the case of the 5-bit offset
-CASE00x:	ld c,a : exa : jr nc,.noUpdate
+CASE00x:	ld b,a : exa : jr nc,.noUpdate
 
-			ld a,(hl) : or #F0 : exa
-			ld a,(hl) : NEXT_HL : or #0F
+			ld a,(hl) : or a : exa
+			ld a,(hl) : NEXT_HL
 			rrca : rrca : rrca : rrca
 
-.noUpdate	ld e,a : ld a,c
-		cp %00100000 : rl e : jp SaveOffset
+.noUpdate	or #F0 : ld c,a : ld a,b
+		cp %00100000 : rl c
+		ld b,#FF : jr SaveOffset
 
 
 
@@ -236,27 +220,27 @@ CASE00x:	ld c,a : exa : jr nc,.noUpdate
 
 LongerMatch:	scf : exa : jr nc,.noUpdate
 
-			ld a,(hl) : or #F0 : exa
-			ld a,(hl) : NEXT_HL : or #0F
+			ld a,(hl) : or a : exa
+			ld a,(hl) : NEXT_HL
 			rrca : rrca : rrca : rrca
 
-.noUpdate	sub #F0-9 : cp 15+9 : jr c,CopyMatch
+.noUpdate	or #F0 : sub #F0-9 : cp 15+9 : jr c,CopyMatch
 
 	IFNDEF	UNROLL_LONG_MATCHES
 
 LongMatch:	add (hl) : NEXT_HL : jr nc,CopyMatch
 		ld c,(hl) : NEXT_HL
 		ld b,(hl) : NEXT_HL : jr nz,CopyMatch.useC
-		pop de : ret
+		ret
 
 	ELSE
 
 LongMatch:	add (hl) : NEXT_HL : jr c,VeryLongMatch
 
 		ld c,a
-.useC		ex (sp),hl
+.useC		push hl
+		ld hl,(CopyMatch.PrevOffset)
 		ADD_OFFSET
-		COPY1
 
 		; this is an unrolled equivalent of LDIR
 		xor a : sub c
@@ -271,7 +255,7 @@ LongMatch:	add (hl) : NEXT_HL : jr c,VeryLongMatch
 
 VeryLongMatch:	ld c,(hl) : NEXT_HL
 		ld b,(hl) : NEXT_HL : jr nz,LongMatch.useC
-		pop de : ret
+		ret
 
 	ENDIF
 
