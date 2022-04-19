@@ -67,7 +67,7 @@ static inline int lzsa_get_literals_varlen_size_v1(const int nLength) {
  * @param nOutOffset current write index into output buffer
  * @param nLength literals length
  */
-static inline int lzsa_write_literals_varlen_v1(unsigned char *pOutData, int nOutOffset, int nLength) {
+static inline int lzsa_write_literals_varlen_v1(unsigned char *pOutData, int nOutOffset, const int nLength) {
    if (nLength >= LITERALS_RUN_LEN_V1) {
       if (nLength < 256)
          pOutData[nOutOffset++] = nLength - LITERALS_RUN_LEN_V1;
@@ -118,7 +118,7 @@ static inline int lzsa_get_match_varlen_size_v1(const int nLength) {
  * @param nOutOffset current write index into output buffer
  * @param nLength encoded match length (actual match length - MIN_MATCH_SIZE_V1)
  */
-static inline int lzsa_write_match_varlen_v1(unsigned char *pOutData, int nOutOffset, int nLength) {
+static inline int lzsa_write_match_varlen_v1(unsigned char *pOutData, int nOutOffset, const int nLength) {
    if (nLength >= MATCH_RUN_LEN_V1) {
       if ((nLength + MIN_MATCH_SIZE_V1) < 256)
          pOutData[nOutOffset++] = nLength - MATCH_RUN_LEN_V1;
@@ -151,8 +151,10 @@ static inline int lzsa_write_match_varlen_v1(unsigned char *pOutData, int nOutOf
  * Attempt to pick optimal matches using a forward arrivals parser, so as to produce the smallest possible output that decompresses to the same input
  *
  * @param pCompressor compression context
+ * @param pBestMatch optimal matches to emit
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
+ * @param nReduce non-zero to reduce the number of tokens when the path costs are equal, zero not to
  */
 static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT);
@@ -165,12 +167,13 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
    if ((nEndOffset - nStartOffset) > BLOCK_SIZE) return;
 
    for (i = (nStartOffset << ARRIVALS_PER_POSITION_SHIFT); i != ((nEndOffset + 1) << ARRIVALS_PER_POSITION_SHIFT); i += NARRIVALS_PER_POSITION_V2_MAX) {
+      lzsa_arrival* cur_arrival = &arrival[i];
       int j;
 
-      memset(arrival + i, 0, sizeof(lzsa_arrival) * NARRIVALS_PER_POSITION_V2_MAX);
+      memset(cur_arrival, 0, sizeof(lzsa_arrival) * NARRIVALS_PER_POSITION_V2_MAX);
 
       for (j = 0; j < NARRIVALS_PER_POSITION_V2_MAX; j++)
-         arrival[i + j].cost = 0x40000000;
+         cur_arrival[j].cost = 0x40000000;
    }
 
    arrival[nStartOffset << ARRIVALS_PER_POSITION_SHIFT].cost = 0;
@@ -550,7 +553,7 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMa
          i += nMatchLen;
 
          if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
-            int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+            const int nCurSafeDist = (i - nStartOffset) - nOutOffset;
             if (nCurSafeDist >= 0 && pCompressor->safe_dist < nCurSafeDist)
                pCompressor->safe_dist = nCurSafeDist;
          }
@@ -592,7 +595,7 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMa
       }
 
       if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
-         int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+         const int nCurSafeDist = (i - nStartOffset) - nOutOffset;
          if (nCurSafeDist >= 0 && pCompressor->safe_dist < nCurSafeDist)
             pCompressor->safe_dist = nCurSafeDist;
       }
@@ -710,7 +713,7 @@ int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigne
    }
 
    nResult = lzsa_write_block_v1(pCompressor, pBestMatch, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
-   if (nResult < 0 && pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
+   if (nResult < 0 && (pCompressor->flags & LZSA_FLAG_RAW_BLOCK)) {
       nResult = lzsa_write_raw_uncompressed_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
    }
 

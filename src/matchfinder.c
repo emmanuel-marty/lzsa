@@ -196,7 +196,7 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
  *
  * @return number of matches
  */
-int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches, const int nInWindowSize) {
+static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches, const int nInWindowSize) {
    unsigned int *intervals = pCompressor->intervals;
    unsigned int *pos_data = pCompressor->pos_data;
    unsigned int ref;

@@ -53,19 +53,6 @@ typedef struct _lzsa_compressor lzsa_compressor;
 int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nInWindowSize);
 
 /**
- * Find matches at the specified offset in the input window
- *
- * @param pCompressor compression context
- * @param nOffset offset to find matches at, in the input window
- * @param pMatches pointer to returned matches
- * @param nMaxMatches maximum number of matches to return (0 for none)
- * @param nInWindowSize total input size in bytes (previously compressed bytes + bytes to compress)
- *
- * @return number of matches
- */
-int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset, lzsa_match *pMatches, const int nMaxMatches, const int nInWindowSize);
-
-/**
  * Skip previously compressed bytes
  *
  * @param pCompressor compression context
