@@ -328,19 +328,25 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
          const int nNumLiterals = cur_arrival[j].num_literals + 1;
          const int nRepOffset = cur_arrival[j].rep_offset;
 
-         if (nNumLiterals == 1) {
+         switch (nNumLiterals) {
+         case 1:
             nCodingChoiceCost += nModeSwitchPenalty;
-         }
-         else if (nNumLiterals == LITERALS_RUN_LEN_V2) {
+            break;
+
+         case LITERALS_RUN_LEN_V2:
             nCodingChoiceCost += 4;
-         }
-         else if (nNumLiterals >= (LITERALS_RUN_LEN_V2 + 15)) {
-            if (nNumLiterals == (LITERALS_RUN_LEN_V2 + 15)) {
-               nCodingChoiceCost += 8;
-            }
-            else if (nNumLiterals == 256) {
-               nCodingChoiceCost += 16;
-            }
+            break;
+
+         case LITERALS_RUN_LEN_V2 + 15:
+            nCodingChoiceCost += 8;
+            break;
+
+         case 256:
+            nCodingChoiceCost += 16;
+            break;
+
+         default:
+            break;
          }
 
          if (nCodingChoiceCost < pDestLiteralSlots[nArrivalsPerPosition - 1].cost ||
