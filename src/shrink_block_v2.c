@@ -431,7 +431,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
             const int nRepOffset = cur_arrival[j].rep_offset;
 
             if (i >= nRepOffset) {
-               if (!memcmp(pInWindow + i, pInWindow + i - nRepOffset, MIN_MATCH_SIZE_V2)) {
+               if (!memcmp(pInWindowStart, pInWindowStart - nRepOffset, MIN_MATCH_SIZE_V2)) {
                   if (nRepOffset) {
                      const unsigned char* pInWindowAtPos;
 
@@ -917,8 +917,8 @@ static int lzsa_optimize_command_count_v2(lzsa_compressor *pCompressor, const un
          }
 
          nPrevRepMatchOffset = nRepMatchOffset;
-         nRepMatchOffset = pMatch->offset;
          nRepMatchLen = pMatch->length;
+         nRepMatchOffset = pMatch->offset;
          nRepIndex = i;
 
          i += pMatch->length;
@@ -958,8 +958,8 @@ static int lzsa_write_block_v2(lzsa_compressor *pCompressor, const lzsa_match *p
       const lzsa_match *pMatch = pBestMatch + i;
 
       if (pMatch->length >= MIN_MATCH_SIZE_V2) {
-         const int nMatchOffset = pMatch->offset;
          const int nMatchLen = pMatch->length;
+         const int nMatchOffset = pMatch->offset;
          const int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V2;
          const int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V2) ? LITERALS_RUN_LEN_V2 : nNumLiterals;
          const int nTokenMatchLen = (nEncodedMatchLen >= MATCH_RUN_LEN_V2) ? MATCH_RUN_LEN_V2 : nEncodedMatchLen;
