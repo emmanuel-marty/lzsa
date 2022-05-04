@@ -94,7 +94,7 @@ int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize,
             pCompressor->open_intervals = (unsigned int *)malloc((LCP_AND_TAG_MAX + 1) * sizeof(unsigned int));
 
             if (pCompressor->open_intervals) {
-               pCompressor->arrival = (lzsa_arrival *)malloc(((BLOCK_SIZE + 1) << ARRIVALS_PER_POSITION_SHIFT) * sizeof(lzsa_arrival));
+               pCompressor->arrival = (lzsa_arrival *)malloc(((BLOCK_SIZE + 1) << ARRIVALS_PER_POSITION_SHIFT_V2) * sizeof(lzsa_arrival));
    
                if (pCompressor->arrival) {
                   pCompressor->best_match = (lzsa_match *)malloc(BLOCK_SIZE * sizeof(lzsa_match));

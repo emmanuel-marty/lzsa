@@ -53,7 +53,8 @@ extern "C" {
 #define NARRIVALS_PER_POSITION_V2_SMALL 9
 #define NARRIVALS_PER_POSITION_V2_BIG 32
 #define NARRIVALS_PER_POSITION_V2_MAX 64
-#define ARRIVALS_PER_POSITION_SHIFT 6
+#define ARRIVALS_PER_POSITION_SHIFT_V1 3
+#define ARRIVALS_PER_POSITION_SHIFT_V2 6
 
 #define NMATCHES_PER_INDEX_V1 16
 #define MATCHES_PER_INDEX_SHIFT_V1 4
@@ -78,11 +79,11 @@ typedef struct _lzsa_arrival {
    unsigned short rep_offset;
    short from_slot;
 
-   int from_pos;
+   unsigned short from_pos;
    unsigned short rep_len;
    unsigned short match_len;
+   unsigned short num_literals;
    int rep_pos;
-   int num_literals;
    int score;
 } lzsa_arrival;
 
