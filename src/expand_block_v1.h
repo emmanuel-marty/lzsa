@@ -44,6 +44,6 @@
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize);
+int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, const int nBlockSize, unsigned char *pOutData, const int nOutDataOffset, const int nBlockMaxSize);
 
 #endif /* _EXPAND_BLOCK_V1_H */

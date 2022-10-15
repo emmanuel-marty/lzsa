@@ -448,7 +448,6 @@ static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, lzsa_match 
       const int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3);
 
       nCompressedSize += nCommandSize;
-      nNumLiterals = 0;
    }
 
    if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
@@ -574,7 +573,7 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMa
       if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK)
          pOutData[nOutOffset++] = (nTokenLiteralsLen << 4) | 0x0f;
       else
-         pOutData[nOutOffset++] = (nTokenLiteralsLen << 4) | 0x00;
+         pOutData[nOutOffset++] = (nTokenLiteralsLen << 4) /* | 0x00 */;
       nOutOffset = lzsa_write_literals_varlen_v1(pOutData, nOutOffset, nNumLiterals);
 
       if (nNumLiterals < pCompressor->stats.min_literals || pCompressor->stats.min_literals == -1)
@@ -587,7 +586,6 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMa
       if (nNumLiterals != 0) {
          memcpy(pOutData + nOutOffset, pInWindow + nInFirstLiteralOffset, nNumLiterals);
          nOutOffset += nNumLiterals;
-         nNumLiterals = 0;
       }
 
       if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
@@ -643,7 +641,6 @@ static int lzsa_write_raw_uncompressed_block_v1(lzsa_compressor *pCompressor, co
    if (nNumLiterals != 0) {
       memcpy(pOutData + nOutOffset, pInWindow + nStartOffset, nNumLiterals);
       nOutOffset += nNumLiterals;
-      nNumLiterals = 0;
    }
 
    pCompressor->num_commands++;

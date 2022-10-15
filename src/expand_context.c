@@ -50,7 +50,7 @@
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_decompressor_expand_block(unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize, const int nFormatVersion, const int nFlags) {
+int lzsa_decompressor_expand_block(unsigned char *pInBlock, const int nBlockSize, unsigned char *pOutData, const int nOutDataOffset, const int nBlockMaxSize, const int nFormatVersion, const int nFlags) {
    int nDecompressedSize;
 
    if (nFlags & LZSA_FLAG_RAW_BACKWARD) {

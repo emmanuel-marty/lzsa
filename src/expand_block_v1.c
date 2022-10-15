@@ -120,7 +120,7 @@ static inline FORCE_INLINE int lzsa_build_match_len_v1(const unsigned char **ppI
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, int nBlockSize, unsigned char *pOutData, int nOutDataOffset, int nBlockMaxSize) {
+int lzsa_decompressor_expand_block_v1(const unsigned char *pInBlock, const int nBlockSize, unsigned char *pOutData, const int nOutDataOffset, const int nBlockMaxSize) {
    const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
    unsigned char *pCurOutData = pOutData + nOutDataOffset;
    const unsigned char *pOutDataEnd = pCurOutData + nBlockMaxSize;

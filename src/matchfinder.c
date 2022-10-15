@@ -77,7 +77,7 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
          PLCP[i] = 0;
          continue;
       }
-      int nMaxLen = (i > Phi[i]) ? (nInWindowSize - i) : (nInWindowSize - Phi[i]);
+      const int nMaxLen = (i > Phi[i]) ? (nInWindowSize - i) : (nInWindowSize - Phi[i]);
       while (nCurLen < nMaxLen && pInWindow[i + nCurLen] == pInWindow[Phi[i] + nCurLen]) nCurLen++;
       PLCP[i] = nCurLen;
       if (nCurLen > 0)
@@ -88,11 +88,11 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
     * saves us from having to build the inverse suffix array index, as the LCP is calculated without it using this method,
     * and the interval builder below doesn't need it either. */
    intervals[0] &= POS_MASK;
-   int nMinMatchSize = pCompressor->min_match_size;
+   const int nMinMatchSize = pCompressor->min_match_size;
 
    if (pCompressor->format_version >= 2) {
       for (i = 1; i < nInWindowSize; i++) {
-         int nIndex = (int)(intervals[i] & POS_MASK);
+         const int nIndex = (int)(intervals[i] & POS_MASK);
          int nLen = PLCP[nIndex];
          if (nLen < nMinMatchSize)
             nLen = 0;
@@ -106,7 +106,7 @@ int lzsa_build_suffix_array(lzsa_compressor *pCompressor, const unsigned char *p
    }
    else {
       for (i = 1; i < nInWindowSize; i++) {
-         int nIndex = (int)(intervals[i] & POS_MASK);
+         const int nIndex = (int)(intervals[i] & POS_MASK);
          int nLen = PLCP[nIndex];
          if (nLen < nMinMatchSize)
             nLen = 0;
@@ -203,7 +203,7 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
    unsigned int super_ref;
    unsigned int match_pos;
    lzsa_match *matchptr;
-   int nPrevOffset = 0;
+   unsigned int nPrevOffset = 0;
 
    /**
     * Find matches using intervals
@@ -240,11 +240,11 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
 
    if (pCompressor->format_version >= 2 && nInWindowSize < 65536) {
       if ((matchptr - pMatches) < nMaxMatches) {
-         int nMatchOffset = (int)(nOffset - match_pos);
+         const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
          if (nMatchOffset <= MAX_OFFSET) {
-            matchptr->length = (unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
-            matchptr->offset = (unsigned short)nMatchOffset;
+            matchptr->length = (const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
+            matchptr->offset = (const unsigned short)nMatchOffset;
             matchptr++;
 
             nPrevOffset = nMatchOffset;
@@ -258,11 +258,11 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
 
          if (pCompressor->format_version >= 2 && nInWindowSize < 65536) {
             if ((matchptr - pMatches) < nMaxMatches) {
-               int nMatchOffset = (int)(nOffset - match_pos);
+               const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
                if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
-                  matchptr->length = ((unsigned short)(ref >> (LCP_SHIFT + TAG_BITS))) | 0x8000;
-                  matchptr->offset = (unsigned short)nMatchOffset;
+                  matchptr->length = ((const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS))) | 0x8000;
+                  matchptr->offset = (const unsigned short)nMatchOffset;
                   matchptr++;
 
                   nPrevOffset = nMatchOffset;
@@ -277,16 +277,16 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
       pos_data[match_pos] = ref;
 
       if ((matchptr - pMatches) < nMaxMatches) {
-         int nMatchOffset = (int)(nOffset - match_pos);
+         const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
          if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
             if (pCompressor->format_version >= 2) {
-               matchptr->length = (unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
+               matchptr->length = (const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
             }
             else {
-               matchptr->length = (unsigned short)(ref >> LCP_SHIFT);
+               matchptr->length = (const unsigned short)(ref >> LCP_SHIFT);
             }
-            matchptr->offset = (unsigned short)nMatchOffset;
+            matchptr->offset = (const unsigned short)nMatchOffset;
             matchptr++;
          }
       }
@@ -298,13 +298,14 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
 
       if (pCompressor->format_version >= 2 && nInWindowSize < 65536) {
          if ((matchptr - pMatches) < nMaxMatches) {
-            int nMatchOffset = (int)(nOffset - match_pos);
+            const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
             if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
-               matchptr->length = ((unsigned short)(ref >> (LCP_SHIFT + TAG_BITS))) | 0x8000;
-               matchptr->offset = (unsigned short)nMatchOffset;
+               const unsigned short nMatchLen = ((const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS)));
 
-               if ((matchptr->length & 0x7fff) > 2) {
+               if (nMatchLen > 2) {
+                  matchptr->length = nMatchLen | 0x8000;
+                  matchptr->offset = (const unsigned short)nMatchOffset;
                   matchptr++;
 
                   nPrevOffset = nMatchOffset;
@@ -348,12 +349,10 @@ void lzsa_find_all_matches(lzsa_compressor *pCompressor, const int nMatchesPerOf
    int i;
 
    for (i = nStartOffset; i < nEndOffset; i++) {
-      int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, nMatchesPerOffset, nEndOffset - nStartOffset);
+      const int nMatches = lzsa_find_matches_at(pCompressor, i, pMatch, nMatchesPerOffset, nEndOffset - nStartOffset);
 
-      while (nMatches < nMatchesPerOffset) {
-         pMatch[nMatches].length = 0;
-         pMatch[nMatches].offset = 0;
-         nMatches++;
+      if (nMatches < nMatchesPerOffset) {
+         memset(pMatch + nMatches, 0, (nMatchesPerOffset - nMatches) * sizeof(lzsa_match));
       }
 
       pMatch += nMatchesPerOffset;
