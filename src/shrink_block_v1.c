@@ -289,7 +289,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
       }
    }
 
-   const lzsa_arrival *end_arrival = &arrival[(i << ARRIVALS_PER_POSITION_SHIFT_V1) + 0];
+   const lzsa_arrival *end_arrival = &arrival[i << ARRIVALS_PER_POSITION_SHIFT_V1];
 
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0 && (end_arrival->from_pos + nStartOffset) < nEndOffset) {
       pBestMatch[end_arrival->from_pos + nStartOffset].length = end_arrival->match_len;
@@ -419,7 +419,7 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const un
  *
  * @return size of compressed data that will be written to output buffer
  */
-static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
+static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, const lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
    int i;
    int nNumLiterals = 0;
    int nCompressedSize = 0;
@@ -470,7 +470,7 @@ static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, lzsa_match 
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-static int lzsa_write_block_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
+static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const lzsa_match *pBestMatch, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
    int i;
    int nNumLiterals = 0;
    int nInFirstLiteralOffset = 0;
