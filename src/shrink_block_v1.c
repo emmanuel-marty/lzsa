@@ -141,7 +141,7 @@ static inline int lzsa_write_match_varlen_v1(unsigned char *pOutData, int nOutOf
 /**
  * Get offset encoding cost in bits
  *
- * @param nMatchOffset offset to get cost of
+ * @param __nMatchOffset offset to get cost of
  *
  * @return cost in bits
  */
@@ -625,11 +625,11 @@ static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const lzsa_match *p
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 static int lzsa_write_raw_uncompressed_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
-   int nNumLiterals = nEndOffset - nStartOffset;
+   const int nNumLiterals = nEndOffset - nStartOffset;
    const int nTokenLiteralsLen = (nNumLiterals >= LITERALS_RUN_LEN_V1) ? LITERALS_RUN_LEN_V1 : nNumLiterals;
    int nOutOffset = 0;
 
-   int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3) + 4;
+   const int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3) + 4;
    if ((nOutOffset + (nCommandSize >> 3)) > nMaxOutDataSize)
       return -1;
 

@@ -60,6 +60,7 @@ int lzsa_get_frame_size(void) {
  *
  * @param pFrameData encoding buffer
  * @param nMaxFrameDataSize max encoding buffer size, in bytes
+ * @param nFormatVersion version of format to use (1-2)
  *
  * @return number of encoded bytes, or -1 for failure
  */
@@ -146,6 +147,7 @@ int lzsa_encode_footer_frame(unsigned char *pFrameData, const int nMaxFrameDataS
  *
  * @param pFrameData data bytes
  * @param nFrameDataSize number of bytes to decode
+ * @param nFormatVersion pointer to returned format version, if successful
  *
  * @return 0 for success, or -1 for failure
  */

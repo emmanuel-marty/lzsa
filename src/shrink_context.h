@@ -145,6 +145,7 @@ typedef struct _lzsa_compressor {
  * @param pCompressor compression context to initialize
  * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
  * @param nMinMatchSize minimum match size (cannot be less than MIN_MATCH_SIZE)
+ * @param nFormatVersion version of format to use (1-2)
  * @param nFlags compression flags
  *
  * @return 0 for success, non-zero for failure

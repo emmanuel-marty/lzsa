@@ -45,14 +45,15 @@
  * @param pCompressor compression context to initialize
  * @param nMaxWindowSize maximum size of input data window (previously compressed bytes + bytes to compress)
  * @param nMinMatchSize minimum match size (cannot be less than MIN_MATCH_SIZE)
+ * @param nFormatVersion version of format to use (1-2)
  * @param nFlags compression flags
  *
  * @return 0 for success, non-zero for failure
  */
 int lzsa_compressor_init(lzsa_compressor *pCompressor, const int nMaxWindowSize, const int nMinMatchSize, const int nFormatVersion, const int nFlags) {
    int nResult;
-   int nMinMatchSizeForFormat = (nFormatVersion == 1) ? MIN_MATCH_SIZE_V1 : MIN_MATCH_SIZE_V2;
-   int nMaxMinMatchForFormat = (nFormatVersion == 1) ? 5 : 3;
+   const int nMinMatchSizeForFormat = (nFormatVersion == 1) ? MIN_MATCH_SIZE_V1 : MIN_MATCH_SIZE_V2;
+   const int nMaxMinMatchForFormat = (nFormatVersion == 1) ? 5 : 3;
 
    nResult = divsufsort_init(&pCompressor->divsufsort_context);
    pCompressor->intervals = NULL;

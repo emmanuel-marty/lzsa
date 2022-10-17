@@ -105,7 +105,9 @@ int lzsa_filestream_open(lzsa_stream_t *stream, const char *pszInFilename, const
    const char* stdInOutFile = "-";
    const char* stdInMode = "rb";
    const char* stdOutMode = "wb";
+#ifdef _WIN32
    int result;
+#endif
 
    if (!strncmp(pszInFilename, stdInOutFile, 1)) {
        if (!strncmp(pszMode, stdInMode, 2)) {
