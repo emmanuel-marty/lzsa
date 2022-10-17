@@ -33,8 +33,11 @@
 #ifndef _SHRINK_BLOCK_V2_H
 #define _SHRINK_BLOCK_V2_H
 
-/* Forward declarations */
-typedef struct _lzsa_compressor lzsa_compressor;
+#include "shrink_context.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Select the most optimal matches, reduce the token count if possible, and then emit a block of compressed LZSA2 data
@@ -49,5 +52,9 @@ typedef struct _lzsa_compressor lzsa_compressor;
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 int lzsa_optimize_and_write_block_v2(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _SHRINK_BLOCK_V2_H */

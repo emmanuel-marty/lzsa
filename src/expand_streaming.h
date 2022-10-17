@@ -39,9 +39,6 @@
 extern "C" {
 #endif
 
-/* Forward declaration */
-typedef enum _lzsa_status_t lzsa_status_t;
-
 /*-------------- File API -------------- */
 
 /**

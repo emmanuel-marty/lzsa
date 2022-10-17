@@ -44,7 +44,7 @@
  *
  * @param stream stream
  */
-static void lzsa_filestream_close(lzsa_stream_t *stream) {
+static void lzsa_filestream_close(struct _lzsa_stream_t *stream) {
    if (stream->obj) {
       fclose((FILE*)stream->obj);
       stream->obj = NULL;
@@ -64,7 +64,7 @@ static void lzsa_filestream_close(lzsa_stream_t *stream) {
  *
  * @return number of bytes read
  */
-static size_t lzsa_filestream_read(lzsa_stream_t *stream, void *ptr, size_t size) {
+static size_t lzsa_filestream_read(struct _lzsa_stream_t *stream, void *ptr, size_t size) {
    return fread(ptr, 1, size, (FILE*)stream->obj);
 }
 
@@ -77,7 +77,7 @@ static size_t lzsa_filestream_read(lzsa_stream_t *stream, void *ptr, size_t size
  *
  * @return number of bytes written
  */
-static size_t lzsa_filestream_write(lzsa_stream_t *stream, void *ptr, size_t size) {
+static size_t lzsa_filestream_write(struct _lzsa_stream_t *stream, void *ptr, size_t size) {
    return fwrite(ptr, 1, size, (FILE*)stream->obj);
 }
 
@@ -88,7 +88,7 @@ static size_t lzsa_filestream_write(lzsa_stream_t *stream, void *ptr, size_t siz
  *
  * @return nonzero if the end of the data has been reached, 0 if there is more data
  */
-static int lzsa_filestream_eof(lzsa_stream_t *stream) {
+static int lzsa_filestream_eof(struct _lzsa_stream_t *stream) {
    return feof((FILE*)stream->obj);
 }
 

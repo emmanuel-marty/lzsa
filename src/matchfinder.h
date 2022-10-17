@@ -33,13 +33,11 @@
 #ifndef _MATCHFINDER_H
 #define _MATCHFINDER_H
 
+#include "shrink_context.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declarations */
-typedef struct _lzsa_match lzsa_match;
-typedef struct _lzsa_compressor lzsa_compressor;
 
 /**
  * Parse input data, build suffix array and overlaid data structures to speed up match finding

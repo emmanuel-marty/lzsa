@@ -33,7 +33,6 @@
 #include <string.h>
 #include "matchfinder.h"
 #include "format.h"
-#include "lib.h"
 
 /**
  * Hash index into TAG_BITS

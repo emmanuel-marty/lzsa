@@ -37,8 +37,23 @@
 extern "C" {
 #endif
 
-/* Forward declaration */
-typedef struct _lzsa_stream_t lzsa_stream_t;
+/** High level status for compression and decompression */
+typedef enum _lzsa_status_t {
+   LZSA_OK = 0,                           /**< Success */
+   LZSA_ERROR_SRC,                        /**< Error reading input */
+   LZSA_ERROR_DST,                        /**< Error reading output */
+   LZSA_ERROR_DICTIONARY,                 /**< Error reading dictionary */
+   LZSA_ERROR_MEMORY,                     /**< Out of memory */
+
+   /* Compression-specific status codes */
+   LZSA_ERROR_COMPRESSION,                /**< Internal compression error */
+   LZSA_ERROR_RAW_TOOLARGE,               /**< Input is too large to be compressed to a raw block */
+   LZSA_ERROR_RAW_UNCOMPRESSED,           /**< Input is incompressible and raw blocks don't support uncompressed data */
+
+   /* Decompression-specific status codes */
+   LZSA_ERROR_FORMAT,                     /**< Invalid input format or magic number when decompressing */
+   LZSA_ERROR_DECOMPRESSION               /**< Internal decompression error */
+} lzsa_status_t;
 
 /* I/O stream */
 typedef struct _lzsa_stream_t {
@@ -54,7 +69,7 @@ typedef struct _lzsa_stream_t {
     *
     * @return number of bytes read
     */
-   size_t(*read)(lzsa_stream_t *stream, void *ptr, size_t size);
+   size_t(*read)(struct _lzsa_stream_t *stream, void *ptr, size_t size);
 
    /**
     * Write to stream
@@ -65,7 +80,7 @@ typedef struct _lzsa_stream_t {
     *
     * @return number of bytes written
     */
-   size_t(*write)(lzsa_stream_t *stream, void *ptr, size_t size);
+   size_t(*write)(struct _lzsa_stream_t *stream, void *ptr, size_t size);
 
 
    /**
@@ -75,14 +90,14 @@ typedef struct _lzsa_stream_t {
     *
     * @return nonzero if the end of the data has been reached, 0 if there is more data
     */
-   int(*eof)(lzsa_stream_t *stream);
+   int(*eof)(struct _lzsa_stream_t *stream);
 
    /**
     * Close stream
     *
     * @param stream stream
     */
-   void(*close)(lzsa_stream_t *stream);
+   void(*close)(struct _lzsa_stream_t *stream);
 } lzsa_stream_t;
 
 /**

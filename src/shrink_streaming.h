@@ -33,15 +33,12 @@
 #ifndef _SHRINK_STREAMING_H
 #define _SHRINK_STREAMING_H
 
+#include "shrink_context.h"
 #include "stream.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Forward declaration */
-typedef enum _lzsa_status_t lzsa_status_t;
-typedef struct _lzsa_stats lzsa_stats;
 
 /*-------------- File API -------------- */
 
