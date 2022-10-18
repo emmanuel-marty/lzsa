@@ -30,6 +30,7 @@
  *
  */
 
+#define _POSIX_C_SOURCE 200808
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
