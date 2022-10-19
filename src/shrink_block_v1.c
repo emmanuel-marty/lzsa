@@ -151,12 +151,11 @@ static inline int lzsa_write_match_varlen_v1(unsigned char *pOutData, int nOutOf
  * Attempt to pick optimal matches using a forward arrivals parser, so as to produce the smallest possible output that decompresses to the same input
  *
  * @param pCompressor compression context
- * @param pBestMatch optimal matches to emit
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  * @param nReduce non-zero to reduce the number of tokens when the path costs are equal, zero not to
  */
-static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset, const int nReduce) {
+static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, const int nStartOffset, const int nEndOffset, const int nReduce) {
    lzsa_arrival *arrival = pCompressor->arrival - (nStartOffset << ARRIVALS_PER_POSITION_SHIFT_V1);
    const int nMinMatchSize = pCompressor->min_match_size;
    const int nFavorRatio = (pCompressor->flags & LZSA_FLAG_FAVOR_RATIO) ? 1 : 0;
@@ -290,6 +289,7 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
    }
 
    const lzsa_arrival *end_arrival = &arrival[i << ARRIVALS_PER_POSITION_SHIFT_V1];
+   lzsa_match *pBestMatch = pCompressor->best_match - nStartOffset;
 
    while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0 && (end_arrival->from_pos + nStartOffset) < nEndOffset) {
       pBestMatch[end_arrival->from_pos + nStartOffset].length = end_arrival->match_len;
@@ -304,13 +304,13 @@ static void lzsa_optimize_forward_v1(lzsa_compressor *pCompressor, lzsa_match *p
  *
  * @param pCompressor compression context
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
- * @param pBestMatch optimal matches to emit
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
  *
  * @return non-zero if the number of tokens was reduced, 0 if it wasn't
  */
-static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
+static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset) {
+   lzsa_match *pBestMatch = pCompressor->best_match - nStartOffset;
    int i;
    int nNumLiterals = 0;
    int nDidReduce = 0;
@@ -410,58 +410,9 @@ static int lzsa_optimize_command_count_v1(lzsa_compressor *pCompressor, const un
 }
 
 /**
- * Get compressed data block size
- *
- * @param pCompressor compression context
- * @param pBestMatch optimal matches to emit
- * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
- * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
- *
- * @return size of compressed data that will be written to output buffer
- */
-static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, const lzsa_match *pBestMatch, const int nStartOffset, const int nEndOffset) {
-   int i;
-   int nNumLiterals = 0;
-   int nCompressedSize = 0;
-
-   for (i = nStartOffset; i < nEndOffset; ) {
-      const lzsa_match *pMatch = pBestMatch + i;
-
-      if (pMatch->length >= MIN_MATCH_SIZE_V1) {
-         const int nMatchOffset = pMatch->offset;
-         const int nMatchLen = pMatch->length;
-         const int nEncodedMatchLen = nMatchLen - MIN_MATCH_SIZE_V1;
-         const int nTokenLongOffset = (nMatchOffset <= 256) ? 0x00 : 0x80;
-         const int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3) + (nTokenLongOffset ? 16 : 8) /* match offset */ + lzsa_get_match_varlen_size_v1(nEncodedMatchLen);
-
-         nCompressedSize += nCommandSize;
-         nNumLiterals = 0;
-         i += nMatchLen;
-      }
-      else {
-         nNumLiterals++;
-         i++;
-      }
-   }
-
-   {
-      const int nCommandSize = 8 /* token */ + lzsa_get_literals_varlen_size_v1(nNumLiterals) + (nNumLiterals << 3);
-
-      nCompressedSize += nCommandSize;
-   }
-
-   if (pCompressor->flags & LZSA_FLAG_RAW_BLOCK) {
-      nCompressedSize += 8 * 4;
-   }
-
-   return nCompressedSize;
-}
-
-/**
  * Emit block of compressed data
  *
  * @param pCompressor compression context
- * @param pBestMatch optimal matches to emit
  * @param pInWindow pointer to input data window (previously compressed bytes + bytes to compress)
  * @param nStartOffset current offset in input window (typically the number of previously compressed bytes)
  * @param nEndOffset offset to end finding matches at (typically the size of the total input window in bytes
@@ -470,7 +421,8 @@ static int lzsa_get_compressed_size_v1(lzsa_compressor *pCompressor, const lzsa_
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const lzsa_match *pBestMatch, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
+static int lzsa_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize) {
+   const lzsa_match *pBestMatch = pCompressor->best_match - nStartOffset;
    int i;
    int nNumLiterals = 0;
    int nInFirstLiteralOffset = 0;
@@ -668,44 +620,27 @@ static int lzsa_write_raw_uncompressed_block_v1(lzsa_compressor *pCompressor, co
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
 int lzsa_optimize_and_write_block_v1(lzsa_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize) {
-   int nResult, nBaseCompressedSize;
+   int nResult;
 
    /* Compress optimally without breaking ties in favor of less tokens */
 
    memset(pCompressor->best_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
-   lzsa_optimize_forward_v1(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
+
+   if (nInDataSize < 65536) {
+      lzsa_optimize_forward_v1(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
+   }
+   else {
+      lzsa_optimize_forward_v1(pCompressor, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 0 /* reduce */);
+   }
 
    int nDidReduce;
    int nPasses = 0;
    do {
-      nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pInWindow, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
+      nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
       nPasses++;
    } while (nDidReduce && nPasses < 20);
 
-   nBaseCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->best_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
-   lzsa_match *pBestMatch = pCompressor->best_match - nPreviousBlockSize;
-
-   if (nBaseCompressedSize > 0 && nInDataSize < 65536) {
-      int nReducedCompressedSize;
-
-      /* Compress optimally and do break ties in favor of less tokens */
-      memset(pCompressor->improved_match, 0, BLOCK_SIZE * sizeof(lzsa_match));
-      lzsa_optimize_forward_v1(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, 1 /* reduce */);
-      
-      nPasses = 0;
-      do {
-         nDidReduce = lzsa_optimize_command_count_v1(pCompressor, pInWindow, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
-         nPasses++;
-      } while (nDidReduce && nPasses < 20);
-
-      nReducedCompressedSize = lzsa_get_compressed_size_v1(pCompressor, pCompressor->improved_match - nPreviousBlockSize, nPreviousBlockSize, nPreviousBlockSize + nInDataSize);
-      if (nReducedCompressedSize > 0 && nReducedCompressedSize <= nBaseCompressedSize) {
-         /* Pick the parse with the reduced number of tokens as it didn't negatively affect the size */
-         pBestMatch = pCompressor->improved_match - nPreviousBlockSize;
-      }
-   }
-
-   nResult = lzsa_write_block_v1(pCompressor, pBestMatch, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
+   nResult = lzsa_write_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
    if (nResult < 0 && (pCompressor->flags & LZSA_FLAG_RAW_BLOCK)) {
       nResult = lzsa_write_raw_uncompressed_block_v1(pCompressor, pInWindow, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, pOutData, nMaxOutDataSize);
    }

@@ -124,10 +124,9 @@ typedef struct _lzsa_compressor {
    unsigned int *open_intervals;
    lzsa_match *match;
    lzsa_match *best_match;
-   lzsa_match *improved_match;
    lzsa_arrival *arrival;
-   char *rep_slot_handled_mask;
-   char *rep_len_handled_mask;
+   unsigned char *rep_slot_handled_mask;
+   unsigned char *rep_len_handled_mask;
    int *first_offset_for_byte;
    int *next_offset_for_pos;
    int *offset_cache;
