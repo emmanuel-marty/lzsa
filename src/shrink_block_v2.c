@@ -699,7 +699,7 @@ static void lzsa_optimize_forward_v2(lzsa_compressor *pCompressor, const unsigne
       const lzsa_arrival* end_arrival = &arrival[i << ARRIVALS_PER_POSITION_SHIFT_V2];
       lzsa_match* pBestMatch = pCompressor->best_match - nStartOffset;
 
-      while (end_arrival->from_slot > 0 && end_arrival->from_pos >= 0 && (end_arrival->from_pos + nStartOffset) < nEndOffset) {
+      while (end_arrival->from_slot > 0 && (end_arrival->from_pos + nStartOffset) < nEndOffset) {
          pBestMatch[end_arrival->from_pos + nStartOffset].length = end_arrival->match_len;
          pBestMatch[end_arrival->from_pos + nStartOffset].offset = (end_arrival->match_len) ? end_arrival->rep_offset : 0;
          end_arrival = &arrival[((end_arrival->from_pos + nStartOffset) << ARRIVALS_PER_POSITION_SHIFT_V2) + (end_arrival->from_slot - 1)];
