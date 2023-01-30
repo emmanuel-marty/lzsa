@@ -527,7 +527,7 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, co
             /* Try to compress it, expected to succeed */
             size_t nActualCompressedSize = lzsa_compress_inmem(pGeneratedData, pCompressedData, nGeneratedDataSize, lzsa_get_max_compressed_size_inmem(nGeneratedDataSize),
                nFlags, nMinMatchSize, nFormatVersion);
-            if (nActualCompressedSize == -1 || (int)nActualCompressedSize < (lzsa_get_header_size() + lzsa_get_frame_size() + lzsa_get_frame_size() /* footer */)) {
+            if (nActualCompressedSize == (size_t)-1 || (int)nActualCompressedSize < (lzsa_get_header_size() + lzsa_get_frame_size() + lzsa_get_frame_size() /* footer */)) {
                free(pTmpDecompressedData);
                pTmpDecompressedData = NULL;
                free(pTmpCompressedData);
@@ -545,7 +545,7 @@ static int do_self_test(const unsigned int nOptions, const int nMinMatchSize, co
             size_t nActualDecompressedSize;
             int nDecFormatVersion = nFormatVersion;
             nActualDecompressedSize = lzsa_decompress_inmem(pCompressedData, pTmpDecompressedData, nActualCompressedSize, nGeneratedDataSize, nFlags, &nDecFormatVersion);
-            if (nActualDecompressedSize == -1) {
+            if (nActualDecompressedSize == (size_t)-1) {
                free(pTmpDecompressedData);
                pTmpDecompressedData = NULL;
                free(pTmpCompressedData);
@@ -691,7 +691,7 @@ static int do_compr_benchmark(const char *pszInFilename, const char *pszOutFilen
       long long t0 = do_get_time();
       nActualCompressedSize = lzsa_compress_inmem(pFileData, pCompressedData + 1024, nFileSize, nRightGuardPos, nFlags, nMinMatchSize, nFormatVersion);
       long long t1 = do_get_time();
-      if (nActualCompressedSize == -1) {
+      if (nActualCompressedSize == (size_t)-1) {
          free(pCompressedData);
          free(pFileData);
          fprintf(stderr, "compression error\n");
@@ -699,7 +699,7 @@ static int do_compr_benchmark(const char *pszInFilename, const char *pszOutFilen
       }
 
       long long nCurDecTime = t1 - t0;
-      if (nBestCompTime == -1 || nBestCompTime > nCurDecTime)
+      if (nBestCompTime == (size_t)-1 || nBestCompTime > nCurDecTime)
          nBestCompTime = nCurDecTime;
 
       /* Check guard bytes before the output buffer */
@@ -800,7 +800,7 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
       nMaxDecompressedSize = 65536;
    else
       nMaxDecompressedSize = lzsa_get_max_decompressed_size_inmem(pFileData, nFileSize);
-   if (nMaxDecompressedSize == -1) {
+   if (nMaxDecompressedSize == (size_t)-1) {
       free(pFileData);
       fprintf(stderr, "invalid compressed format for file '%s'\n", pszInFilename);
       return 100;
@@ -822,7 +822,7 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
       long long t0 = do_get_time();
       nActualDecompressedSize = lzsa_decompress_inmem(pFileData, pDecompressedData, nFileSize, nMaxDecompressedSize, nFlags, &nFormatVersion);
       long long t1 = do_get_time();
-      if (nActualDecompressedSize == -1) {
+      if (nActualDecompressedSize == (size_t)-1) {
          free(pDecompressedData);
          free(pFileData);
          fprintf(stderr, "decompression error\n");
@@ -830,7 +830,7 @@ static int do_dec_benchmark(const char *pszInFilename, const char *pszOutFilenam
       }
 
       long long nCurDecTime = t1 - t0;
-      if (nBestDecTime == -1 || nBestDecTime > nCurDecTime)
+      if (nBestDecTime == (size_t)-1 || nBestDecTime > nCurDecTime)
          nBestDecTime = nCurDecTime;
    }
 
