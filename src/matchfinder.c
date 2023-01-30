@@ -259,7 +259,7 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
             if ((matchptr - pMatches) < nMaxMatches) {
                const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
-               if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
+               if (nMatchOffset <= MAX_OFFSET) {
                   matchptr->length = ((const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS))) | 0x8000;
                   matchptr->offset = (const unsigned short)nMatchOffset;
                   matchptr++;
@@ -287,6 +287,8 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
             }
             matchptr->offset = (const unsigned short)nMatchOffset;
             matchptr++;
+
+            nPrevOffset = nMatchOffset;
          }
       }
 
@@ -299,7 +301,7 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
          if ((matchptr - pMatches) < nMaxMatches) {
             const unsigned int nMatchOffset = (const unsigned int)(nOffset - match_pos);
 
-            if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
+            if (nMatchOffset <= MAX_OFFSET) {
                const unsigned short nMatchLen = ((const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS)));
 
                if (nMatchLen > 2) {
