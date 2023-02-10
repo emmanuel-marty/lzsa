@@ -64,7 +64,7 @@ int lzsa_get_frame_size(void) {
  *
  * @return number of encoded bytes, or -1 for failure
  */
-int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, int nFormatVersion) {
+int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, const int nFormatVersion) {
    if (nMaxFrameDataSize >= 3 && (nFormatVersion == 1 || nFormatVersion == 2)) {
       pFrameData[0] = LZSA_ID_0;                         /* Magic number */
       pFrameData[1] = LZSA_ID_1;

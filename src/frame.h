@@ -60,7 +60,7 @@ int lzsa_get_frame_size(void);
  *
  * @return number of encoded bytes, or -1 for failure
  */
-int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, int nFormatVersion);
+int lzsa_encode_header(unsigned char *pFrameData, const int nMaxFrameDataSize, const int nFormatVersion);
 
 /**
  * Encode compressed block frame header

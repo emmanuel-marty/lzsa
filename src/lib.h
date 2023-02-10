@@ -60,11 +60,11 @@ extern "C" {
  * @param nBufferSize size of buffer in bytes
  */
 static inline void lzsa_reverse_buffer(unsigned char *pBuffer, const int nBufferSize) {
-   int nMidPoint = nBufferSize / 2;
+   const int nMidPoint = nBufferSize / 2;
    int i, j;
 
    for (i = 0, j = nBufferSize - 1; i < nMidPoint; i++, j--) {
-      unsigned char c = pBuffer[i];
+      const unsigned char c = pBuffer[i];
       pBuffer[i] = pBuffer[j];
       pBuffer[j] = c;
    }
