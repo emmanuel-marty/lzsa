@@ -21,6 +21,8 @@ The [desolate](https://github.com/nzeemin/spectrum-desolate) game port to the ZX
 
 The [Lowtech demo](https://github.com/wiz21b/lowtech) for the Apple II+ and IIe, by Wiz/Imphobia, compresses data with LZSA.
 
+The [Druid & Droid](https://leosoft.itch.io/druid-and-droid) game for the Amstrad CPC, also uses LZSA for compression.
+
 The LZSA compression tool uses an aggressive optimal packing strategy to try to find the sequence of commands that gives the smallest packed file that decompresses to the original while maintaining the maximum possible decompression speed.
 
 The compression formats give the user choices that range from decompressing faster than LZ4 on 8-bit systems with better compression, to compressing as well as ZX7 with much better decompression speed. LZSA1 is designed to replace LZ4 and LZSA2 to replace ZX7, in 8-bit scenarios.
