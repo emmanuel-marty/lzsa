@@ -203,6 +203,7 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
    unsigned int match_pos;
    lzsa_match *matchptr;
    unsigned int nPrevOffset = 0;
+   unsigned char nV1OffsetFound[2] = { 0, 0 };
 
    /**
     * Find matches using intervals
@@ -281,14 +282,25 @@ static int lzsa_find_matches_at(lzsa_compressor *pCompressor, const int nOffset,
          if (nMatchOffset <= MAX_OFFSET && nMatchOffset != nPrevOffset) {
             if (pCompressor->format_version >= 2) {
                matchptr->length = (const unsigned short)(ref >> (LCP_SHIFT + TAG_BITS));
+               matchptr->offset = (const unsigned short)nMatchOffset;
+               matchptr++;
+
+               nPrevOffset = nMatchOffset;
             }
             else {
-               matchptr->length = (const unsigned short)(ref >> LCP_SHIFT);
-            }
-            matchptr->offset = (const unsigned short)nMatchOffset;
-            matchptr++;
+               unsigned int nV1OffsetType = (nMatchOffset <= 256) ? 0 : 1;
 
-            nPrevOffset = nMatchOffset;
+               if (!nV1OffsetFound[nV1OffsetType]) {
+                  matchptr->length = (const unsigned short)(ref >> LCP_SHIFT);
+                  matchptr->offset = (const unsigned short)nMatchOffset;
+
+                  if (matchptr->length < 256)
+                     nV1OffsetFound[nV1OffsetType] = 1;
+                  matchptr++;
+
+                  nPrevOffset = nMatchOffset;
+               }
+            }
          }
       }
 
