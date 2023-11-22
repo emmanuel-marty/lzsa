@@ -7,7 +7,7 @@
 ;
 ; This code is written for the ACME assembler.
 ;
-; The code is 241 bytes for the small version, and 256 bytes for the normal.
+; The code is 241 bytes for the small version, and 268 bytes for the normal.
 ;
 ; Copyright John Brandwood 2021.
 ;
@@ -87,8 +87,7 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
-                bne     .cp_skip0
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src1
 
                 }
 
@@ -110,11 +109,31 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 .cp_byte:       lda     (lzsa_srcptr),y         ; CC throughout the execution of
                 sta     (lzsa_dstptr),y         ; of this .cp_page loop.
                 inc     <lzsa_srcptr + 0
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .cp_skip1
                 inc     <lzsa_srcptr + 1
+
+                } else {
+
+                beq     .inc_src2
+
+                }
+
 .cp_skip1:      inc     <lzsa_dstptr + 0
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .cp_skip2
                 inc     <lzsa_dstptr + 1
+
+                } else {
+
+                beq     .inc_dst
+
+                }
+
 .cp_skip2:      dex
                 bne     .cp_byte
 .cp_npages:     lda     #0                      ; Any full pages left to copy?
@@ -122,6 +141,23 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 
                 dec     .cp_npages + 1          ; Unlikely, so can be slow.
                 bcc     .cp_byte                ; Always true!
+
+!if     LZSA_SMALL_SIZE {
+
+                ; nothing
+
+                } else {
+
+.inc_src1:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .cp_skip0               ; Always true!
+
+.inc_src2:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .cp_skip1               ; Always true!
+
+.inc_dst:       inc     <lzsa_dstptr + 1        ; Unlikely, so can be slow.
+                bne     .cp_skip2               ; Always true!
+
+                }
 
                 ;
                 ; Copy bytes from decompressed window.
@@ -178,8 +214,7 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 
                 lda     (lzsa_srcptr),y         ; Get lo-byte of offset.
                 inc     <lzsa_srcptr + 0
-                bne     .set_offset
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src3
 
                 }
 
@@ -229,6 +264,17 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 .lz_more:       inc     <lzsa_winptr + 1        ; Unlikely, so can be slow.
                 bne     .lz_byte                ; Always true!
 
+!if     LZSA_SMALL_SIZE {
+
+                ; nothing
+
+                } else {
+
+.inc_src3:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .set_offset             ; Always true!
+
+                }
+
                 ;
                 ; Lookup tables to differentiate literal and match lengths.
                 ;
@@ -268,9 +314,30 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 
 .get_byte:      lda     (lzsa_srcptr),y         ; Subroutine version for when
                 inc     <lzsa_srcptr + 0        ; inlining isn't advantageous.
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .got_byte
                 inc     <lzsa_srcptr + 1
+
+                } else {
+
+                beq     .inc_src4
+
+                }
+
 .got_byte:      rts
+
+!if     LZSA_SMALL_SIZE {
+
+                ; nothing
+
+                } else {
+
+.inc_src4:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .got_byte               ; Always true!
+
+                }
 
 .finished:      pla                             ; Decompression completed, pop
                 pla                             ; return address.
@@ -287,14 +354,14 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
                 inc     <lzsa_nibflg            ; Reset the flag.
 
                 !if     LZSA_SMALL_SIZE {
+
                 jsr     .get_byte
 
                 } else {
 
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
-                bne     .set_nibble
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src5
 
                 }
 
@@ -306,3 +373,14 @@ lzsa2_unpack:   ldx     #$00                    ; Hi-byte of length or offset.
 
 .got_nibble:    and     #$0F
                 rts
+
+!if     LZSA_SMALL_SIZE {
+
+                ; nothing
+
+                } else {
+
+.inc_src5:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .set_nibble             ; Always true!
+
+                }

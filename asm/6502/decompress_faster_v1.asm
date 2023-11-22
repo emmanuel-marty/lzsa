@@ -7,7 +7,7 @@
 ;
 ; This code is written for the ACME assembler.
 ;
-; The code is 165 bytes for the small version, and 191 bytes for the normal.
+; The code is 165 bytes for the small version, and 205 bytes for the normal.
 ;
 ; Copyright John Brandwood 2021.
 ;
@@ -81,8 +81,7 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
-                bne     .cp_skip0
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src1
 
                 }
 
@@ -105,11 +104,31 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 .cp_byte:       lda     (lzsa_srcptr),y         ; CC throughout the execution of
                 sta     (lzsa_dstptr),y         ; of this .cp_page loop.
                 inc     <lzsa_srcptr + 0
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .cp_skip1
                 inc     <lzsa_srcptr + 1
+
+                } else {
+
+                beq     .inc_src2
+
+                }
+
 .cp_skip1:      inc     <lzsa_dstptr + 0
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .cp_skip2
                 inc     <lzsa_dstptr + 1
+
+                } else {
+
+                beq     .inc_dst
+
+                }
+
 .cp_skip2:      dex
                 bne     .cp_byte
 .cp_npages:     lda     #0                      ; Any full pages left to copy?
@@ -171,6 +190,21 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 
                 } else {
 
+.inc_src1:      inc     <lzsa_srcptr + 1
+                bne     .cp_skip0               ; Always taken
+
+.inc_src2:      inc     <lzsa_srcptr + 1
+                bne     .cp_skip1               ; Always taken
+
+.inc_dst:       inc     <lzsa_dstptr + 1
+                bne     .cp_skip2               ; Always taken
+
+.inc_src3:      inc     <lzsa_srcptr + 1
+                bne     .offset_lo              ; Always taken
+
+.inc_src4:      inc     <lzsa_srcptr + 1
+                bne     .offset_hi              ; Always taken
+
                 ;
                 ; Copy bytes from decompressed window.
                 ;
@@ -181,8 +215,7 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 
 .lz_offset:     lda     (lzsa_srcptr),y         ; Get offset-lo.
                 inc     <lzsa_srcptr + 0
-                bne     .offset_lo
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src3
 
 .offset_lo:     sta     <lzsa_offset + 0
 
@@ -192,8 +225,7 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 
                 lda     (lzsa_srcptr),y
                 inc     <lzsa_srcptr + 0
-                bne     .offset_hi
-                inc     <lzsa_srcptr + 1
+                beq     .inc_src4
 
 .offset_hi:     sta     <lzsa_offset + 1
 
@@ -238,6 +270,9 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 .lz_more:       inc     <lzsa_winptr + 1        ; Unlikely, so can be slow.
                 bne     .lz_byte                ; Always true!
 
+.inc_src5:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .skip_inc               ; Always true!
+
                 }
 
                 ;
@@ -249,8 +284,17 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 .get_length:    clc                             ; Add on the next byte to get
                 adc     (lzsa_srcptr),y         ; the length.
                 inc     <lzsa_srcptr + 0
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .skip_inc
                 inc     <lzsa_srcptr + 1
+
+                } else {
+
+                beq     .inc_src5
+
+                }
 
 .skip_inc:      bcc     .got_length             ; No overflow means done.
                 clc                             ; MUST return CC!
@@ -277,6 +321,27 @@ lzsa1_unpack:   ldy     #0                      ; Initialize source index.
 
 .get_byte:      lda     (lzsa_srcptr),y         ; Subroutine version for when
                 inc     <lzsa_srcptr + 0        ; inlining isn't advantageous.
+
+!if     LZSA_SMALL_SIZE {
+
                 bne     .got_byte
                 inc     <lzsa_srcptr + 1        ; Inc & test for bank overflow.
+
+                } else {
+
+                beq     .inc_src6
+
+                }
+
 .got_byte:      rts
+
+!if     LZSA_SMALL_SIZE {
+
+                ; nothing
+
+                } else {
+
+.inc_src6:      inc     <lzsa_srcptr + 1        ; Unlikely, so can be slow.
+                bne     .got_byte               ; Always true!
+
+                }
